@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: matador
+    steps:
+      - name: Check out matador
+        uses: actions/checkout@v4
+        with:
+          path: matador
+
+      # matador depends on toro through a local path (../toro), so check it out as a
+      # sibling. Assumes toro lives under the same owner; adjust `repository:` if not.
+      - name: Check out toro (sibling dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/toro
+          path: toro
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Format (ruff)
+        run: uv run ruff format --check .
+
+      - name: Type check (ty)
+        run: uv run ty check
+
+      - name: Tests (unit + integration)
+        run: uv run pytest -m "unit or integration"
+
+      - name: Install Playwright browser
+        run: uv run playwright install --with-deps chromium
+
+      - name: Tests (e2e)
+        run: uv run pytest -m e2e

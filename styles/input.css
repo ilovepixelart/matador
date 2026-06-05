@@ -1,0 +1,134 @@
+/* Inter — self-hosted variable font (offline, like our Tailwind build). */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  /* Relative to this stylesheet (served from /static/), so it resolves correctly
+     whether matador runs at / or is mounted at a sub-path like /admin/queues. */
+  src: url('fonts/inter.woff2') format('woff2');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Semantic design tokens. Markup uses ONLY these (never raw palette colors).
+     Surfaces stack by elevation: ink (app) < panel < panel2. `accent` is the one
+     brand colour (selection/focus/primary). The four status colours carry MEANING
+     and map to job states; each is tuned per theme (darker on light, lighter on
+     dark) so `text-X`, `bg-X/10`, `ring-X/30` all read correctly in both. */
+  :root {
+    --ink: 248 250 252; --panel: 255 255 255; --panel2: 241 245 249;
+    --line: 226 232 240; --fg: 15 23 42; --muted: 100 116 139;
+    --accent: 226 59 59;
+    --info: 2 132 199; --success: 5 150 105; --warning: 202 110 8; --danger: 225 29 72;
+  }
+  html.dark {
+    --ink: 14 16 20; --panel: 22 25 34; --panel2: 28 32 41;
+    --line: 39 44 56; --fg: 226 232 240; --muted: 148 163 184;
+    --accent: 240 82 82;
+    --info: 56 189 248; --success: 52 211 153; --warning: 251 191 36; --danger: 251 113 133;
+  }
+  body { font-feature-settings: "tnum"; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center gap-1.5 rounded-lg text-sm font-medium transition-colors
+                px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50
+                focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
+  .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md; }
+  .btn-primary { @apply bg-accent text-white hover:bg-accent/90; }
+  .btn-ghost { @apply bg-panel2 text-fg hover:bg-line; }
+  .btn-icon { @apply p-2; }  /* square icon button (defined after .btn so p-2 wins) */
+  .btn-info { @apply bg-info/10 text-info hover:bg-info/20; }
+  .btn-danger { @apply bg-danger/10 text-danger hover:bg-danger/20; }
+  .btn-success { @apply bg-success/10 text-success hover:bg-success/20; }
+  .btn-warning { @apply bg-warning/10 text-warning hover:bg-warning/20; }
+  .card { @apply rounded-xl border border-line bg-panel overflow-hidden shadow-sm; }
+  .input { @apply w-full bg-ink border border-line rounded-lg px-2.5 py-1.5 text-sm
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40
+                  focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
+  .chip { @apply inline-flex items-center gap-1.5 text-xs text-muted; }
+  .th { @apply text-left font-medium px-4 py-2.5 text-xs uppercase tracking-wider text-muted; }
+  .td { @apply px-4 py-2.5; }
+  .pg { @apply inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-md
+               text-xs font-medium text-muted hover:bg-panel2 hover:text-fg transition-colors; }
+  .pg-active { @apply bg-fg text-ink hover:bg-fg hover:text-ink; }
+  .pg-disabled { @apply opacity-40 pointer-events-none; }
+}
+
+/* --- plain component CSS (not Tailwind utilities) --- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 6px; }
+button.htmx-request, form.htmx-request { opacity: .55; pointer-events: none; }
+.htmx-indicator { opacity: 0; transition: opacity .15s ease; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
+
+/* Accordion: native <details> — chevron rotates on open, body fades in. */
+.acc-item:last-child { border-bottom: 0; }
+.chevron { transition: transform .2s ease; }
+details[open] > summary .chevron { transform: rotate(180deg); }
+details[open] > .acc-body { animation: accIn .18s ease; }
+@keyframes accIn { from { opacity: 0; transform: translateY(-3px); } }
+
+/* Tooltip (fixed, positioned by JS so it escapes overflow + stays in viewport). */
+#tip { position: fixed; z-index: 1000; pointer-events: none;
+       background: rgb(var(--fg)); color: rgb(var(--ink));
+       font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;
+       max-width: 260px; padding: 5px 7px; border-radius: 6px;
+       box-shadow: 0 6px 16px rgb(0 0 0 / .28);
+       opacity: 0; transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; }
+#tip.show { opacity: 1; transform: translateY(0); }
+
+/* Confirmation dialog (native <dialog>, rendered in the top layer). */
+#confirm-dialog::backdrop { background: rgb(0 0 0 / 0.5); backdrop-filter: blur(2px); }
+#confirm-dialog[open] { animation: dlgIn 0.15s ease; }
+@keyframes dlgIn { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
+
+/* Selected queue (server-rendered .q-active). */
+.queue-item { position: relative; }
+.q-active { background: rgb(var(--panel2)); }
+.q-active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+                    height: 60%; width: 2px; border-radius: 9999px; background: rgb(var(--accent)); }
+.q-active .q-name { color: rgb(var(--fg)); font-weight: 600; }
+
+/* Themed checkboxes (job rows + select-all), with check + indeterminate states. */
+.chk {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid rgb(var(--line));
+  border-radius: 4px;
+  background: rgb(var(--panel2));
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.chk:hover { border-color: rgb(var(--accent) / 0.6); }
+.chk:checked,
+.chk:indeterminate {
+  background-color: rgb(var(--accent));
+  border-color: rgb(var(--accent));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 78%;
+}
+.chk:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+}
+.chk:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M4 8h8'/%3E%3C/svg%3E");
+}
+.chk:focus-visible { outline: 2px solid rgb(var(--accent) / 0.5); outline-offset: 1px; }
+
+/* Pretty JSON — Pygments token classes (server-rendered), themed for light + dark. */
+.jsonv { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.55;
+         white-space: pre-wrap; word-break: break-word; margin: 0; color: rgb(var(--fg)); }
+.jsonv .nt { color: rgb(var(--info)); }                       /* object keys */
+.jsonv .s2, .jsonv .s1, .jsonv .s { color: rgb(var(--success)); }  /* strings */
+.jsonv .mi, .jsonv .mf, .jsonv .m { color: rgb(var(--warning)); }  /* numbers */
+.jsonv .kc { color: rgb(var(--accent)); }                     /* true / false / null */
+.jsonv .p, .jsonv .err { color: rgb(var(--muted)); }          /* punctuation */

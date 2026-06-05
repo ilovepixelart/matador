@@ -1,0 +1,27 @@
+{% from "macros.html" import icon %}
+<span class="chip"><span class="text-muted">{{ icon('db', 'w-3.5 h-3.5') }}</span>
+  redis <span class="text-fg font-medium">{{ s.version }}</span></span>
+
+<span class="chip">used
+  <span class="font-medium {{ 'text-danger' if s.mem_pct and s.mem_pct > 80 else 'text-fg' }}">
+    {{ s.used_human }}{% if s.maxmemory %} / {{ s.max_human }} · {{ s.mem_pct }}%{% endif %}
+  </span></span>
+
+<span class="chip" title="free {{ s.limit_basis }} ({{ s.limit_human }})">free
+  <span class="font-medium {{ 'text-warning' if s.available_pct is not none and s.available_pct < 15 else 'text-success' }}">
+    {{ s.available_human }}{% if s.available_pct is not none %} · {{ s.available_pct }}%{% endif %}
+  </span></span>
+
+<span class="chip"><span class="text-muted">{{ icon('key', 'w-3.5 h-3.5') }}</span>
+  <span class="text-fg font-medium">{{ s['keys']|comma }}</span> keys</span>
+
+<span class="chip"><span class="text-muted">{{ icon('users', 'w-3.5 h-3.5') }}</span>
+  <span class="text-fg font-medium">{{ s.clients }}</span> clients</span>
+
+<span class="chip"><span class="text-muted">{{ icon('pulse', 'w-3.5 h-3.5') }}</span>
+  <span class="text-fg font-medium">{{ s.ops }}</span> ops/s</span>
+
+<span class="chip" title="maxmemory-policy">
+  {% if not s.policy_ok %}<span class="text-warning">{{ icon('warn', 'w-3.5 h-3.5') }}</span>{% endif %}
+  policy <span class="font-medium {{ 'text-warning' if not s.policy_ok else 'text-fg' }}">{{ s.policy }}</span>
+</span>

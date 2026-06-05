@@ -1,0 +1,73 @@
+{% from "macros.html" import icon, bar_color, job_row with context %}
+{% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
+<div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
+  {# Bulk-action bar — shown by JS only when ≥1 row is selected (persists across pages). #}
+  <div id="bulk-bar" class="items-center gap-2" style="display: none">
+    <span class="text-xs text-muted"><b id="bulk-count" class="text-fg tabular-nums">0</b> selected</span>
+    <button type="button" class="btn btn-sm btn-ghost ring-1 ring-line"
+            data-js-bulk-clear>clear</button>
+    <button id="bulk-delete" class="btn btn-sm btn-danger"
+            hx-post="{{ url_for('bulk_remove', name=name).path }}?state={{ state }}&page={{ page }}"
+            hx-vals="js:{ids: Matador.bulk.ids()}" hx-target="#queue-panel"
+            hx-confirm="Delete selected jobs?" data-loading-disable data-loading-aria-busy>
+      {{ icon('trash', 'w-3.5 h-3.5') }} delete</button>
+  </div>
+  <div class="flex-1"></div>
+  {% if state == 'failed' %}
+  <button class="btn btn-sm btn-info" hx-post="{{ url_for('retry_all', name=name).path }}"
+          hx-confirm="Retry all failed jobs?" data-loading-disable data-loading-aria-busy>
+    {{ icon('retry', 'w-3.5 h-3.5') }} retry all</button>
+  {% endif %}
+  <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean', name=name).path }}?state={{ state }}"
+          hx-confirm="Remove ALL {{ state }} jobs?" data-loading-disable data-loading-aria-busy>
+    {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state }}</button>
+</div>
+
+{# Table header — the select-all aligns with the row checkboxes. #}
+<div class="flex items-center border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
+  <label class="pl-3 flex items-center shrink-0 cursor-pointer">
+    <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
+  </label>
+  <div class="flex-1 flex items-center gap-3 px-4 py-2 min-w-0">
+    <span class="w-4 shrink-0"></span>
+    <span class="w-16 shrink-0">id</span>
+    <span class="w-28 shrink-0">job</span>
+    <span class="flex-1 min-w-0">data</span>
+  </div>
+</div>
+{% endif %}
+
+<div data-view="{{ name }}:{{ state }}">
+{% for j in jobs %}{{ job_row(name, j, state, page) }}
+{% else %}
+  <div class="px-4 py-16 flex flex-col items-center gap-2 text-muted">
+    <span class="opacity-50">{{ icon('inbox', 'w-7 h-7') }}</span>
+    <span class="text-sm">No {{ state }} jobs{% if state == 'failed' %} — all clear{% endif %}</span>
+  </div>
+{% endfor %}
+</div>
+
+{% if state == 'active' %}
+<div class="hidden" hx-get="{{ url_for('jobs_fragment', name=name).path }}?state=active&page={{ page }}"
+     hx-trigger="sse:changed delay:500ms" hx-target="#jobs"></div>
+{% endif %}
+
+{% if pages > 1 %}
+{% macro pglink(p, label, disabled=false, active=false) -%}
+<a class="pg{{ ' pg-active' if active }}{{ ' pg-disabled' if disabled }}"
+   {% if not disabled %}href="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
+   hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
+   hx-push-url="true"{% endif %}>{{ label|safe }}</a>
+{%- endmacro %}
+<div class="flex items-center justify-between px-4 py-2.5 border-t border-line text-xs">
+  <span class="text-muted">{{ total|comma }} {{ state }} · page {{ page }} of {{ pages }}</span>
+  <nav class="flex items-center gap-1" aria-label="pagination">
+    {{ pglink(page - 1, icon('chevron', 'w-3.5 h-3.5 rotate-90'), disabled=(page <= 1)) }}
+    {% for p in nav %}
+      {% if p is none %}<span class="px-1 text-muted">…</span>
+      {% else %}{{ pglink(p, p, active=(p == page)) }}{% endif %}
+    {% endfor %}
+    {{ pglink(page + 1, icon('chevron', 'w-3.5 h-3.5 -rotate-90'), disabled=(page >= pages)) }}
+  </nav>
+</div>
+{% endif %}

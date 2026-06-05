@@ -1,0 +1,8 @@
+{# Out-of-band tab-count spans for the selected queue, sent alongside the sidebar
+   refresh so the badges and the state-tab numbers update together in one request.
+   Tiny id'd spans → cheap swap, and tabular-nums means no reflow as digits change. #}
+{% from "macros.html" import state_color %}
+{% for s in states %}
+<span id="tabcount-{{ s }}" hx-swap-oob="true" title="{{ counts[s]|comma }}"
+      class="text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md {{ state_color(s) }}">{{ counts[s]|compact }}</span>
+{% endfor %}

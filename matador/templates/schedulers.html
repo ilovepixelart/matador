@@ -1,0 +1,32 @@
+{% from "macros.html" import icon %}
+<h2 class="text-xs uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5">
+  {{ icon('clock', 'w-3.5 h-3.5') }} Schedulers</h2>
+<div class="card">
+  <table class="w-full text-sm">
+    <thead class="bg-panel2/60">
+      <tr><th class="th">name</th><th class="th">schedule</th><th class="th">next run</th><th class="th"></th></tr>
+    </thead>
+    <tbody>
+    {% for s in schedulers %}
+      <tr class="border-t border-line">
+        <td class="td font-medium">{{ s.name }}</td>
+        <td class="td font-mono text-muted">{{ s|schedule }}</td>
+        <td class="td font-mono text-muted">{{ s.next|clock }}</td>
+        <td class="td text-right whitespace-nowrap">
+          <div class="inline-flex gap-1.5">
+            <button class="btn btn-sm btn-info" hx-post="{{ url_for('trigger', name=name, scheduler_id=s.id).path }}"
+                    hx-target="#schedulers" data-loading-disable data-loading-aria-busy>{{ icon('bolt', 'w-3.5 h-3.5') }} run now</button>
+            <button class="btn btn-sm btn-danger tip" aria-label="Remove scheduler"
+                    hx-delete="{{ url_for('remove_scheduler', name=name, scheduler_id=s.id).path }}"
+                    hx-target="#schedulers" hx-confirm="Remove scheduler {{ s.id }}?"
+                    data-loading-disable data-loading-aria-busy>
+              {{ icon('trash', 'w-3.5 h-3.5') }}</button>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="px-4 py-8 text-center text-muted">no schedulers</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

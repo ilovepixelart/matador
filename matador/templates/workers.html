@@ -1,0 +1,18 @@
+{% from "macros.html" import icon %}
+<div class="p-5">
+  <div class="flex items-center gap-2 mb-5">
+    <h1 class="text-lg font-semibold flex items-center gap-2">
+      <span class="text-accent">{{ icon('server', 'w-5 h-5') }}</span> Workers
+    </h1>
+  </div>
+  {# Self-refreshing list — workers heartbeat every ~5s; poll a little faster so
+     "running" and the live counts stay fresh. Polling stops when you navigate
+     away (htmx tears down the interval with the removed element). #}
+  {# hx-target="this" is REQUIRED: the panel's #queue-panel target is inherited, so
+     without this the refresh would replace the whole panel (losing this header). #}
+  <div id="workers-list" hx-get="{{ url_for('workers_fragment').path }}"
+       hx-target="this" hx-swap="morph:innerHTML" hx-sync="this:drop"
+       hx-trigger="every 2s, sse:changed throttle:1s">
+    {% include "workers_list.html" %}
+  </div>
+</div>

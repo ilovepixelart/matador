@@ -1,0 +1,126 @@
+[project]
+# PyPI distribution name — `matador` is taken; the import package stays `matador`.
+name = "matador-dashboard"
+version = "0.0.1"
+description = "An async dashboard for toro queues."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "ilovepixelart" }]
+keywords = ["redis", "queue", "dashboard", "htmx", "fastapi", "toro", "jobs"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "toro-queue",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "pygments>=2.17",
+]
+
+[project.urls]
+Homepage = "https://github.com/ilovepixelart/matador"
+Repository = "https://github.com/ilovepixelart/matador"
+Issues = "https://github.com/ilovepixelart/matador/issues"
+
+[project.scripts]
+matador = "matador.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["matador"]
+
+# Managed with uv (https://astral.sh/uv).
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "pytest-playwright>=0.5",  # browser E2E
+    "ruff>=0.6",
+    "ty>=0.0.44",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+# dev-only override: use the local toro checkout instead of PyPI. Stripped from
+# the published package, so a released matador-dashboard depends on toro-queue from PyPI.
+toro-queue = { path = "../toro", editable = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Strictest sensible baseline: enable everything, then opt out deliberately
+# (ruff is version-pinned in dev deps so new rules can't surprise CI).
+select = ["ALL"]
+ignore = [
+    "COM812", "ISC001",            # conflict with the formatter (per Ruff docs)
+    "EM101", "EM102", "TRY003",    # inline exception messages read fine in this codebase
+    "D203", "D213", "D205",        # docstring whitespace/placement niceties — not worth churn
+    "D100", "D104", "D105", "D106", "D107",  # don't require docstrings on modules/nested/dunder
+    "ANN401",                      # `Any` is intentional at the JSON / template boundary
+    "PLR2004",                     # small internal magic-number comparisons are clear in context
+    "FBT001", "FBT002",            # boolean flags read fine in this API surface
+    "D102",                        # docstrings on every public method is too granular here
+    "ARG001",                      # FastAPI handlers take `request` even when unused
+    "ANN202", "ANN003",            # return/`**kwargs` types on nested handlers+closures: low value
+    "BLE001",                      # deliberate best-effort except in the Redis-stats path
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test layers + the dev run/seed scripts: relax docstrings, annotations, asserts,
+# prints, implicit-namespace, lazy imports, and Playwright/pytest idioms.
+"tests/**" = ["S101", "S105", "N806", "RUF001", "ANN", "D", "SLF001", "ARG", "PT011",
+              "INP001", "PT018", "PT006", "PLC0415", "PLW0603", "T201", "PLW0108", "FBT003"]
+"run.py" = ["ANN", "D", "T201", "INP001"]
+"seed.py" = ["ANN", "D", "T201", "INP001", "S311", "PLR0915", "PLR0913"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# The matador test pyramid, by marker (auto-applied by folder in conftest):
+#   pytest          fast layer — unit + integration (default; excludes e2e)
+#   pytest -m e2e   Playwright browser tests, run as their own job (sync Playwright
+#                   and pytest-asyncio can't share one process, so e2e runs separately)
+addopts = "--strict-markers --import-mode=importlib -m 'not e2e'"
+markers = [
+    "unit: pure-logic tests, no I/O",
+    "integration: ASGI + Redis route/service tests",
+    "e2e: Playwright browser tests (slow; opt-in)",
+]
+
+[tool.coverage.run]
+source = ["matador"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["matador"]

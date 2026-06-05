@@ -1,0 +1,54 @@
+{% from "macros.html" import icon, state_color %}
+<div class="p-5" data-queue-panel="{{ q.name }}" data-state="{{ state }}">
+  <div class="flex items-center justify-between mb-5 gap-3">
+    <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
+      <span class="truncate">{{ q.name }}</span>
+      {% if q.paused %}
+      <span class="text-xs px-2 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">paused</span>
+      {% endif %}
+    </h1>
+    <div class="flex gap-2 items-start shrink-0">
+      {% if q.paused %}
+      <button class="btn btn-success" hx-post="{{ url_for('resume', name=q.name).path }}?state={{ state }}&page={{ page }}"
+              data-loading-disable data-loading-aria-busy>{{ icon('play') }} Resume</button>
+      {% else %}
+      <button class="btn btn-warning" hx-post="{{ url_for('pause', name=q.name).path }}?state={{ state }}&page={{ page }}"
+              data-loading-disable data-loading-aria-busy>{{ icon('pause') }} Pause</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="flex gap-1 border-b border-line mb-4">
+    {% for s in states %}
+    <a href="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}"
+       hx-get="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}" hx-push-url="true"
+       class="relative flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors {{ 'text-fg' if s == state else 'text-muted hover:text-fg' }}">
+      {{ s }}
+      <span id="tabcount-{{ s }}" title="{{ q.counts[s]|comma }}" class="text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md {{ state_color(s) }}">{{ q.counts[s]|compact }}</span>
+      {% if s == state %}
+      <span class="absolute -bottom-px inset-x-2 h-0.5 rounded-full bg-accent"></span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="relative max-w-sm mb-3">
+    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">{{ icon('search', 'w-4 h-4') }}</span>
+    <input type="search" name="query" autocomplete="off"
+           placeholder="search {{ state }} — name, data, or #id…"
+           class="input !pl-9"
+           hx-get="{{ url_for('jobs_fragment', name=q.name).path }}?state={{ state }}"
+           hx-trigger="input changed delay:300ms, search"
+           hx-target="#jobs" hx-indicator="#search-spin">
+    <span id="search-spin" class="htmx-indicator absolute right-2.5 top-1/2 -translate-y-1/2 text-muted">
+      {{ icon('retry', 'w-3.5 h-3.5 animate-spin') }}</span>
+  </div>
+
+  <div id="jobs" class="card mb-6">
+    {% with name = q.name %}{% include "jobs.html" %}{% endwith %}
+  </div>
+
+  <div id="schedulers">
+    {% with name = q.name, schedulers = q.schedulers %}{% include "schedulers.html" %}{% endwith %}
+  </div>
+</div>

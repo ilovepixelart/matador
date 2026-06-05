@@ -1,0 +1,62 @@
+{% from "macros.html" import bar_color %}
+{% if job %}
+<div class="px-5 py-4 border-t border-line bg-ink/40">
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+    {% if job.processed_on %}
+    <div><dt class="text-muted text-xs uppercase tracking-wider">processed</dt><dd class="font-mono">{{ job.processed_on|clock }}</dd></div>
+    {% endif %}
+    {% if job.finished_on %}
+    <div><dt class="text-muted text-xs uppercase tracking-wider">finished</dt><dd class="font-mono">{{ job.finished_on|clock }}</dd></div>
+    {% endif %}
+
+    {% if job.progress is not none %}
+    <div class="col-span-2">
+      <dt class="text-muted text-xs uppercase tracking-wider mb-1">progress</dt>
+      <dd>
+        {% if job.progress is number %}
+        <div class="flex items-center gap-2">
+          <div class="flex-1 h-2 rounded-full bg-ink overflow-hidden">
+            <div class="h-full {{ bar_color(job.state) }} rounded-full transition-all" style="width: {{ job.progress }}%"></div>
+          </div>
+          <span class="text-xs text-muted tabular-nums w-10 text-right">{{ job.progress }}%</span>
+        </div>
+        {% else %}
+        <span class="font-mono text-fg">{{ job.progress|tojson }}</span>
+        {% endif %}
+      </dd>
+    </div>
+    {% endif %}
+
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">data</dt>
+      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.data|pretty }}</pre></dd></div>
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">opts</dt>
+      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.opts|pretty }}</pre></dd></div>
+    {% if job.returnvalue is not none %}
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">result</dt>
+      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.returnvalue|pretty }}</pre></dd></div>
+    {% endif %}
+    {% if job.failed_reason %}
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider">error</dt>
+      <dd class="font-mono text-danger break-all">{{ job.failed_reason }}</dd></div>
+    {% endif %}
+
+    {% if job.logs %}
+    <div class="col-span-2">
+      <dt class="text-muted text-xs uppercase tracking-wider mb-1">logs</dt>
+      <dd class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-40 overflow-auto space-y-0.5">
+        {% for line in job.logs %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
+      </dd>
+    </div>
+    {% endif %}
+
+    {% if job.stacktrace %}
+    <div class="col-span-2">
+      <dt class="text-muted text-xs uppercase tracking-wider mb-1">stack trace</dt>
+      <dd><pre class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-56 overflow-auto text-danger whitespace-pre-wrap">{{ job.stacktrace }}</pre></dd>
+    </div>
+    {% endif %}
+  </dl>
+</div>
+{% else %}
+<div class="px-5 py-4 text-muted border-t border-line">job not found (it may have been removed)</div>
+{% endif %}

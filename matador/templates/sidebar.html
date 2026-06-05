@@ -1,0 +1,38 @@
+{% from "macros.html" import icon %}
+<div class="text-xs uppercase tracking-wider text-muted px-2 mb-2">Queues</div>
+{% for qq in queues %}
+<a id="q-{{ qq.name }}" href="{{ url_for('queue_view', name=qq.name).path }}" hx-get="{{ url_for('queue_view', name=qq.name).path }}"
+   hx-target="#queue-panel" hx-push-url="true"
+   class="queue-item block rounded-lg px-3 py-2.5 mb-1 hover:bg-panel2 transition-colors{{ ' q-active' if qq.name == selected }}"
+   {% if qq.name == selected %}aria-current="page"{% endif %}>
+  <div class="flex items-center justify-between gap-2">
+    <span class="flex items-center gap-2 min-w-0">
+      <span class="text-muted shrink-0">{{ icon('queue', 'w-4 h-4') }}</span>
+      <span class="q-name font-medium truncate">{{ qq.name }}</span>
+    </span>
+    {% if qq.paused %}
+    <span class="text-xs px-1.5 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">paused</span>
+    {% endif %}
+  </div>
+  <div class="mt-1.5 flex flex-wrap gap-1 text-xs tabular-nums">
+    {% if qq.counts.active %}
+    <span class="px-1.5 py-0.5 rounded-md bg-info/10 text-info">{{ qq.counts.active|compact }} active</span>
+    {% endif %}
+    <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-muted">{{ qq.counts.wait|compact }} wait</span>
+    {% if qq.counts.failed %}
+    <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger">{{ qq.counts.failed|compact }} failed</span>
+    {% endif %}
+  </div>
+</a>
+{% else %}
+<div class="text-muted text-sm px-2">none</div>
+{% endfor %}
+
+<div class="text-xs uppercase tracking-wider text-muted px-2 mb-2 mt-5">Cluster</div>
+<a id="nav-workers" href="{{ url_for('workers_view').path }}" hx-get="{{ url_for('workers_view').path }}"
+   hx-target="#queue-panel" hx-push-url="true"
+   class="queue-item flex items-center gap-2.5 rounded-lg px-3 py-2.5 hover:bg-panel2 transition-colors{{ ' q-active' if selected == '__workers__' }}"
+   {% if selected == '__workers__' %}aria-current="page"{% endif %}>
+  <span class="text-muted">{{ icon('server', 'w-4 h-4') }}</span>
+  <span class="q-name font-medium">Workers</span>
+</a>

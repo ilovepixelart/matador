@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="flex flex-1 min-h-0">
+  <aside id="sidebar" class="w-72 shrink-0 border-r border-line overflow-y-auto p-3"
+         hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
+         hx-swap="morph:innerHTML" hx-sync="this:drop">
+    {% include "sidebar.html" %}
+  </aside>
+  {# Controls inside the panel re-render the panel by DEFAULT: hx-target is
+     inherited from here, so tabs/pagination/pause/resume/toolbar omit it. The
+     exceptions state their own target: the search box (#jobs), the accordion
+     bodies (#body-*), the schedulers table (#schedulers), and a job row's
+     action buttons (#queue-panel, overriding the row's #body target). #}
+  <main id="queue-panel" class="flex-1 overflow-y-auto" hx-target="#queue-panel">
+    {% if workers is defined %}
+      {% include "workers.html" %}
+    {% elif q %}
+      {% include "queue.html" %}
+    {% else %}
+      <div class="p-10 text-muted">No queues configured.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

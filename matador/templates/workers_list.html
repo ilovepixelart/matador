@@ -1,0 +1,105 @@
+{% from "macros.html" import icon %}
+{% if workers %}
+<div class="flex items-center gap-x-5 gap-y-1 flex-wrap mb-4 text-sm">
+  <span class="flex items-center gap-1.5">
+    <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+    <b class="tabular-nums">{{ workers|length }}</b><span class="text-muted">live</span>
+  </span>
+  <span class="text-muted">·</span>
+  <span><b class="tabular-nums">{{ workers|sum(attribute='concurrency') }}</b> <span class="text-muted">slots</span></span>
+  <span class="text-muted">·</span>
+  <span><b class="tabular-nums">{{ workers|sum(attribute='processed')|compact }}</b> <span class="text-muted">done</span></span>
+  {% set tfail = workers|sum(attribute='failed') %}
+  {% if tfail %}<span class="text-muted">·</span><span class="text-danger tabular-nums">{{ tfail|compact }} failed</span>{% endif %}
+</div>
+<div class="rounded-xl border border-line overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+      <tr>
+        <th class="font-medium px-4 py-2.5">Worker</th>
+        {% if multi %}<th class="font-medium px-3 py-2.5">Queue</th>{% endif %}
+        <th class="font-medium px-3 py-2.5">Running</th>
+        <th class="font-medium px-3 py-2.5 text-right">Done</th>
+        <th class="font-medium px-3 py-2.5 text-right">Failed</th>
+        <th class="font-medium px-4 py-2.5 text-right">Uptime</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in workers %}
+      <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20">
+        <td class="px-4 py-2.5">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full bg-success animate-pulse shrink-0" aria-label="live"></span>
+            <span class="font-medium truncate">{{ w.host }}</span>
+            <span class="font-mono text-xs text-muted shrink-0">pid {{ w.pid }}</span>
+            <span class="text-xs text-muted shrink-0">×{{ w.concurrency }}</span>
+          </div>
+        </td>
+        {% if multi %}<td class="px-3 py-2.5 text-muted">{{ w.queue }}</td>{% endif %}
+        <td class="px-3 py-2.5">
+          {% if w.current %}
+          <div class="flex flex-wrap items-center gap-1">
+            {% for jid in w.current %}
+            <span class="px-1.5 py-0.5 rounded-md bg-info/10 text-info text-xs font-mono">#{{ jid }}</span>
+            {% endfor %}
+            <span class="text-xs text-muted ml-0.5 tabular-nums">{{ w.current|length }}/{{ w.concurrency }}</span>
+          </div>
+          {% else %}<span class="text-muted text-xs">idle</span>{% endif %}
+        </td>
+        <td class="px-3 py-2.5 text-right tabular-nums">{{ w.processed|compact }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums{{ ' text-danger' if w.failed }}">{{ w.failed|compact }}</td>
+        <td class="px-4 py-2.5 text-right tabular-nums text-muted">{{ w.started|uptime }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="px-4 py-16 flex flex-col items-center gap-2 text-muted rounded-xl border border-line">
+  <span class="opacity-40">{{ icon('server', 'w-8 h-8') }}</span>
+  <span class="text-sm">No workers running</span>
+  <span class="text-xs">Start a toro Worker against this Redis and it appears here.</span>
+</div>
+{% endif %}
+
+{% if departed %}
+<div class="text-xs uppercase tracking-wider text-muted mt-8 mb-3">Recently stopped</div>
+<div class="rounded-xl border border-line overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+      <tr>
+        <th class="font-medium px-4 py-2.5">Worker</th>
+        {% if multi %}<th class="font-medium px-3 py-2.5">Queue</th>{% endif %}
+        <th class="font-medium px-3 py-2.5">Status</th>
+        <th class="font-medium px-3 py-2.5 text-right">Done</th>
+        <th class="font-medium px-3 py-2.5 text-right">Failed</th>
+        <th class="font-medium px-4 py-2.5 text-right">Stopped</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in departed %}
+      <tr id="d-{{ d.host }}-{{ d.pid }}" class="border-t border-line hover:bg-panel2/20 text-muted">
+        <td class="px-4 py-2.5">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full shrink-0 {{ 'bg-danger' if d.reason == 'lost' else 'bg-muted/50' }}"></span>
+            <span class="truncate">{{ d.host }}</span>
+            <span class="font-mono text-xs shrink-0">pid {{ d.pid }}</span>
+          </div>
+        </td>
+        {% if multi %}<td class="px-3 py-2.5">{{ d.queue }}</td>{% endif %}
+        <td class="px-3 py-2.5">
+          {% if d.reason == 'lost' %}
+          <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger text-xs">lost · no heartbeat</span>
+          {% else %}
+          <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-xs">stopped</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2.5 text-right tabular-nums">{{ d.processed|compact }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
+        <td class="px-4 py-2.5 text-right tabular-nums text-xs">{{ d.at|uptime }} ago</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
