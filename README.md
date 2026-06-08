@@ -4,7 +4,7 @@ A live, **server-rendered** dashboard for [toro](https://github.com/ilovepixelar
 queues — watch queues, inspect jobs, and act on them (retry, remove, promote,
 pause…) from the browser.
 
-![matador dashboard](docs/dashboard.png)
+![matador dashboard](https://raw.githubusercontent.com/ilovepixelart/matador/main/docs/dashboard.png)
 
 ```bash
 pip install matador-dashboard   # the import name is `matador`
@@ -97,4 +97,4 @@ uv run pytest -m e2e             # Playwright browser tests (run separately)
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/ilovepixelart/matador/blob/main/LICENSE)

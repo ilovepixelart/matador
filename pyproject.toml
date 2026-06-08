@@ -1,7 +1,7 @@
 [project]
 # PyPI distribution name — `matador` is taken; the import package stays `matador`.
 name = "matador-dashboard"
-version = "0.0.1"
+version = "0.1.0"
 description = "An async dashboard for toro queues."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "toro-queue",
+    "toro-queue>=0.1.0",
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "jinja2>=3.1",
