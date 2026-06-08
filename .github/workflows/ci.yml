@@ -22,20 +22,20 @@ jobs:
         working-directory: matador
     steps:
       - name: Check out matador
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.3
         with:
           path: matador
 
       # matador depends on toro through a local path (../toro), so check it out as a
       # sibling. Assumes toro lives under the same owner; adjust `repository:` if not.
       - name: Check out toro (sibling dependency)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.3
         with:
           repository: ${{ github.repository_owner }}/toro
           path: toro
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
 
