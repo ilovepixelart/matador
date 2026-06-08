@@ -1,12 +1,19 @@
-{% from "macros.html" import bar_color %}
+{% from "macros.html" import bar_color, icon %}
 {% if job %}
 <div class="px-5 py-4 border-t border-line bg-ink/40">
   <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+    {% if job.queue %}
+    <div><dt class="text-muted text-xs uppercase tracking-wider">queue</dt><dd class="font-mono">{{ job.queue }}</dd></div>
+    {% endif %}
     {% if job.processed_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">processed</dt><dd class="font-mono">{{ job.processed_on|clock }}</dd></div>
+    <div><dt class="text-muted text-xs uppercase tracking-wider">processed</dt><dd class="font-mono">{{ job.processed_on|clockms }}</dd></div>
+    {% endif %}
+    {% if job.processed_on and job.finished_on %}
+    <div><dt class="text-muted text-xs uppercase tracking-wider">duration</dt>
+      <dd class="font-mono">{{ (job.finished_on - job.processed_on)|dur }}</dd></div>
     {% endif %}
     {% if job.finished_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">finished</dt><dd class="font-mono">{{ job.finished_on|clock }}</dd></div>
+    <div><dt class="text-muted text-xs uppercase tracking-wider">finished</dt><dd class="font-mono">{{ job.finished_on|clockms }}</dd></div>
     {% endif %}
 
     {% if job.progress is not none %}
@@ -49,7 +56,7 @@
     </div>
     {% endif %}
 
-    {% if job.stacktrace %}
+    {% if job.stacktrace and show_stacktraces|default(true) %}
     <div class="col-span-2">
       <dt class="text-muted text-xs uppercase tracking-wider mb-1">stack trace</dt>
       <dd><pre class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-56 overflow-auto text-danger whitespace-pre-wrap">{{ job.stacktrace }}</pre></dd>
@@ -58,5 +65,10 @@
   </dl>
 </div>
 {% else %}
-<div class="px-5 py-4 text-muted border-t border-line">job not found (it may have been removed)</div>
+<div class="px-6 py-12 flex flex-col items-center gap-2 text-center">
+  <div class="text-muted opacity-50">{{ icon('inbox', 'w-8 h-8') }}</div>
+  <h3 class="text-base font-semibold">Job not found</h3>
+  <p class="text-sm text-muted max-w-xs">It may have completed and been removed, or been
+    recovered and re-run under a new id.</p>
+</div>
 {% endif %}

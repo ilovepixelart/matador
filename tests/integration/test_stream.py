@@ -24,3 +24,15 @@ async def test_event_stream_starts_then_signals_change(q):
     finally:
         await agen.aclose()
         await svc.close()
+
+
+async def test_event_stream_stops_when_client_disconnects(q):
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+
+    async def disconnected() -> bool:
+        return True  # client is already gone
+
+    # the generator must terminate (not hang on the 8s heartbeat) once disconnected
+    frames = [f async for f in svc.event_stream(disconnected)]
+    assert frames == ["retry: 3000\n\n"]  # just the directive, then a clean stop
+    await svc.close()

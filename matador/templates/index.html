@@ -12,7 +12,9 @@
      bodies (#body-*), the schedulers table (#schedulers), and a job row's
      action buttons (#queue-panel, overriding the row's #body target). #}
   <main id="queue-panel" class="flex-1 overflow-y-auto" hx-target="#queue-panel">
-    {% if workers is defined %}
+    {% if job_page is defined %}
+      {% include "job_page.html" %}
+    {% elif workers is defined %}
       {% include "workers.html" %}
     {% elif q %}
       {% include "queue.html" %}

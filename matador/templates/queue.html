@@ -1,7 +1,8 @@
 {% from "macros.html" import icon, state_color %}
-<div class="p-5" data-queue-panel="{{ q.name }}" data-state="{{ state }}">
+<div class="p-5">
   <div class="flex items-center justify-between mb-5 gap-3">
     <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
+      <span class="text-accent shrink-0">{{ icon('queue', 'w-5 h-5') }}</span>
       <span class="truncate">{{ q.name }}</span>
       {% if q.paused %}
       <span class="text-xs px-2 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">paused</span>
@@ -34,7 +35,7 @@
 
   <div class="relative max-w-sm mb-3">
     <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">{{ icon('search', 'w-4 h-4') }}</span>
-    <input type="search" name="query" autocomplete="off"
+    <input type="search" name="query" autocomplete="off" value="{{ query|default('') }}"
            placeholder="search {{ state }} — name, data, or #id…"
            class="input !pl-9"
            hx-get="{{ url_for('jobs_fragment', name=q.name).path }}?state={{ state }}"
@@ -44,8 +45,18 @@
       {{ icon('retry', 'w-3.5 h-3.5 animate-spin') }}</span>
   </div>
 
+  {# Shown by CSS (:has) only while a job row is open — the live table is paused so it
+     can't move under you. Tells the operator why updates stopped (and how to resume). #}
+  <div class="jobs-paused hidden items-center gap-2 mb-2 px-3 py-1.5 rounded-lg
+              bg-warning/10 text-warning text-xs">
+    {{ icon('pause', 'w-3.5 h-3.5') }}
+    <span>Live updates paused while you're viewing a job — close it to resume.</span>
+  </div>
+
   <div id="jobs" class="card mb-6">
-    {% with name = q.name %}{% include "jobs.html" %}{% endwith %}
+    {% with name = q.name %}
+      {% if query %}{% include "search_results.html" %}{% else %}{% include "jobs.html" %}{% endif %}
+    {% endwith %}
   </div>
 
   <div id="schedulers">

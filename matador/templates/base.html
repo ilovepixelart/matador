@@ -4,6 +4,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {# htmx security posture (read before htmx loads): selfRequestsOnly keeps any
+     injected hx-* from reaching another origin; historyCacheSize:0 stops htmx
+     snapshotting job payloads/stacktraces into sessionStorage (back/forward
+     reloads from the server instead). #}
+  <meta name="htmx-config" content='{"selfRequestsOnly": true, "historyCacheSize": 0}' />
   <title>matador</title>
   {# apply the saved theme before paint to avoid a flash #}
   <script>(function () {
@@ -24,7 +29,8 @@
   <header class="flex items-center gap-3 px-5 h-14 border-b border-line bg-panel/40 backdrop-blur sticky top-0 z-20">
     <span class="text-accent">{{ icon('bolt', 'w-5 h-5') }}</span>
     <span class="font-semibold tracking-tight">matador</span>
-    <span class="text-muted text-sm hidden sm:inline">· toro dashboard</span>
+    <span class="text-muted text-sm hidden sm:inline">·</span>
+    <span class="text-muted text-sm hidden sm:inline">toro dashboard</span>
     <div class="ml-auto">
       <button data-js-theme-toggle class="btn btn-ghost btn-icon tip" aria-label="Toggle theme">
         <span class="hidden dark:inline">{{ icon('sun') }}</span>

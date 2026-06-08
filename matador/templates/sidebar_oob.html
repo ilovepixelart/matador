@@ -1,6 +1,6 @@
 {# Out-of-band sidebar refresh: replaces #sidebar (active queue marked) and keeps
    the 3s poll. Sent alongside the panel so the highlight updates with no lag. #}
-<aside id="sidebar" hx-swap-oob="morph:innerHTML"
+<aside id="sidebar" hx-swap-oob="morph"
        class="w-72 shrink-0 border-r border-line overflow-y-auto p-3"
        hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
        hx-swap="morph:innerHTML" hx-sync="this:drop">

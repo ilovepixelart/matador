@@ -52,6 +52,53 @@ async def test_job_detail_missing_id_renders_not_found(client, seeded):
     assert "not found" in r.text.lower()
 
 
+async def test_job_page_renders_as_full_page(client, seeded):
+    # the standalone job page must render as a FULL page (bookmark/reload), not just hx
+    r = await client.get(f"/queues/{QUEUE}/jobs/{seeded['completed']}")
+    assert r.status_code == 200
+    assert "<header" in r.text  # full chrome
+    assert "queue" in r.text.lower()  # carries its queue metadata
+    # a gone job still renders the page, never a 500
+    assert (await client.get(f"/queues/{QUEUE}/jobs/ghost-1")).status_code == 200
+
+
+async def test_job_accordion_detail_fragment(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}/jobs/{seeded['completed']}/detail", headers=hx())
+    assert r.status_code == 200
+    assert "<header" not in r.text  # just the accordion body, no chrome
+    assert "opts" in r.text
+
+
+async def test_htmx_security_config_present(client, seeded):
+    # explicit htmx hardening: self-requests-only + no sensitive-data history cache
+    r = await client.get("/")
+    assert r.status_code == 200
+    assert 'name="htmx-config"' in r.text
+    assert '"selfRequestsOnly": true' in r.text
+    assert '"historyCacheSize": 0' in r.text
+
+
+async def test_security_headers_present(client, seeded):
+    r = await client.get("/")
+    assert r.headers["x-frame-options"] == "DENY"  # clickjacking defense
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert "referrer-policy" in r.headers
+
+
+async def test_jobs_fragment_emits_tab_counts_for_sync(client, seeded):
+    # the live table refresh carries the tab counts from the same snapshot, so the
+    # state-tab badges and the list can't disagree on a fast-churning state
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=wait", headers=hx())
+    assert r.status_code == 200
+    assert 'id="tabcount-' in r.text
+    assert "hx-swap-oob" in r.text
+
+
+async def test_stacktrace_shown_by_default(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}/jobs/{seeded['failed']}/detail", headers=hx())
+    assert "stack trace" in r.text
+
+
 async def test_sidebar_fragment(client, seeded):
     r = await client.get(
         "/sidebar", headers=hx(**{"HX-Current-URL": f"http://test/queues/{QUEUE}"})

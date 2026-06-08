@@ -24,3 +24,10 @@ def test_falls_back_on_non_json_types_without_crashing():
     # default=str keeps it from blowing up on e.g. a date in the payload
     html = str(_pretty_json({"when": datetime.date(2026, 1, 1)}))
     assert "2026-01-01" in html
+
+
+def test_large_payload_is_truncated_to_bound_lexing_cost():
+    # a huge user-controlled payload must not be lexed in full (DoS guard)
+    html = str(_pretty_json({"blob": "x" * 200_000}))
+    assert "truncated" in html
+    assert len(html) < 60_000  # bounded, not proportional to the 200k input

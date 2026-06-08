@@ -36,11 +36,11 @@ deep-links all work. It reads straight from Redis through toro's async API.
 ## Run it
 
 ```bash
-uv run python seed.py             # optional: populate demo data
-uv run uvicorn run:app --reload   # http://localhost:8000
+uv run python scripts/seed.py             # optional: populate demo data
+uv run uvicorn scripts.run:app --reload   # http://localhost:8000
 ```
 
-`run.py` watches a few demo queues; edit the list there, or wire it up yourself.
+`scripts/run.py` watches a few demo queues; edit the list there, or wire it up yourself.
 
 ## Integrate into an existing app
 

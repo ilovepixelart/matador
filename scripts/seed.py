@@ -210,7 +210,7 @@ async def main():
         counts = await seed_queue(name)
         flag = " (paused)" if THEMES[name]["paused"] else ""
         print(f"  {name:<14}{flag:<10} {counts}")
-    print("\nseeded. open:  uv run uvicorn run:app --port 8011")
+    print("\nseeded. open:  uv run uvicorn scripts.run:app --port 8011")
 
 
 if __name__ == "__main__":

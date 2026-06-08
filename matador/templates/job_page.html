@@ -1,0 +1,20 @@
+{% from "macros.html" import icon, state_color %}
+<div class="p-5">
+  <div class="flex items-center gap-3 mb-5 min-w-0">
+    <a href="{{ url_for('queue_view', name=name).path }}{% if job %}?state={{ job.state }}{% endif %}"
+       hx-get="{{ url_for('queue_view', name=name).path }}{% if job %}?state={{ job.state }}{% endif %}"
+       hx-target="#queue-panel" hx-push-url="true"
+       class="btn btn-ghost btn-sm shrink-0">{{ icon('chevron', 'w-4 h-4 rotate-90') }} {{ name }}</a>
+    <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
+      <span class="font-mono text-muted shrink-0">#{{ job_id }}</span>
+      {% if job %}<span class="truncate">{{ job.name }}</span>{% endif %}
+    </h1>
+    {% if job %}
+    <span class="text-xs px-2 py-0.5 rounded-md shrink-0 {{ state_color(job.state) }}">{{ job.state }}</span>
+    <span class="text-xs text-muted tabular-nums shrink-0">{{ job.attempts_made }}×</span>
+    {% endif %}
+  </div>
+  <div class="rounded-xl border border-line overflow-hidden">
+    {% include "job_detail.html" %}
+  </div>
+</div>

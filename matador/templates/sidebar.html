@@ -14,14 +14,12 @@
     <span class="text-xs px-1.5 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">paused</span>
     {% endif %}
   </div>
-  <div class="mt-1.5 flex flex-wrap gap-1 text-xs tabular-nums">
-    {% if qq.counts.active %}
+  {# Always render all three so they never appear/disappear (the main source of jumping);
+     tabular-nums keeps the digits aligned as the numbers change. #}
+  <div class="mt-1.5 flex gap-1 text-xs tabular-nums">
     <span class="px-1.5 py-0.5 rounded-md bg-info/10 text-info">{{ qq.counts.active|compact }} active</span>
-    {% endif %}
     <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-muted">{{ qq.counts.wait|compact }} wait</span>
-    {% if qq.counts.failed %}
     <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger">{{ qq.counts.failed|compact }} failed</span>
-    {% endif %}
   </div>
 </a>
 {% else %}

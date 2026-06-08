@@ -15,6 +15,13 @@ async def test_search_by_exact_id(client, seeded):
     r = await client.get(f"/queues/{QUEUE}/jobs?state=wait&query={jid}", headers=hx())
     assert r.status_code == 200
     assert "beta" in r.text
+    assert "exact id match" in r.text  # the exact-hit badge renders
+
+
+async def test_substring_search_has_no_exact_badge(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=wait&query=alph", headers=hx())
+    assert r.status_code == 200
+    assert "exact id match" not in r.text  # substring hit, not an exact id
 
 
 async def test_search_no_match_returns_empty(client, seeded):

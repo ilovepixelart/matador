@@ -47,17 +47,21 @@
 {% endfor %}
 </div>
 
-{% if state == 'active' %}
-<div class="hidden" hx-get="{{ url_for('jobs_fragment', name=name).path }}?state=active&page={{ page }}"
-     hx-trigger="sse:changed delay:500ms" hx-target="#jobs"></div>
-{% endif %}
+{# Live-refresh the list (table + total count + pagination) on any job event, for every
+   state. Paused while a row is open by jobs-live.js (progressive: if that JS fails to
+   load, the refresh still fires — just without the pause). Morph + stable row ids keep
+   it flicker-free; throttle + drop rate-cap it. #}
+<div data-jobs-live class="hidden"
+     hx-get="{{ url_for('jobs_fragment', name=name).path }}?state={{ state }}&page={{ page }}"
+     hx-trigger="sse:changed throttle:1s" hx-target="#jobs"
+     hx-swap="morph:innerHTML" hx-sync="this:drop"></div>
 
 {% if pages > 1 %}
 {% macro pglink(p, label, disabled=false, active=false) -%}
 <a class="pg{{ ' pg-active' if active }}{{ ' pg-disabled' if disabled }}"
    {% if not disabled %}href="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
    hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
-   hx-push-url="true"{% endif %}>{{ label|safe }}</a>
+   hx-push-url="true"{% endif %}>{{ label }}</a>
 {%- endmacro %}
 <div class="flex items-center justify-between px-4 py-2.5 border-t border-line text-xs">
   <span class="text-muted">{{ total|comma }} {{ state }} · page {{ page }} of {{ pages }}</span>

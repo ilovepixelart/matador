@@ -39,7 +39,6 @@
                 px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50
                 focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
   .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md; }
-  .btn-primary { @apply bg-accent text-white hover:bg-accent/90; }
   .btn-ghost { @apply bg-panel2 text-fg hover:bg-line; }
   .btn-icon { @apply p-2; }  /* square icon button (defined after .btn so p-2 wins) */
   .btn-info { @apply bg-info/10 text-info hover:bg-info/20; }
@@ -68,6 +67,9 @@ button.htmx-request, form.htmx-request { opacity: .55; pointer-events: none; }
 
 /* Accordion: native <details> — chevron rotates on open, body fades in. */
 .acc-item:last-child { border-bottom: 0; }
+/* The live job table freezes while a row is open (so it can't move under you); reveal a
+   banner so a paused table never reads as "stuck". Mirrors the JS gate in jobs-live.js. */
+#queue-panel:has(#jobs details[open]) .jobs-paused { display: flex; }
 .chevron { transition: transform .2s ease; }
 details[open] > summary .chevron { transform: rotate(180deg); }
 details[open] > .acc-body { animation: accIn .18s ease; }

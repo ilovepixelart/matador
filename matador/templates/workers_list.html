@@ -1,4 +1,4 @@
-{% from "macros.html" import icon %}
+{% from "macros.html" import icon, job_chip with context %}
 {% if workers %}
 <div class="flex items-center gap-x-5 gap-y-1 flex-wrap mb-4 text-sm">
   <span class="flex items-center gap-1.5">
@@ -29,19 +29,22 @@
       <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20">
         <td class="px-4 py-2.5">
           <div class="flex items-center gap-2 min-w-0">
+            {% if w.state == 'stopping' %}
+            <span class="w-2 h-2 rounded-full bg-warning animate-pulse shrink-0" aria-label="draining"></span>
+            {% else %}
             <span class="w-2 h-2 rounded-full bg-success animate-pulse shrink-0" aria-label="live"></span>
+            {% endif %}
             <span class="font-medium truncate">{{ w.host }}</span>
             <span class="font-mono text-xs text-muted shrink-0">pid {{ w.pid }}</span>
             <span class="text-xs text-muted shrink-0">×{{ w.concurrency }}</span>
+            {% if w.state == 'stopping' %}<span class="text-xs px-1.5 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">draining</span>{% endif %}
           </div>
         </td>
         {% if multi %}<td class="px-3 py-2.5 text-muted">{{ w.queue }}</td>{% endif %}
         <td class="px-3 py-2.5">
           {% if w.current %}
           <div class="flex flex-wrap items-center gap-1">
-            {% for jid in w.current %}
-            <span class="px-1.5 py-0.5 rounded-md bg-info/10 text-info text-xs font-mono">#{{ jid }}</span>
-            {% endfor %}
+            {% for jid in w.current %}{{ job_chip(w.queue, jid) }}{% endfor %}
             <span class="text-xs text-muted ml-0.5 tabular-nums">{{ w.current|length }}/{{ w.concurrency }}</span>
           </div>
           {% else %}<span class="text-muted text-xs">idle</span>{% endif %}
@@ -63,7 +66,14 @@
 {% endif %}
 
 {% if departed %}
-<div class="text-xs uppercase tracking-wider text-muted mt-8 mb-3">Recently stopped</div>
+<div class="flex items-center justify-between mt-8 mb-3">
+  <div class="text-xs uppercase tracking-wider text-muted">Recently stopped</div>
+  <button class="btn btn-sm btn-ghost tip" aria-label="Clear stopped-worker history"
+          hx-post="{{ url_for('clear_departed').path }}"
+          hx-target="#workers-list" hx-swap="morph:innerHTML"
+          hx-confirm="Clear the stopped-worker history?"
+          data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} Clear</button>
+</div>
 <div class="rounded-xl border border-line overflow-hidden">
   <table class="w-full text-sm">
     <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
@@ -88,15 +98,22 @@
         </td>
         {% if multi %}<td class="px-3 py-2.5">{{ d.queue }}</td>{% endif %}
         <td class="px-3 py-2.5">
-          {% if d.reason == 'lost' %}
-          <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger text-xs">lost · no heartbeat</span>
-          {% else %}
-          <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-xs">stopped</span>
-          {% endif %}
+          <div class="flex items-center gap-2 flex-wrap">
+            {% if d.reason == 'lost' %}
+            <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger text-xs">lost · no heartbeat</span>
+            {% else %}
+            <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-xs">stopped</span>
+            {% endif %}
+            {% if d.current %}
+            <span class="text-xs">while running</span>
+            {% for jid in d.current %}{{ job_chip(d.queue, jid) }}{% endfor %}
+            {% endif %}
+          </div>
         </td>
         <td class="px-3 py-2.5 text-right tabular-nums">{{ d.processed|compact }}</td>
         <td class="px-3 py-2.5 text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
-        <td class="px-4 py-2.5 text-right tabular-nums text-xs">{{ d.at|uptime }} ago</td>
+        <td class="px-4 py-2.5 text-right tabular-nums text-xs"
+            title="last heartbeat {{ ((d.at - d.last_seen) / 1000)|round(1) }}s before detected">{{ d.at|uptime }} ago</td>
       </tr>
       {% endfor %}
     </tbody>

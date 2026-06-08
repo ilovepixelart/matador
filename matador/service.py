@@ -7,17 +7,12 @@ the UI needs. Keeping this separate from app.py keeps routes thin and testable.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from collections.abc import AsyncIterator, Awaitable, Callable
 
-from toro import Queue
+from redis.asyncio import Redis
+from toro import Job, JobState, Queue
 
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
-
-    from redis.asyncio import Redis
-    from toro import Job
-
-STATES = ["active", "wait", "delayed", "completed", "failed"]
+STATES: tuple[JobState, ...] = ("active", "wait", "delayed", "completed", "failed")
 
 
 def _human_bytes(n: float | None) -> str:
@@ -61,8 +56,15 @@ class Service:
         footguns that actually bite queue users.
         """
         r = next(iter(self.queues.values())).redis
-        info = await r.info()
-        keys = await r.dbsize()
+        try:
+            info = await r.info()
+            keys = await r.dbsize()
+        except Exception:
+            # the bar polls every ~8s; a transient blip must degrade, not 500 repeatedly.
+            # Empty info flows through the .get() defaults below to "?"/0 placeholders.
+            info, keys, ok = {}, 0, False
+        else:
+            ok = True
         try:
             policy = (await r.config_get("maxmemory-policy")).get("maxmemory-policy", "")
         except Exception:  # some managed Redis block CONFIG GET
@@ -88,6 +90,7 @@ class Service:
             "clients": info.get("connected_clients", 0),
             "ops": info.get("instantaneous_ops_per_sec", 0),
             "keys": keys,
+            "ok": ok,  # False → Redis was unreachable; values are placeholders
         }
 
     async def overview(self) -> list[dict]:
@@ -122,6 +125,13 @@ class Service:
         out.sort(key=lambda d: d["at"], reverse=True)
         return out[:limit]
 
+    async def clear_departed(self) -> int:
+        """Clear the stopped/lost-worker history across all queues. Returns the count."""
+        total = 0
+        for q in self.queues.values():
+            total += await q.clear_departed()
+        return total
+
     async def queue_view(self, name: str) -> dict:
         q = self._q(name)
         return {
@@ -131,14 +141,18 @@ class Service:
             "schedulers": await q.schedulers(),
         }
 
-    async def jobs(self, name: str, state: str, page: int = 1, per_page: int = 20) -> list[dict]:
+    async def jobs(
+        self, name: str, state: JobState, page: int = 1, per_page: int = 20
+    ) -> list[dict]:
         start = (page - 1) * per_page
         jobs = await self._q(name).get_jobs(state, start, start + per_page - 1)
-        return [self._summary(j) for j in jobs]
+        return [{**self._summary(j), "queue": name} for j in jobs]
 
-    async def search(self, name: str, state: str, query: str, scan_limit: int = 500) -> list[dict]:
+    async def search(
+        self, name: str, state: JobState, query: str, scan_limit: int = 500
+    ) -> list[dict]:
         jobs = await self._q(name).search(state, query, scan_limit)
-        return [self._summary(j) for j in jobs]
+        return [{**self._summary(j), "queue": name} for j in jobs]
 
     async def job(self, name: str, job_id: str) -> dict | None:
         q = self._q(name)
@@ -147,6 +161,7 @@ class Service:
             return None
         detail = self._detail(j)
         detail["logs"] = await q.get_logs(job_id)
+        detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         return detail
 
     async def schedulers(self, name: str) -> list[dict]:
@@ -179,8 +194,19 @@ class Service:
     async def retry_all(self, name: str) -> int:
         return await self._q(name).retry_all_failed()
 
-    async def clean(self, name: str, state: str) -> int:
-        return await self._q(name).clean(state)
+    async def clean(self, name: str, state: JobState) -> int:
+        """Remove every job in a state. The underlying toro call is bounded (1000 per
+        call) so it can't block forever; loop in batches so the dashboard's Clean
+        actually drains the state rather than nibbling 1000 off a large backlog.
+        """
+        q = self._q(name)
+        total = 0
+        while True:
+            n = await q.clean(state, limit=1000)
+            total += n
+            if n < 1000 or total >= 100_000:  # drained, or a sane upper bound
+                break
+        return total
 
     async def remove_scheduler(self, name: str, scheduler_id: str) -> None:
         await self._q(name).remove_scheduler(scheduler_id)
@@ -188,7 +214,9 @@ class Service:
     async def trigger_scheduler(self, name: str, scheduler_id: str) -> None:
         await self._q(name).trigger_scheduler(scheduler_id)
 
-    async def event_stream(self) -> AsyncIterator[str]:
+    async def event_stream(
+        self, is_disconnected: Callable[[], Awaitable[bool]] | None = None
+    ) -> AsyncIterator[str]:
         """SSE stream: emit a COALESCED `changed` signal whenever any queue publishes
         a job event. toro publishes one event per job (completed/failed/progress), so
         under load that's a firehose; we emit on the first event, then drain the burst
@@ -202,6 +230,10 @@ class Service:
         try:
             yield "retry: 3000\n\n"
             while True:
+                # Exit promptly when the client goes away instead of waiting for the
+                # next yield to raise — frees the pubsub/connection without delay.
+                if is_disconnected is not None and await is_disconnected():
+                    break
                 msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=8.0)
                 yield "event: changed\ndata: 1\n\n"
                 if msg is not None:

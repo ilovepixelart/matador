@@ -1,4 +1,7 @@
 {% from "macros.html" import icon %}
+{% if not s.ok %}
+<span class="chip text-warning"><span>{{ icon('warn', 'w-3.5 h-3.5') }}</span> redis unreachable</span>
+{% else %}
 <span class="chip"><span class="text-muted">{{ icon('db', 'w-3.5 h-3.5') }}</span>
   redis <span class="text-fg font-medium">{{ s.version }}</span></span>
 
@@ -25,3 +28,4 @@
   {% if not s.policy_ok %}<span class="text-warning">{{ icon('warn', 'w-3.5 h-3.5') }}</span>{% endif %}
   policy <span class="font-medium {{ 'text-warning' if not s.policy_ok else 'text-fg' }}">{{ s.policy }}</span>
 </span>
+{% endif %}

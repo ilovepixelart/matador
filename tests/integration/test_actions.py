@@ -3,6 +3,22 @@
 from .conftest import QUEUE, hx
 
 
+async def test_clear_departed_workers(client, q):
+    await q.redis.lpush(q.keys.departed, '{"id": "w1", "reason": "stopped"}')
+    assert await q.redis.llen(q.keys.departed) == 1
+    r = await client.post("/workers/departed/clear", headers=hx())
+    assert r.status_code == 200
+    assert await q.redis.llen(q.keys.departed) == 0  # history cleared
+
+
+async def test_bulk_remove_caps_count(client, q, seeded):
+    too_many = ",".join(str(i) for i in range(1, 1002))  # 1001 > MAX_BULK_REMOVE
+    r = await client.post(
+        f"/queues/{QUEUE}/jobs/bulk-remove?state=wait", data={"ids": too_many}, headers=hx()
+    )
+    assert r.status_code == 413  # rejected, not silently fanned out
+
+
 async def test_pause_then_resume(client, q, seeded):
     assert (await client.post(f"/queues/{QUEUE}/pause", headers=hx())).status_code == 200
     assert await q.is_paused() is True

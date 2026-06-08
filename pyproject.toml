@@ -85,6 +85,7 @@ ignore = [
     "ARG001",                      # FastAPI handlers take `request` even when unused
     "ANN202", "ANN003",            # return/`**kwargs` types on nested handlers+closures: low value
     "BLE001",                      # deliberate best-effort except in the Redis-stats path
+    "TC001", "TC002", "TC003",     # prefer normal runtime imports over TYPE_CHECKING blocks
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -92,8 +93,8 @@ ignore = [
 # prints, implicit-namespace, lazy imports, and Playwright/pytest idioms.
 "tests/**" = ["S101", "S105", "N806", "RUF001", "ANN", "D", "SLF001", "ARG", "PT011",
               "INP001", "PT018", "PT006", "PLC0415", "PLW0603", "T201", "PLW0108", "FBT003"]
-"run.py" = ["ANN", "D", "T201", "INP001"]
-"seed.py" = ["ANN", "D", "T201", "INP001", "S311", "PLR0915", "PLR0913"]
+"scripts/run.py" = ["ANN", "D", "T201", "INP001"]
+"scripts/seed.py" = ["ANN", "D", "T201", "INP001", "S311", "PLR0915", "PLR0913"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
