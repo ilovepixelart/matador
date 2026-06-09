@@ -108,6 +108,11 @@ uv run pytest -m e2e             # Playwright browser tests (run separately)
 ./tailwindcss -i styles/input.css -o matador/static/app.css --watch
 ```
 
+## Related
+
+- **[toro](https://github.com/ilovepixelart/toro)** — the async-first, Redis-backed job queue matador is built for.
+- **toro-matador-example** — a FastAPI app that embeds matador into a real service.
+
 ## License
 
 [MIT](https://github.com/ilovepixelart/matador/blob/main/LICENSE)
