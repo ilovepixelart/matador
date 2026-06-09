@@ -1,12 +1,25 @@
-name: CI
+name: PR check
 
 on:
+  workflow_dispatch:
   push:
+    branches:
+      - main
+      - feature*
   pull_request:
+    types: [opened, synchronize, reopened]
+
+# Read-only by default — nothing here writes to the repo. SonarCloud PR
+# decoration comes from the SonarCloud GitHub App, not GITHUB_TOKEN write scopes.
+permissions:
+  contents: read
 
 jobs:
   check:
+    name: Lint, types, tests, e2e & Sonar
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     services:
       redis:
         image: redis:7-alpine
@@ -35,6 +48,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/toro
           path: toro
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
@@ -56,9 +70,9 @@ jobs:
       - name: Tests (unit + integration)
         run: uv run pytest -m "unit or integration" --cov=matador --cov-report=xml
 
-      # Runs only when SONAR_TOKEN is set (skipped on forks / before setup, so CI
-      # stays green). Config is inline; projectBaseDir points at the matador checkout
-      # because this job uses a sibling layout (matador/ + toro/).
+      # Runs only when SONAR_TOKEN is set (skipped on forks / before setup, so the
+      # check stays green). Config is inline; projectBaseDir targets the matador
+      # checkout because this job uses a sibling layout (matador/ + toro/).
       - name: SonarCloud scan
         if: env.SONAR_TOKEN
         uses: SonarSource/sonarqube-scan-action@v8.0.0
