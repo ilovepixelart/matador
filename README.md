@@ -64,7 +64,7 @@ from fastapi import Depends
 from matador import create_app
 
 app.mount(
-    "/admin/queues",
+    "/toro",
     create_app(
         ["emails", "billing"],
         connection=redis,                       # share your existing redis pool
