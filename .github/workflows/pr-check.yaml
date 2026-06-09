@@ -81,6 +81,9 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: matador
+          # coverage.exclusions keeps the browser JS in analysis (issues) but out of the
+          # coverage metric — it's exercised by the Playwright e2e suite, not line-instrumented.
+          # exclusions drops the two vendored htmx extensions from analysis entirely.
           args: >
             -Dsonar.organization=ilovepixelart
             -Dsonar.projectName=matador
@@ -89,8 +92,6 @@ jobs:
             -Dsonar.sources=matador
             -Dsonar.tests=tests
             -Dsonar.test.exclusions=tests/**
-            # Browser JS is exercised by the Playwright e2e suite, not line-instrumented,
-            # so it's kept in analysis (issues) but out of the coverage metric.
             -Dsonar.coverage.exclusions=tests/**,matador/static/js/**
             -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js
 
