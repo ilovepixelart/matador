@@ -89,7 +89,9 @@ jobs:
             -Dsonar.sources=matador
             -Dsonar.tests=tests
             -Dsonar.test.exclusions=tests/**
-            -Dsonar.coverage.exclusions=tests/**
+            # Browser JS is exercised by the Playwright e2e suite, not line-instrumented,
+            # so it's kept in analysis (issues) but out of the coverage metric.
+            -Dsonar.coverage.exclusions=tests/**,matador/static/js/**
             -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js
 
       - name: Install Playwright browser
