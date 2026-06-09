@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, bar_color, job_row with context %}
+{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink with context %}
 {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
 <div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
   {# Bulk-action bar — shown by JS only when ≥1 row is selected (persists across pages). #}
@@ -40,10 +40,7 @@
 <div data-view="{{ name }}:{{ state }}">
 {% for j in jobs %}{{ job_row(name, j, state, page) }}
 {% else %}
-  <div class="px-4 py-16 flex flex-col items-center gap-2 text-muted">
-    <span class="opacity-50">{{ icon('inbox', 'w-7 h-7') }}</span>
-    <span class="text-sm">No {{ state }} jobs{% if state == 'failed' %} — all clear{% endif %}</span>
-  </div>
+  {{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' — all clear' if state == 'failed' else '')) }}
 {% endfor %}
 </div>
 
@@ -57,12 +54,6 @@
      hx-swap="morph:innerHTML" hx-sync="this:drop"></div>
 
 {% if pages > 1 %}
-{% macro pglink(p, label, disabled=false, active=false) -%}
-<a class="pg{{ ' pg-active' if active }}{{ ' pg-disabled' if disabled }}"
-   {% if not disabled %}href="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
-   hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
-   hx-push-url="true"{% endif %}>{{ label }}</a>
-{%- endmacro %}
 <div class="flex items-center justify-between px-4 py-2.5 border-t border-line text-xs">
   <span class="text-muted">{{ total|comma }} {{ state }} · page {{ page }} of {{ pages }}</span>
   <nav class="flex items-center gap-1" aria-label="pagination">

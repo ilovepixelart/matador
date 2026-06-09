@@ -55,11 +55,11 @@
 
   <div id="jobs" class="card mb-6">
     {% with name = q.name %}
-      {% if query %}{% include "search_results.html" %}{% else %}{% include "jobs.html" %}{% endif %}
+      {% if query %}{% include "partials/search_results.html" %}{% else %}{% include "partials/jobs.html" %}{% endif %}
     {% endwith %}
   </div>
 
   <div id="schedulers">
-    {% with name = q.name, schedulers = q.schedulers %}{% include "schedulers.html" %}{% endwith %}
+    {% with name = q.name, schedulers = q.schedulers %}{% include "partials/schedulers.html" %}{% endwith %}
   </div>
 </div>
