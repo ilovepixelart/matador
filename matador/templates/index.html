@@ -9,8 +9,9 @@
   {# Controls inside the panel re-render the panel by DEFAULT: hx-target is
      inherited from here, so tabs/pagination/pause/resume/toolbar omit it. The
      exceptions state their own target: the search box (#jobs), the accordion
-     bodies (#body-*), the schedulers table (#schedulers), and a job row's
-     action buttons (#queue-panel, overriding the row's #body target). #}
+     body (`find .acc-body`, relative so colon job ids can't break the selector),
+     the schedulers table (#schedulers), and a job row's action buttons
+     (#queue-panel, overriding the row's accordion target). #}
   <main id="queue-panel" class="flex-1 overflow-y-auto" hx-target="#queue-panel">
     {% if job_page is defined %}
       {% include "job_page.html" %}

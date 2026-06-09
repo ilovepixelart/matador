@@ -30,7 +30,7 @@
 {% macro job_row(name, j, state, page=1) -%}
 <details id="jrow-{{ state }}-{{ j.id }}" class="acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
-         hx-target="#body-{{ state }}-{{ j.id }}" hx-trigger="toggle once">
+         hx-target="find .acc-body" hx-trigger="toggle once">
   <summary class="flex items-center hover:bg-panel2/30 transition-colors cursor-pointer
                   list-none [&::-webkit-details-marker]:hidden">
     <label class="pl-3 flex items-center shrink-0">
@@ -70,7 +70,7 @@
         {{ icon('trash', 'w-3.5 h-3.5') }}</button>
     </div>
   </summary>
-  <div class="acc-body" id="body-{{ state }}-{{ j.id }}"></div>
+  <div class="acc-body"></div>
 </details>
 {%- endmacro %}
 
