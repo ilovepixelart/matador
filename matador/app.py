@@ -93,6 +93,10 @@ def wants_fragment(request: Request) -> bool:
 
 _HERE = Path(__file__).parent
 _TEMPLATES = Jinja2Templates(directory=str(_HERE / "templates"))
+# Drop the newline after a block tag and leading whitespace before one, so the
+# rendered HTML stays clean without manual {%- -%} trims sprinkled everywhere.
+_TEMPLATES.env.trim_blocks = True
+_TEMPLATES.env.lstrip_blocks = True
 PER_PAGE = 20
 WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
