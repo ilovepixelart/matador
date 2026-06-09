@@ -90,6 +90,7 @@ jobs:
             -Dsonar.tests=tests
             -Dsonar.test.exclusions=tests/**
             -Dsonar.coverage.exclusions=tests/**
+            -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js
 
       - name: Install Playwright browser
         run: uv run playwright install --with-deps chromium

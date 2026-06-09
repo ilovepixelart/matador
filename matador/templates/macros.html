@@ -33,7 +33,7 @@
          hx-target="#body-{{ state }}-{{ j.id }}" hx-trigger="toggle once">
   <summary class="flex items-center hover:bg-panel2/30 transition-colors cursor-pointer
                   list-none [&::-webkit-details-marker]:hidden">
-    <label class="pl-3 flex items-center shrink-0" onclick="event.stopPropagation()">
+    <label class="pl-3 flex items-center shrink-0">
       <input type="checkbox" class="jcheck chk" value="{{ j.id }}"
              aria-label="Select job {{ j.id }}" />
     </label>
@@ -52,7 +52,7 @@
       {% endif %}
       <span class="text-xs text-muted tabular-nums w-9 text-right shrink-0">{{ j.attempts_made }}×</span>
     </div>
-    <div class="px-3 flex gap-1.5 shrink-0" onclick="event.stopPropagation()">
+    <div class="px-3 flex gap-1.5 shrink-0" data-no-toggle>
       {% if state == 'delayed' %}
       <button class="btn btn-sm btn-success tip" aria-label="Promote — run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
