@@ -4,8 +4,8 @@
 const selected = new Set();
 let view = null;
 
-window.Matador = window.Matador || {};
-window.Matador.bulk = {
+globalThis.Matador = globalThis.Matador || {};
+globalThis.Matador.bulk = {
   ids: () => [...selected].join(","),
   clear: () => {
     selected.clear();
@@ -35,7 +35,7 @@ function sync() {
 
 document.addEventListener("change", (e) => {
   const t = e.target;
-  if (t.classList && t.classList.contains("jcheck")) {
+  if (t.classList?.contains("jcheck")) {
     if (t.checked) selected.add(t.value);
     else selected.delete(t.value);
     sync();
@@ -50,14 +50,14 @@ document.addEventListener("change", (e) => {
 });
 
 document.addEventListener("click", (e) => {
-  if (e.target.closest("[data-js-bulk-clear]")) window.Matador.bulk.clear();
+  if (e.target.closest("[data-js-bulk-clear]")) globalThis.Matador.bulk.clear();
 });
 
 // After any htmx swap: drop the selection if the queue/state view changed (it
 // belonged to the old view), then re-apply to whatever page is now shown.
 function onSwap() {
   const el = document.querySelector("[data-view]");
-  const v = el ? el.getAttribute("data-view") : view;
+  const v = el ? el.dataset.view : view;
   if (v !== view) {
     selected.clear();
     view = v;
@@ -71,11 +71,9 @@ document.body.addEventListener("htmx:afterSettle", () => requestAnimationFrame(o
 // on the triggering button surviving its own swap.
 document.body.addEventListener("htmx:afterRequest", (e) => {
   const p =
-    (e.detail.pathInfo && e.detail.pathInfo.requestPath) ||
-    (e.detail.requestConfig && e.detail.requestConfig.path) ||
-    "";
+    e.detail.pathInfo?.requestPath || e.detail.requestConfig?.path || "";
   if (p.includes("/jobs/bulk-remove")) selected.clear();
 });
 
 const start = document.querySelector("[data-view]");
-view = start ? start.getAttribute("data-view") : null;
+view = start ? start.dataset.view : null;

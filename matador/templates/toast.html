@@ -1,7 +1,7 @@
 {% from "macros.html" import icon %}
 {# Error toast — response-targets swaps this into #toast on a 4xx/5xx action response.
    Click to dismiss; the toast behaviour also auto-removes it after a few seconds. #}
-<div role="alert" onclick="this.remove()"
+<div role="alert"
      class="toast bg-panel border border-danger/40 rounded-xl shadow-lg p-4 flex items-start gap-3 cursor-pointer">
   <span class="text-danger shrink-0">{{ icon('warn', 'w-5 h-5') }}</span>
   <div class="text-sm min-w-0">

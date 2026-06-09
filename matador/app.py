@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Annotated, cast
 from urllib.parse import unquote, urlsplit
 
-from fastapi import FastAPI, Form, Request, params
+from fastapi import APIRouter, FastAPI, Form, Request, params
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -97,6 +97,10 @@ PER_PAGE = 20
 WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
 MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out unboundedly
+
+# OOB sidebar refresh fragment — re-rendered alongside a panel so the active-queue
+# highlight + badges update in the same response.
+_SIDEBAR_OOB = "sidebar_oob.html"
 
 
 def _schedule_label(s: dict) -> str:
@@ -185,7 +189,386 @@ def _asset_version() -> int:
 _TEMPLATES.env.globals["css_v"] = _asset_version()  # ty: ignore[invalid-assignment]
 
 
-def create_app(  # noqa: C901, PLR0913, PLR0915  — an app factory that wires every route is inherently long
+# ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
+
+
+def _render(request: Request, template: str, **ctx) -> HTMLResponse:
+    return _TEMPLATES.TemplateResponse(request, template, ctx)
+
+
+def _toast(request: Request, title: str, message: str, status: int = 404) -> HTMLResponse:
+    # A 4xx/5xx body that response-targets routes into #toast (hx-target-error),
+    # so a failed action surfaces instead of silently doing nothing.
+    return _TEMPLATES.TemplateResponse(
+        request, "toast.html", {"title": title, "message": message}, status_code=status
+    )
+
+
+def _full_page(request: Request, **ctx) -> HTMLResponse:
+    return _render(request, "index.html", **ctx)
+
+
+def _render_str(request: Request, template: str, **ctx) -> str:
+    # `request` is passed so templates can use `url_for` (root_path-aware, which
+    # is what makes the dashboard work mounted at any sub-path).
+    return _TEMPLATES.get_template(template).render(request=request, **ctx)
+
+
+def _selected_from_url(url: str) -> str | None:
+    # Which sidebar entry the browser is currently on. Greedy `.*` so the LAST
+    # /queues/<name> wins — correct even mounted at a sub-path like /admin/queues
+    # (where the URL is …/admin/queues/queues/<name>).
+    if re.search(r"/workers(/|\?|#|$)", url):
+        return WORKERS_SEL
+    if m := re.search(r".*/queues/([^/?#]+)", url):
+        return unquote(m.group(1))
+    return None
+
+
+# ---- data helpers (need the Service) ----
+
+
+async def _search_jobs(
+    svc: Service, name: str, state: JobState, query: str
+) -> tuple[list[dict], bool]:
+    # Exact id lookup is O(1) and cross-state (finds a job wherever it now is);
+    # the bounded substring scan covers name/data within `state`. Returns the
+    # merged hits plus whether the query was an exact id hit (drives the badge).
+    exact = await svc.job(name, query)
+    matches = await svc.search(name, state, query, SCAN_LIMIT)
+    seen = {exact["id"]} if exact else set()
+    jobs = ([exact] if exact else []) + [m for m in matches if m["id"] not in seen]
+    return jobs, exact is not None
+
+
+async def _panel_ctx(svc: Service, name: str, state: str, page: int, query: str = "") -> dict:
+    state = _coerce_state(state)
+    view = await svc.queue_view(name)
+    query = query.strip()
+    base = {"q": view, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
+    if query:  # a deep-link or a typed search → render the results, not the list
+        jobs, exact = await _search_jobs(svc, name, state, query)
+        return {
+            **base,
+            "jobs": jobs,
+            "query": query,
+            "exact": exact,
+            "page": 1,
+            "pages": 1,
+            "total": len(jobs),
+            "nav": [],
+        }
+    total = view["counts"].get(state, 0)
+    pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, pages))
+    jobs = await svc.jobs(name, state, page, PER_PAGE)
+    return {
+        **base,
+        "jobs": jobs,
+        "query": "",
+        "page": page,
+        "pages": pages,
+        "total": total,
+        "nav": _page_window(page, pages),
+    }
+
+
+async def _panel_with_sidebar(svc: Service, request: Request, name: str, ctx: dict) -> HTMLResponse:
+    # Panel + an out-of-band sidebar refresh, so the active-queue highlight
+    # updates in the SAME response (no lag, no second request).
+    panel = _render_str(request, "queue.html", **ctx)
+    side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
+    return HTMLResponse(panel + side)
+
+
+async def _panel(svc: Service, request: Request, name: str, state: str, page: int) -> HTMLResponse:
+    return _render(request, "queue.html", **await _panel_ctx(svc, name, state, page))
+
+
+# ---- cross-cutting middleware + error handling (registered onto the app) ----
+
+
+async def _same_origin(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    # CSRF defense: on unsafe methods, a present Origin must match our host.
+    # Absent Origin (non-browser clients) is allowed through.
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("origin")
+        if origin and urlsplit(origin).netloc != request.headers.get("host"):
+            return PlainTextResponse("cross-origin request blocked", status_code=403)
+    return await call_next(request)
+
+
+async def _security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    # Secure-by-default hardening on every matador response (only this mounted
+    # sub-app's routes). `setdefault` so a host can override. No CSP here — the
+    # inline theme script + htmx `js:` eval would need nonces; left to the host.
+    response = await call_next(request)
+    response.headers.setdefault("X-Frame-Options", "DENY")  # clickjacking
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
+
+async def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "error.html",
+        {"title": "Queue not found", "message": f"There is no queue named '{exc.args[0]}'."},
+        status_code=404,
+    )
+
+
+# ---- route groups ------------------------------------------------------------
+
+
+def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa: C901 — wires N read routes
+    """Build the read routes: a full page on direct navigation, a fragment for swaps."""
+    router = APIRouter()
+
+    @router.get("/", response_class=HTMLResponse)
+    async def index(request: Request):
+        queues = await svc.overview()
+        if not queues:
+            return _full_page(request, queues=[], selected=None, q=None)
+        name = queues[0]["name"]
+        ctx = await _panel_ctx(svc, name, "active", 1)
+        return _full_page(request, queues=queues, selected=name, **ctx)
+
+    @router.get("/redis", response_class=HTMLResponse)
+    async def redis_bar(request: Request):
+        return _render(request, "redis.html", s=await svc.redis_stats())
+
+    @router.get("/stream")
+    async def stream(request: Request):
+        return StreamingResponse(
+            svc.event_stream(request.is_disconnected),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @router.get("/queues/{name}", response_class=HTMLResponse)
+    async def queue_view(
+        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
+    ):
+        ctx = await _panel_ctx(svc, name, state, page, query)
+        if wants_fragment(request):
+            return await _panel_with_sidebar(svc, request, name, ctx)
+        # Full page: direct nav, reload, or history restore of a pushed URL.
+        return _full_page(request, queues=await svc.overview(), selected=name, **ctx)
+
+    @router.get("/workers", response_class=HTMLResponse)
+    async def workers_view(request: Request):
+        workers = await svc.workers()
+        departed = await svc.departed_workers()
+        multi = len(svc.queues) > 1
+        if wants_fragment(request):
+            panel = _render_str(
+                request, "workers.html", workers=workers, departed=departed, multi=multi
+            )
+            side = _render_str(
+                request, _SIDEBAR_OOB, queues=await svc.overview(), selected=WORKERS_SEL
+            )
+            return HTMLResponse(panel + side)
+        return _full_page(
+            request,
+            queues=await svc.overview(),
+            selected=WORKERS_SEL,
+            q=None,
+            workers=workers,
+            departed=departed,
+            multi=multi,
+        )
+
+    @router.get("/workers/list", response_class=HTMLResponse)
+    async def workers_fragment(request: Request):
+        return _render(
+            request,
+            "workers_list.html",
+            workers=await svc.workers(),
+            departed=await svc.departed_workers(),
+            multi=len(svc.queues) > 1,
+        )
+
+    @router.get("/sidebar", response_class=HTMLResponse)
+    async def sidebar(request: Request):
+        selected = _selected_from_url(request.headers.get("hx-current-url", ""))
+        overview = await svc.overview()
+        # Only the sidebar queue-list here. The panel state-tab counts are emitted by the
+        # #jobs live-refresh (jobs_fragment) from the same snapshot as the table, so the
+        # badges and the list stay in lockstep on fast-churning states.
+        return HTMLResponse(
+            _render_str(request, "sidebar.html", queues=overview, selected=selected)
+        )
+
+    @router.get("/queues/{name}/jobs", response_class=HTMLResponse)
+    async def jobs_fragment(
+        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
+    ):
+        query = query.strip()
+        if query:
+            # Exact id lookup is O(1) and works for auto AND custom string ids;
+            # the bounded substring scan covers name/data within the state.
+            jobs, exact = await _search_jobs(svc, name, _coerce_state(state), query)
+            return _render(
+                request,
+                "search_results.html",
+                name=name,
+                state=state,
+                jobs=jobs,
+                query=query,
+                exact=exact,
+                scan_limit=SCAN_LIMIT,
+            )
+        # No query → the normal paginated list (this is the live-refresh path). Emit the
+        # tab counts from the SAME snapshot as the table so the badges and the list can't
+        # disagree on a fast-churning state — this refresh is their single source.
+        ctx = await _panel_ctx(svc, name, state, page)
+        html = _render_str(request, "jobs.html", name=name, **ctx)
+        html += _render_str(
+            request, "tab_counts_oob.html", states=STATES, counts=ctx["q"]["counts"]
+        )
+        return HTMLResponse(html)
+
+    @router.get("/queues/{name}/jobs/{job_id}/detail", response_class=HTMLResponse)
+    async def job_detail(request: Request, name: str, job_id: str):
+        # The accordion body (lazy-loaded when a job row is expanded).
+        return _render(
+            request,
+            "job_detail.html",
+            name=name,
+            job=await svc.job(name, job_id),
+            show_stacktraces=show_stacktraces,
+        )
+
+    @router.get("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
+    async def job_page(request: Request, name: str, job_id: str):
+        # A standalone, bookmarkable page for one job — the drill-down target for
+        # job-id chips. Shows "no longer here" cleanly if the job is already gone.
+        job = await svc.job(name, job_id)
+        if wants_fragment(request):
+            panel = _render_str(
+                request,
+                "job_page.html",
+                name=name,
+                job=job,
+                job_id=job_id,
+                show_stacktraces=show_stacktraces,
+            )
+            side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
+            return HTMLResponse(panel + side)
+        return _full_page(
+            request,
+            queues=await svc.overview(),
+            selected=name,
+            q=None,
+            name=name,
+            job=job,
+            job_id=job_id,
+            job_page=True,
+            show_stacktraces=show_stacktraces,
+        )
+
+    return router
+
+
+def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write routes
+    """Build the write routes: each mutates state, then re-renders the panel."""
+    router = APIRouter()
+
+    @router.post("/workers/departed/clear", response_class=HTMLResponse)
+    async def clear_departed(request: Request):
+        # Dismiss the stopped/lost-worker history; live workers re-appear via heartbeats.
+        await svc.clear_departed()
+        return _render(
+            request,
+            "workers_list.html",
+            workers=await svc.workers(),
+            departed=await svc.departed_workers(),
+            multi=len(svc.queues) > 1,
+        )
+
+    @router.post("/queues/{name}/pause", response_class=HTMLResponse)
+    async def pause(request: Request, name: str, state: str = "active", page: int = 1):
+        await svc.pause(name)
+        # Re-render the panel AND OOB-refresh the sidebar so its `paused` badge
+        # updates at once (pausing emits no job event, so SSE wouldn't catch it).
+        ctx = await _panel_ctx(svc, name, state, page)
+        return await _panel_with_sidebar(svc, request, name, ctx)
+
+    @router.post("/queues/{name}/resume", response_class=HTMLResponse)
+    async def resume(request: Request, name: str, state: str = "active", page: int = 1):
+        await svc.resume(name)
+        ctx = await _panel_ctx(svc, name, state, page)
+        return await _panel_with_sidebar(svc, request, name, ctx)
+
+    @router.post("/queues/{name}/jobs/{job_id}/retry", response_class=HTMLResponse)
+    async def retry(request: Request, name: str, job_id: str, state: str = "failed", page: int = 1):
+        if not await svc.retry(name, job_id):
+            return _toast(request, "Couldn't retry", f"Job #{job_id} is no longer here.")
+        return await _panel(svc, request, name, state, page)
+
+    @router.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
+    async def remove(
+        request: Request, name: str, job_id: str, state: str = "active", page: int = 1
+    ):
+        if not await svc.remove(name, job_id):
+            return _toast(request, "Couldn't remove", f"Job #{job_id} is no longer here.")
+        return await _panel(svc, request, name, state, page)
+
+    @router.post("/queues/{name}/jobs/{job_id}/promote", response_class=HTMLResponse)
+    async def promote(request: Request, name: str, job_id: str, page: int = 1):
+        if not await svc.promote(name, job_id):
+            return _toast(request, "Couldn't promote", f"Job #{job_id} is no longer here.")
+        return await _panel(svc, request, name, "delayed", page)
+
+    @router.post("/queues/{name}/jobs/bulk-remove", response_class=HTMLResponse)
+    async def bulk_remove(
+        request: Request,
+        name: str,
+        state: str = "active",
+        page: int = 1,
+        ids: Annotated[str, Form()] = "",
+    ):
+        # `ids` is a comma-joined set submitted by the client (persists across pages).
+        selected = [i for i in ids.split(",") if i]
+        if len(selected) > MAX_BULK_REMOVE:
+            return _toast(
+                request,
+                "Too many selected",
+                f"Remove at most {MAX_BULK_REMOVE:,} jobs at once.",
+                status=413,
+            )
+        await svc.remove_many(name, selected)
+        return await _panel(svc, request, name, state, page)
+
+    @router.post("/queues/{name}/retry-all", response_class=HTMLResponse)
+    async def retry_all(request: Request, name: str):
+        await svc.retry_all(name)
+        return await _panel(svc, request, name, "failed", 1)
+
+    @router.post("/queues/{name}/clean", response_class=HTMLResponse)
+    async def clean(request: Request, name: str, state: str = "completed"):
+        await svc.clean(name, _coerce_state(state))
+        return await _panel(svc, request, name, state, 1)
+
+    @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
+    async def trigger(request: Request, name: str, scheduler_id: str):
+        await svc.trigger_scheduler(name, scheduler_id)
+        return _render(request, "schedulers.html", name=name, schedulers=await svc.schedulers(name))
+
+    @router.delete("/queues/{name}/schedulers/{scheduler_id}", response_class=HTMLResponse)
+    async def remove_scheduler(request: Request, name: str, scheduler_id: str):
+        await svc.remove_scheduler(name, scheduler_id)
+        return _render(request, "schedulers.html", name=name, schedulers=await svc.schedulers(name))
+
+    return router
+
+
+def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configuration surface
     names: list[str],
     *,
     url: str = "redis://localhost:6379",
@@ -228,347 +611,13 @@ def create_app(  # noqa: C901, PLR0913, PLR0915  — an app factory that wires e
     app = FastAPI(title="matador", lifespan=lifespan, dependencies=list(dependencies or []))
     app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
 
+    # Middleware runs outermost-last-registered, so security_headers wraps same_origin:
+    # a blocked cross-origin response still carries the hardening headers.
     if require_same_origin:
+        app.middleware("http")(_same_origin)
+    app.middleware("http")(_security_headers)
+    app.exception_handler(UnknownQueueError)(_unknown_queue)
 
-        @app.middleware("http")
-        async def _same_origin(
-            request: Request, call_next: Callable[[Request], Awaitable[Response]]
-        ) -> Response:
-            # CSRF defense: on unsafe methods, a present Origin must match our host.
-            # Absent Origin (non-browser clients) is allowed through.
-            if request.method not in ("GET", "HEAD", "OPTIONS"):
-                origin = request.headers.get("origin")
-                if origin and urlsplit(origin).netloc != request.headers.get("host"):
-                    return PlainTextResponse("cross-origin request blocked", status_code=403)
-            return await call_next(request)
-
-    @app.middleware("http")
-    async def _security_headers(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        # Secure-by-default hardening on every matador response (only this mounted
-        # sub-app's routes). `setdefault` so a host can override. No CSP here — the
-        # inline theme script + htmx `js:` eval would need nonces; left to the host.
-        response = await call_next(request)
-        response.headers.setdefault("X-Frame-Options", "DENY")  # clickjacking
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        return response
-
-    @app.exception_handler(UnknownQueueError)
-    async def _unknown_queue(request: Request, exc: UnknownQueueError):
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "error.html",
-            {"title": "Queue not found", "message": f"There is no queue named '{exc.args[0]}'."},
-            status_code=404,
-        )
-
-    def render(request: Request, template: str, **ctx) -> HTMLResponse:
-        return _TEMPLATES.TemplateResponse(request, template, ctx)
-
-    def toast(request: Request, title: str, message: str, status: int = 404) -> HTMLResponse:
-        # A 4xx/5xx body that response-targets routes into #toast (hx-target-error),
-        # so a failed action surfaces instead of silently doing nothing.
-        return _TEMPLATES.TemplateResponse(
-            request, "toast.html", {"title": title, "message": message}, status_code=status
-        )
-
-    def full_page(request: Request, **ctx) -> HTMLResponse:
-        return render(request, "index.html", **ctx)
-
-    def render_str(request: Request, template: str, **ctx) -> str:
-        # `request` is passed so templates can use `url_for` (root_path-aware, which
-        # is what makes the dashboard work mounted at any sub-path).
-        return _TEMPLATES.get_template(template).render(request=request, **ctx)
-
-    async def panel_with_sidebar(request: Request, name: str, ctx: dict) -> HTMLResponse:
-        # Panel + an out-of-band sidebar refresh, so the active-queue highlight
-        # updates in the SAME response (no lag, no second request).
-        panel = render_str(request, "queue.html", **ctx)
-        side = render_str(request, "sidebar_oob.html", queues=await svc.overview(), selected=name)
-        return HTMLResponse(panel + side)
-
-    async def _search_jobs(name: str, state: JobState, query: str) -> tuple[list[dict], bool]:
-        # Exact id lookup is O(1) and cross-state (finds a job wherever it now is);
-        # the bounded substring scan covers name/data within `state`. Returns the
-        # merged hits plus whether the query was an exact id hit (drives the badge).
-        exact = await svc.job(name, query)
-        matches = await svc.search(name, state, query, SCAN_LIMIT)
-        seen = {exact["id"]} if exact else set()
-        jobs = ([exact] if exact else []) + [m for m in matches if m["id"] not in seen]
-        return jobs, exact is not None
-
-    async def panel_ctx(name: str, state: str, page: int, query: str = "") -> dict:
-        state = _coerce_state(state)
-        view = await svc.queue_view(name)
-        query = query.strip()
-        base = {"q": view, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
-        if query:  # a deep-link or a typed search → render the results, not the list
-            jobs, exact = await _search_jobs(name, state, query)
-            return {
-                **base,
-                "jobs": jobs,
-                "query": query,
-                "exact": exact,
-                "page": 1,
-                "pages": 1,
-                "total": len(jobs),
-                "nav": [],
-            }
-        total = view["counts"].get(state, 0)
-        pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-        page = max(1, min(page, pages))
-        jobs = await svc.jobs(name, state, page, PER_PAGE)
-        return {
-            **base,
-            "jobs": jobs,
-            "query": "",
-            "page": page,
-            "pages": pages,
-            "total": total,
-            "nav": _page_window(page, pages),
-        }
-
-    # ---- pages & fragments (reads) ----------------------------------------
-
-    @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request):
-        queues = await svc.overview()
-        if not queues:
-            return full_page(request, queues=[], selected=None, q=None)
-        name = queues[0]["name"]
-        ctx = await panel_ctx(name, "active", 1)
-        return full_page(request, queues=queues, selected=name, **ctx)
-
-    @app.get("/redis", response_class=HTMLResponse)
-    async def redis_bar(request: Request):
-        return render(request, "redis.html", s=await svc.redis_stats())
-
-    @app.get("/stream")
-    async def stream(request: Request):
-        return StreamingResponse(
-            svc.event_stream(request.is_disconnected),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
-
-    @app.get("/queues/{name}", response_class=HTMLResponse)
-    async def queue_view(
-        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
-    ):
-        ctx = await panel_ctx(name, state, page, query)
-        if wants_fragment(request):
-            return await panel_with_sidebar(request, name, ctx)
-        # Full page: direct nav, reload, or history restore of a pushed URL.
-        return full_page(request, queues=await svc.overview(), selected=name, **ctx)
-
-    @app.get("/workers", response_class=HTMLResponse)
-    async def workers_view(request: Request):
-        workers = await svc.workers()
-        departed = await svc.departed_workers()
-        multi = len(svc.queues) > 1
-        if wants_fragment(request):
-            panel = render_str(
-                request, "workers.html", workers=workers, departed=departed, multi=multi
-            )
-            side = render_str(
-                request, "sidebar_oob.html", queues=await svc.overview(), selected=WORKERS_SEL
-            )
-            return HTMLResponse(panel + side)
-        return full_page(
-            request,
-            queues=await svc.overview(),
-            selected=WORKERS_SEL,
-            q=None,
-            workers=workers,
-            departed=departed,
-            multi=multi,
-        )
-
-    @app.get("/workers/list", response_class=HTMLResponse)
-    async def workers_fragment(request: Request):
-        return render(
-            request,
-            "workers_list.html",
-            workers=await svc.workers(),
-            departed=await svc.departed_workers(),
-            multi=len(svc.queues) > 1,
-        )
-
-    @app.post("/workers/departed/clear", response_class=HTMLResponse)
-    async def clear_departed(request: Request):
-        # Dismiss the stopped/lost-worker history; live workers re-appear via heartbeats.
-        await svc.clear_departed()
-        return render(
-            request,
-            "workers_list.html",
-            workers=await svc.workers(),
-            departed=await svc.departed_workers(),
-            multi=len(svc.queues) > 1,
-        )
-
-    @app.get("/sidebar", response_class=HTMLResponse)
-    async def sidebar(request: Request):
-        # Highlight whatever the browser is currently on. Greedy `.*` so the LAST
-        # /queues/<name> wins — correct even mounted at a sub-path like /admin/queues
-        # (where the URL is …/admin/queues/queues/<name>).
-        url = request.headers.get("hx-current-url", "")
-        if re.search(r"/workers(/|\?|#|$)", url):
-            selected = WORKERS_SEL
-        elif m := re.search(r".*/queues/([^/?#]+)", url):
-            selected = unquote(m.group(1))
-        else:
-            selected = None
-        overview = await svc.overview()
-        # Only the sidebar queue-list here. The panel state-tab counts are emitted by the
-        # #jobs live-refresh (jobs_fragment) from the same snapshot as the table, so the
-        # badges and the list stay in lockstep on fast-churning states.
-        return HTMLResponse(render_str(request, "sidebar.html", queues=overview, selected=selected))
-
-    @app.get("/queues/{name}/jobs", response_class=HTMLResponse)
-    async def jobs_fragment(
-        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
-    ):
-        query = query.strip()
-        if query:
-            # Exact id lookup is O(1) and works for auto AND custom string ids;
-            # the bounded substring scan covers name/data within the state.
-            jobs, exact = await _search_jobs(name, _coerce_state(state), query)
-            return render(
-                request,
-                "search_results.html",
-                name=name,
-                state=state,
-                jobs=jobs,
-                query=query,
-                exact=exact,
-                scan_limit=SCAN_LIMIT,
-            )
-        # No query → the normal paginated list (this is the live-refresh path). Emit the
-        # tab counts from the SAME snapshot as the table so the badges and the list can't
-        # disagree on a fast-churning state — this refresh is their single source.
-        ctx = await panel_ctx(name, state, page)
-        html = render_str(request, "jobs.html", name=name, **ctx)
-        html += render_str(request, "tab_counts_oob.html", states=STATES, counts=ctx["q"]["counts"])
-        return HTMLResponse(html)
-
-    @app.get("/queues/{name}/jobs/{job_id}/detail", response_class=HTMLResponse)
-    async def job_detail(request: Request, name: str, job_id: str):
-        # The accordion body (lazy-loaded when a job row is expanded).
-        return render(
-            request,
-            "job_detail.html",
-            name=name,
-            job=await svc.job(name, job_id),
-            show_stacktraces=show_stacktraces,
-        )
-
-    @app.get("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
-    async def job_page(request: Request, name: str, job_id: str):
-        # A standalone, bookmarkable page for one job — the drill-down target for
-        # job-id chips. Shows "no longer here" cleanly if the job is already gone.
-        job = await svc.job(name, job_id)
-        if wants_fragment(request):
-            panel = render_str(
-                request,
-                "job_page.html",
-                name=name,
-                job=job,
-                job_id=job_id,
-                show_stacktraces=show_stacktraces,
-            )
-            side = render_str(
-                request, "sidebar_oob.html", queues=await svc.overview(), selected=name
-            )
-            return HTMLResponse(panel + side)
-        return full_page(
-            request,
-            queues=await svc.overview(),
-            selected=name,
-            q=None,
-            name=name,
-            job=job,
-            job_id=job_id,
-            job_page=True,
-            show_stacktraces=show_stacktraces,
-        )
-
-    # ---- actions (writes) — all re-render the panel for the current view ----
-
-    async def _panel(request: Request, name: str, state: str, page: int) -> HTMLResponse:
-        return render(request, "queue.html", **await panel_ctx(name, state, page))
-
-    @app.post("/queues/{name}/pause", response_class=HTMLResponse)
-    async def pause(request: Request, name: str, state: str = "active", page: int = 1):
-        await svc.pause(name)
-        # Re-render the panel AND OOB-refresh the sidebar so its `paused` badge
-        # updates at once (pausing emits no job event, so SSE wouldn't catch it).
-        return await panel_with_sidebar(request, name, await panel_ctx(name, state, page))
-
-    @app.post("/queues/{name}/resume", response_class=HTMLResponse)
-    async def resume(request: Request, name: str, state: str = "active", page: int = 1):
-        await svc.resume(name)
-        return await panel_with_sidebar(request, name, await panel_ctx(name, state, page))
-
-    @app.post("/queues/{name}/jobs/{job_id}/retry", response_class=HTMLResponse)
-    async def retry(request: Request, name: str, job_id: str, state: str = "failed", page: int = 1):
-        if not await svc.retry(name, job_id):
-            return toast(request, "Couldn't retry", f"Job #{job_id} is no longer here.")
-        return await _panel(request, name, state, page)
-
-    @app.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
-    async def remove(
-        request: Request, name: str, job_id: str, state: str = "active", page: int = 1
-    ):
-        if not await svc.remove(name, job_id):
-            return toast(request, "Couldn't remove", f"Job #{job_id} is no longer here.")
-        return await _panel(request, name, state, page)
-
-    @app.post("/queues/{name}/jobs/{job_id}/promote", response_class=HTMLResponse)
-    async def promote(request: Request, name: str, job_id: str, page: int = 1):
-        if not await svc.promote(name, job_id):
-            return toast(request, "Couldn't promote", f"Job #{job_id} is no longer here.")
-        return await _panel(request, name, "delayed", page)
-
-    @app.post("/queues/{name}/jobs/bulk-remove", response_class=HTMLResponse)
-    async def bulk_remove(
-        request: Request,
-        name: str,
-        state: str = "active",
-        page: int = 1,
-        ids: Annotated[str, Form()] = "",
-    ):
-        # `ids` is a comma-joined set submitted by the client (persists across pages).
-        selected = [i for i in ids.split(",") if i]
-        if len(selected) > MAX_BULK_REMOVE:
-            return toast(
-                request,
-                "Too many selected",
-                f"Remove at most {MAX_BULK_REMOVE:,} jobs at once.",
-                status=413,
-            )
-        await svc.remove_many(name, selected)
-        return await _panel(request, name, state, page)
-
-    @app.post("/queues/{name}/retry-all", response_class=HTMLResponse)
-    async def retry_all(request: Request, name: str):
-        await svc.retry_all(name)
-        return await _panel(request, name, "failed", 1)
-
-    @app.post("/queues/{name}/clean", response_class=HTMLResponse)
-    async def clean(request: Request, name: str, state: str = "completed"):
-        await svc.clean(name, _coerce_state(state))
-        return await _panel(request, name, state, 1)
-
-    @app.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
-    async def trigger(request: Request, name: str, scheduler_id: str):
-        await svc.trigger_scheduler(name, scheduler_id)
-        return render(request, "schedulers.html", name=name, schedulers=await svc.schedulers(name))
-
-    @app.delete("/queues/{name}/schedulers/{scheduler_id}", response_class=HTMLResponse)
-    async def remove_scheduler(request: Request, name: str, scheduler_id: str):
-        await svc.remove_scheduler(name, scheduler_id)
-        return render(request, "schedulers.html", name=name, schedulers=await svc.schedulers(name))
-
+    app.include_router(_views_router(svc, show_stacktraces=show_stacktraces))
+    app.include_router(_actions_router(svc))
     return app

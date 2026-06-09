@@ -7,3 +7,4 @@ import "./behaviors/confirm.js";
 import "./behaviors/tooltips.js";
 import "./behaviors/bulk-select.js";
 import "./behaviors/toast.js";
+import "./behaviors/row-controls.js";

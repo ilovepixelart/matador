@@ -19,6 +19,28 @@ def test_selecting_rows_reveals_the_bulk_bar(page: Page, base_url, seeded_many):
     expect(page.locator("#bulk-count")).to_have_text("2")
 
 
+def test_checking_a_row_does_not_open_it(page: Page, base_url, seeded_many):
+    # The checkbox sits inside the <details> summary. Checking it must not toggle the
+    # row open — the <label> forwards the click to the checkbox, which consumes the
+    # activation, so the summary never toggles.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    expect(page.locator("#jobs details[open]")).to_have_count(0)
+
+    page.locator(".jcheck").nth(0).check()
+    expect(page.locator("#bulk-count")).to_have_text("1")  # the check registered
+    expect(page.locator("#jobs details[open]")).to_have_count(0)  # but the row stayed closed
+
+
+def test_clicking_row_action_area_does_not_open_it(page: Page, base_url, seeded_many):
+    # Clicking the padding/gaps of the per-row action area must not toggle the row.
+    # row-controls.js preventDefaults the summary's toggle for [data-no-toggle].
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    expect(page.locator("#jobs details[open]")).to_have_count(0)
+
+    page.locator("summary div[data-no-toggle]").first.click(position={"x": 2, "y": 10})
+    expect(page.locator("#jobs details[open]")).to_have_count(0)  # row stayed closed
+
+
 def test_selection_persists_across_pages(page: Page, base_url, seeded_many):
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     page.locator(".jcheck").nth(0).check()
