@@ -104,7 +104,7 @@ MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out 
 
 # OOB sidebar refresh fragment — re-rendered alongside a panel so the active-queue
 # highlight + badges update in the same response.
-_SIDEBAR_OOB = "sidebar_oob.html"
+_SIDEBAR_OOB = "partials/sidebar_oob.html"
 
 
 def _schedule_label(s: dict) -> str:
@@ -204,12 +204,12 @@ def _toast(request: Request, title: str, message: str, status: int = 404) -> HTM
     # A 4xx/5xx body that response-targets routes into #toast (hx-target-error),
     # so a failed action surfaces instead of silently doing nothing.
     return _TEMPLATES.TemplateResponse(
-        request, "toast.html", {"title": title, "message": message}, status_code=status
+        request, "partials/toast.html", {"title": title, "message": message}, status_code=status
     )
 
 
 def _full_page(request: Request, **ctx) -> HTMLResponse:
-    return _render(request, "index.html", **ctx)
+    return _render(request, "pages/index.html", **ctx)
 
 
 def _render_str(request: Request, template: str, **ctx) -> str:
@@ -280,13 +280,13 @@ async def _panel_ctx(svc: Service, name: str, state: str, page: int, query: str 
 async def _panel_with_sidebar(svc: Service, request: Request, name: str, ctx: dict) -> HTMLResponse:
     # Panel + an out-of-band sidebar refresh, so the active-queue highlight
     # updates in the SAME response (no lag, no second request).
-    panel = _render_str(request, "queue.html", **ctx)
+    panel = _render_str(request, "partials/queue.html", **ctx)
     side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
     return HTMLResponse(panel + side)
 
 
 async def _panel(svc: Service, request: Request, name: str, state: str, page: int) -> HTMLResponse:
-    return _render(request, "queue.html", **await _panel_ctx(svc, name, state, page))
+    return _render(request, "partials/queue.html", **await _panel_ctx(svc, name, state, page))
 
 
 # ---- cross-cutting middleware + error handling (registered onto the app) ----
@@ -320,7 +320,7 @@ async def _security_headers(
 def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
     return _TEMPLATES.TemplateResponse(
         request,
-        "error.html",
+        "pages/error.html",
         {"title": "Queue not found", "message": f"There is no queue named '{exc.args[0]}'."},
         status_code=404,
     )
@@ -344,7 +344,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/redis", response_class=HTMLResponse)
     async def redis_bar(request: Request):
-        return _render(request, "redis.html", s=await svc.redis_stats())
+        return _render(request, "partials/redis.html", s=await svc.redis_stats())
 
     @router.get("/stream")
     async def stream(request: Request):
@@ -371,7 +371,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         multi = len(svc.queues) > 1
         if wants_fragment(request):
             panel = _render_str(
-                request, "workers.html", workers=workers, departed=departed, multi=multi
+                request, "partials/workers.html", workers=workers, departed=departed, multi=multi
             )
             side = _render_str(
                 request, _SIDEBAR_OOB, queues=await svc.overview(), selected=WORKERS_SEL
@@ -391,7 +391,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     async def workers_fragment(request: Request):
         return _render(
             request,
-            "workers_list.html",
+            "partials/workers_list.html",
             workers=await svc.workers(),
             departed=await svc.departed_workers(),
             multi=len(svc.queues) > 1,
@@ -405,7 +405,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # #jobs live-refresh (jobs_fragment) from the same snapshot as the table, so the
         # badges and the list stay in lockstep on fast-churning states.
         return HTMLResponse(
-            _render_str(request, "sidebar.html", queues=overview, selected=selected)
+            _render_str(request, "partials/sidebar.html", queues=overview, selected=selected)
         )
 
     @router.get("/queues/{name}/jobs", response_class=HTMLResponse)
@@ -419,7 +419,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             jobs, exact = await _search_jobs(svc, name, _coerce_state(state), query)
             return _render(
                 request,
-                "search_results.html",
+                "partials/search_results.html",
                 name=name,
                 state=state,
                 jobs=jobs,
@@ -431,9 +431,9 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # tab counts from the SAME snapshot as the table so the badges and the list can't
         # disagree on a fast-churning state — this refresh is their single source.
         ctx = await _panel_ctx(svc, name, state, page)
-        html = _render_str(request, "jobs.html", name=name, **ctx)
+        html = _render_str(request, "partials/jobs.html", name=name, **ctx)
         html += _render_str(
-            request, "tab_counts_oob.html", states=STATES, counts=ctx["q"]["counts"]
+            request, "partials/tab_counts_oob.html", states=STATES, counts=ctx["q"]["counts"]
         )
         return HTMLResponse(html)
 
@@ -442,7 +442,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # The accordion body (lazy-loaded when a job row is expanded).
         return _render(
             request,
-            "job_detail.html",
+            "partials/job_detail.html",
             name=name,
             job=await svc.job(name, job_id),
             show_stacktraces=show_stacktraces,
@@ -456,7 +456,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         if wants_fragment(request):
             panel = _render_str(
                 request,
-                "job_page.html",
+                "partials/job_page.html",
                 name=name,
                 job=job,
                 job_id=job_id,
@@ -489,7 +489,7 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
         await svc.clear_departed()
         return _render(
             request,
-            "workers_list.html",
+            "partials/workers_list.html",
             workers=await svc.workers(),
             departed=await svc.departed_workers(),
             multi=len(svc.queues) > 1,
@@ -562,12 +562,16 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):
         await svc.trigger_scheduler(name, scheduler_id)
-        return _render(request, "schedulers.html", name=name, schedulers=await svc.schedulers(name))
+        return _render(
+            request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
+        )
 
     @router.delete("/queues/{name}/schedulers/{scheduler_id}", response_class=HTMLResponse)
     async def remove_scheduler(request: Request, name: str, scheduler_id: str):
         await svc.remove_scheduler(name, scheduler_id)
-        return _render(request, "schedulers.html", name=name, schedulers=await svc.schedulers(name))
+        return _render(
+            request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
+        )
 
     return router
 

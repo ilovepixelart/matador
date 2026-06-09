@@ -4,5 +4,5 @@
        class="w-72 shrink-0 border-r border-line overflow-y-auto p-3"
        hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
        hx-swap="morph:innerHTML" hx-sync="this:drop">
-  {% include "sidebar.html" %}
+  {% include "partials/sidebar.html" %}
 </aside>

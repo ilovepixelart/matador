@@ -13,6 +13,6 @@
   <div id="workers-list" hx-get="{{ url_for('workers_fragment').path }}"
        hx-target="this" hx-swap="morph:innerHTML" hx-sync="this:drop"
        hx-trigger="every 2s, sse:changed throttle:1s">
-    {% include "workers_list.html" %}
+    {% include "partials/workers_list.html" %}
   </div>
 </div>
