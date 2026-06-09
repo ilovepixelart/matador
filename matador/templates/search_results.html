@@ -1,4 +1,4 @@
-{% from "macros.html" import job_row with context %}
+{% from "macros.html" import job_row, empty_state with context %}
 <div class="px-4 py-2.5 bg-panel2/40 border-b border-line text-xs text-muted flex flex-wrap items-center gap-x-2">
   <span>{{ jobs|length }} result{{ '' if jobs|length == 1 else 's' }} for
     “<span class="text-fg font-medium">{{ query }}</span>”</span>
@@ -8,6 +8,6 @@
 <div>
 {% for j in jobs %}{{ job_row(name, j, j.state or state) }}
 {% else %}
-  <div class="px-4 py-14 text-center text-muted">no jobs match “{{ query }}”</div>
+  {{ empty_state('search', 'no jobs match “' ~ query ~ '”') }}
 {% endfor %}
 </div>

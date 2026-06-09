@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, job_chip with context %}
+{% from "macros.html" import icon, job_chip, empty_state with context %}
 {% if workers %}
 <div class="flex items-center gap-x-5 gap-y-1 flex-wrap mb-4 text-sm">
   <span class="flex items-center gap-1.5">
@@ -58,11 +58,7 @@
   </table>
 </div>
 {% else %}
-<div class="px-4 py-16 flex flex-col items-center gap-2 text-muted rounded-xl border border-line">
-  <span class="opacity-40">{{ icon('server', 'w-8 h-8') }}</span>
-  <span class="text-sm">No workers running</span>
-  <span class="text-xs">Start a toro Worker against this Redis and it appears here.</span>
-</div>
+{{ empty_state('server', 'No workers running', 'Start a toro Worker against this Redis and it appears here.', bordered=true) }}
 {% endif %}
 
 {% if departed %}

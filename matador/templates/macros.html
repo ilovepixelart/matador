@@ -25,6 +25,16 @@
 </svg>
 {%- endmacro %}
 
+{# The shared empty/absent state: a centred icon + message (and optional detail),
+   so "no jobs", "no schedulers", "no workers" and "no results" all read the same. #}
+{% macro empty_state(icon_name='inbox', message='Nothing here', detail=None, bordered=false) -%}
+<div class="px-4 py-14 flex flex-col items-center gap-2 text-center text-muted{{ ' rounded-xl border border-line' if bordered }}">
+  <span class="opacity-50">{{ icon(icon_name, 'w-7 h-7') }}</span>
+  <span class="text-sm">{{ message }}</span>
+  {% if detail %}<span class="text-xs opacity-80 max-w-xs">{{ detail }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
 {# One job as a native <details> accordion row. `state` keys the per-row actions
    (use the job's own state for search results that span states). #}
 {% macro job_row(name, j, state, page=1) -%}
@@ -41,6 +51,14 @@
       <span class="chevron text-muted shrink-0">{{ icon('chevron', 'w-4 h-4') }}</span>
       <span class="font-mono text-muted shrink-0 whitespace-nowrap pr-2">#{{ j.id }}</span>
       <span class="font-medium w-28 truncate shrink-0">{{ j.name }}</span>
+      {% if j.id.startswith('repeat:') %}
+      {# A scheduler's materialized next run. It's a real delayed job (so it counts
+         and can be inspected/promoted); the badge explains why it also shows under
+         Schedulers and names the schedule it came from. #}
+      <span class="tip inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-accent/10 text-accent shrink-0"
+            aria-label="Scheduled occurrence — from scheduler '{{ j.id.split(':')[1] }}'">
+        {{ icon('clock', 'w-3 h-3') }} scheduled</span>
+      {% endif %}
       <span class="font-mono text-muted text-xs flex-1 truncate min-w-0">{{ j.data|tojson }}</span>
       {% if j.progress is number %}
       <span class="w-28 shrink-0 hidden md:flex items-center gap-1.5">

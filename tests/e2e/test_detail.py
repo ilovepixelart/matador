@@ -32,6 +32,7 @@ def test_accordion_expands_scheduled_occurrence(page: Page, base_url, seeded, dr
     page.goto(f"{base_url}/queues/{QUEUE}?state=delayed")
     row = page.locator('#jobs details[id*="repeat:"]')  # the colon-id occurrence
     expect(row).to_contain_text("rollup")  # it's listed in the jobs table
+    expect(row).to_contain_text("scheduled")  # badged as a scheduler occurrence
     expect(row).not_to_contain_text("opts")  # detail not loaded yet
     row.locator("summary").click()
     expect(row).to_contain_text("opts")  # detail lazy-loaded on expand (was broken)
