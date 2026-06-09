@@ -219,14 +219,21 @@ def _render_str(request: Request, template: str, **ctx) -> str:
 
 
 def _selected_from_url(url: str) -> str | None:
-    # Which sidebar entry the browser is currently on. Greedy `.*` so the LAST
-    # /queues/<name> wins — correct even mounted at a sub-path like /admin/queues
-    # (where the URL is …/admin/queues/queues/<name>).
+    # Which sidebar entry the browser is on, parsed from the client-controlled
+    # HX-Current-URL header.
     if re.search(r"/workers(/|\?|#|$)", url):
         return WORKERS_SEL
-    if m := re.search(r".*/queues/([^/?#]+)", url):
-        return unquote(m.group(1))
-    return None
+    # The LAST `/queues/<name>` wins, which keeps a sub-path mount correct. Done
+    # with rfind + slicing rather than a greedy `.*` regex, which is O(n^2) on a
+    # long no-match input (ReDoS on the client-controlled HX-Current-URL header).
+    marker = "/queues/"
+    idx = url.rfind(marker)
+    if idx == -1:
+        return None
+    seg = url[idx + len(marker) :]
+    ends = [p for p in (seg.find(c) for c in "/?#") if p != -1]
+    name = seg[: min(ends)] if ends else seg
+    return unquote(name) if name else None
 
 
 # ---- data helpers (need the Service) ----
