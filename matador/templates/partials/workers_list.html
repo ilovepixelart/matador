@@ -68,7 +68,7 @@
           hx-post="{{ url_for('clear_departed').path }}"
           hx-target="#workers-list" hx-swap="morph:innerHTML"
           hx-confirm="Clear the stopped-worker history?"
-          data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} Clear</button>
+          data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} Clear<span class="sr-only"> stopped-worker history</span></button>
 </div>
 <div class="rounded-xl border border-line overflow-hidden">
   <table class="w-full text-sm">
