@@ -4,9 +4,10 @@ A live, **server-rendered** dashboard for [toro](https://github.com/ilovepixelar
 queues — watch queues, inspect jobs, and act on them (retry, remove, promote,
 pause…) from the browser.
 
-[![PyPI](https://img.shields.io/pypi/v/matador-dashboard)](https://pypi.org/project/matador-dashboard/)
-[![Downloads](https://img.shields.io/pypi/dm/matador-dashboard)](https://pypi.org/project/matador-dashboard/)
 [![Python](https://img.shields.io/pypi/pyversions/matador-dashboard)](https://pypi.org/project/matador-dashboard/)
+\
+[![PyPI](https://img.shields.io/pypi/v/matador-dashboard)](https://pypi.org/project/matador-dashboard/)
+[![Downloads](https://static.pepy.tech/badge/matador-dashboard)](https://pepy.tech/project/matador-dashboard)
 [![License](https://img.shields.io/github/license/ilovepixelart/matador)](https://github.com/ilovepixelart/matador/blob/main/LICENSE)
 \
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ilovepixelart_matador&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ilovepixelart_matador)
