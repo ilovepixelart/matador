@@ -313,7 +313,7 @@ async def _security_headers(
     return response
 
 
-async def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
+def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
     return _TEMPLATES.TemplateResponse(
         request,
         "error.html",
