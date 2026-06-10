@@ -43,3 +43,12 @@ async def test_queue_without_explicit_state_lands_on_the_signal_tab(client, seed
     # An explicit state is always respected.
     r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
     assert "alpha" in r.text
+
+
+async def test_detail_reads_chronologically_logs_then_error(client, q, seeded):
+    # the story of a failure in order: what it logged, what it raised, the trace
+    await q.redis.rpush(q.keys.logs("2"), "attempt 1 crashed")  # as the worker would
+    r = await client.get(f"/queues/{QUEUE}/jobs/2/detail", headers=hx())
+    assert r.status_code == 200
+    html = r.text.lower()
+    assert html.index(">logs<") < html.index(">error<") < html.index(">stack trace<")
