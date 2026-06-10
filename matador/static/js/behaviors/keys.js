@@ -16,8 +16,14 @@ document.addEventListener("keydown", (e) => {
     }
     return;
   }
+  if (e.key === "?" && !typing(e.target) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    document.getElementById("hotkeys")?.togglePopover();
+    return;
+  }
   if (e.key !== "Escape") return;
   if (document.getElementById("confirm-dialog")?.open) return; // dialog owns Esc
+  if (document.getElementById("hotkeys")?.matches(":popover-open")) return; // popover owns Esc
   if (typing(e.target)) {
     e.target.blur();
     return;
