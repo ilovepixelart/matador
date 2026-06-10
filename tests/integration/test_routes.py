@@ -137,3 +137,12 @@ async def test_index_with_no_queues_configured_renders_empty(seeded):
         r = await c.get("/")
     assert r.status_code == 200
     assert "<header" in r.text
+
+
+async def test_static_assets_revalidate_instead_of_pinning(client):
+    # Module imports (behaviors/*.js) carry no ?v= cache-buster, so static
+    # responses must say no-cache: browsers revalidate with ETag (cheap 304s)
+    # rather than serving a stale behavior module forever.
+    r = await client.get("/static/js/behaviors/tooltips.js")
+    assert r.status_code == 200
+    assert r.headers.get("cache-control") == "no-cache"

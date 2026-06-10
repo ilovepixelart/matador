@@ -365,6 +365,21 @@ async def _security_headers(
     return response
 
 
+class _RevalidatedStatic(StaticFiles):
+    """StaticFiles with ``Cache-Control: no-cache``: browsers revalidate every
+    asset with ETag/If-Modified-Since (cheap 304s) instead of heuristically
+    caching it. The entry points carry an ``?v=`` buster, but their module
+    imports (``behaviors/*.js``) don't — without this header a warm browser
+    pins an old behavior module until its heuristic expiry.
+    """
+
+    # typing.override needs 3.12; the floor is 3.10 (and no typing_extensions dep).
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:  # ty: ignore[missing-override-decorator]
+        response = super().file_response(*args, **kwargs)
+        response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
+
 def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
     return _TEMPLATES.TemplateResponse(
         request,
@@ -666,7 +681,7 @@ def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configura
         await svc.close()
 
     app = FastAPI(title="matador", lifespan=lifespan, dependencies=list(dependencies or []))
-    app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
+    app.mount("/static", _RevalidatedStatic(directory=str(_HERE / "static")), name="static")
 
     # Middleware runs outermost-last-registered, so security_headers wraps same_origin:
     # a blocked cross-origin response still carries the hardening headers.

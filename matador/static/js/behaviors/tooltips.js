@@ -1,13 +1,14 @@
 // Tooltips: one fixed element, positioned by JS so it never clips inside a scroll
 // container, flips below when there's no room above, and stays within the viewport.
-// Text + a11y name both come from the element's aria-label.
+// Tooltip text comes from data-tip; the a11y name comes from the element's
+// own (sr-only) content — never aria-label, which would fight the visible label.
 const tip = document.createElement("div");
 tip.id = "tip";
 document.body.appendChild(tip);
 let cur = null;
 
 function show(el) {
-  const label = el.getAttribute("aria-label");
+  const label = el.getAttribute("data-tip");
   if (!label) return;
   cur = el;
   tip.textContent = label;
@@ -27,14 +28,14 @@ function hide() {
 }
 
 document.addEventListener("mouseover", (e) => {
-  const el = e.target.closest(".tip[aria-label]");
+  const el = e.target.closest(".tip[data-tip]");
   if (el && el !== cur) show(el);
 });
 document.addEventListener("mouseout", (e) => {
   if (cur && (!e.relatedTarget || !cur.contains(e.relatedTarget))) hide();
 });
 document.addEventListener("focusin", (e) => {
-  const el = e.target.closest(".tip[aria-label]");
+  const el = e.target.closest(".tip[data-tip]");
   if (el) show(el);
 });
 document.addEventListener("focusout", hide);

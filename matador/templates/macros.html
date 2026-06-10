@@ -64,8 +64,8 @@ w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset
          and can be inspected/promoted); the badge explains why it also shows under
          Schedulers and names the schedule it came from. #}
       <span class="tip inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-accent/10 text-accent shrink-0"
-            aria-label="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
-        {{ icon('clock', 'w-3 h-3') }} scheduled</span>
+            data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
+        {{ icon('clock', 'w-3 h-3') }} scheduled<span class="sr-only"> occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
       {% endif %}
       {% if state == 'failed' and j.failed_reason %}
       {# Failed rows lead with WHY — the payload is one expand away, the reason
@@ -97,20 +97,20 @@ w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset
     </div>
     <div class="px-3 flex gap-1.5 shrink-0" data-no-toggle>
       {% if state == 'delayed' %}
-      <button class="btn btn-sm btn-success tip" aria-label="Promote, run now"
+      <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}</button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}<span class="sr-only">Promote, run now</span></button>
       {% endif %}
       {% if state == 'failed' %}
-      <button class="btn btn-sm btn-info tip" aria-label="Retry this job"
+      <button class="btn btn-sm btn-info tip" data-tip="Retry this job"
               hx-post="{{ url_for('retry', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}</button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry this job</span></button>
       {% endif %}
-      <button class="btn btn-sm btn-danger tip" aria-label="Remove this job"
+      <button class="btn btn-sm btn-danger tip" data-tip="Remove this job"
               hx-delete="{{ url_for('remove', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
               hx-target="#queue-panel" hx-confirm="Remove job #{{ j.id }}?"
               data-loading-disable data-loading-aria-busy>
-        {{ icon('trash', 'w-3.5 h-3.5') }}</button>
+        {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove this job</span></button>
     </div>
   </summary>
   <div class="acc-body"></div>
