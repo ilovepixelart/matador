@@ -142,3 +142,19 @@ body.sidebar-open #sidebar { transform: translateX(0); }
 @media (max-width: 767px) {
   body.sidebar-open #sidebar-backdrop { display: block; }
 }
+
+/* Screen-reader-only text — defined HERE, not left to the utility scanner: if
+   no template happens to use the class at build time, Tailwind drops its own
+   version and every icon-button label renders as visible text (it happened).
+   Owning the definition makes the build order-independent. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

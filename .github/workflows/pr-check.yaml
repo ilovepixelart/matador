@@ -97,6 +97,19 @@ jobs:
       - name: Tests (unit + integration)
         run: uv run pytest -m "unit or integration" --cov=matador --cov-report=xml
 
+      # The committed app.css must match a fresh build of styles/input.css over
+      # the current templates — a stale build ships broken styling (e.g. dropped
+      # utilities rendering sr-only labels as visible text). Run once per matrix.
+      - name: CSS build is fresh
+        if: matrix.python-version == '3.13'
+        run: |
+          curl -sSL -o /tmp/tailwindcss \
+            https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64
+          chmod +x /tmp/tailwindcss
+          /tmp/tailwindcss -i styles/input.css -o matador/static/app.css
+          git diff --exit-code matador/static/app.css || {
+            echo "::error::matador/static/app.css is stale — rebuild with ./tailwindcss -i styles/input.css -o matador/static/app.css"; exit 1; }
+
       # Runs only when SONAR_TOKEN is set (skipped on forks / before setup, so the
       # check stays green), and only once per matrix — one coverage upload.
       # Config is inline; projectBaseDir targets the matador checkout because
