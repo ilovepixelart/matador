@@ -38,7 +38,7 @@
   .btn { @apply inline-flex items-center gap-1.5 rounded-lg text-sm font-medium transition-colors
                 px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50
                 focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
-  .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md; }
+  .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md min-h-6; }  /* 24px: WCAG 2.5.8 target size */
   .btn-ghost { @apply bg-panel2 text-fg hover:bg-line; }
   .btn-icon { @apply p-2; }  /* square icon button (defined after .btn so p-2 wins) */
   .btn-info { @apply bg-info/10 text-info hover:bg-info/20; }
