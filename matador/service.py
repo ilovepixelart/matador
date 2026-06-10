@@ -153,10 +153,16 @@ class Service:
         }
 
     async def jobs(
-        self, name: str, state: JobState, page: int = 1, per_page: int = 20
+        self,
+        name: str,
+        state: JobState,
+        page: int = 1,
+        per_page: int = 20,
+        *,
+        reverse: bool = False,
     ) -> list[dict[str, Any]]:
         start = (page - 1) * per_page
-        jobs = await self._q(name).get_jobs(state, start, start + per_page - 1)
+        jobs = await self._q(name).get_jobs(state, start, start + per_page - 1, reverse=reverse)
         return [{**self._summary(j), "queue": name} for j in jobs]
 
     async def search(

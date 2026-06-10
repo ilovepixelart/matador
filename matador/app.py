@@ -61,6 +61,18 @@ def _coerce_state(state: str) -> JobState:
     return cast("JobState", state) if state in STATES else "active"
 
 
+# The semantic default sort direction of each state's time column — flipping
+# it pages the same Redis set from the other end (backend sort: pagination
+# stays a global order, never a client-side shuffle).
+_DEFAULT_DIR: dict[str, str] = {
+    "wait": "asc",  # front of the queue first
+    "active": "desc",  # newest claim first
+    "delayed": "asc",  # soonest due first
+    "completed": "desc",  # newest finish first
+    "failed": "desc",
+}
+
+
 def _default_state(counts: dict[str, int]) -> JobState:
     """Pick the tab with the most signal when the URL doesn't say: running work
     if any, else problems, else what's queued — never an empty `active` list on
@@ -300,14 +312,22 @@ async def _search_jobs(
     return jobs, exact is not None
 
 
-async def _panel_ctx(
-    svc: Service, name: str, state: str, page: int, query: str = ""
+async def _panel_ctx(  # noqa: PLR0913 — mirrors the route's query-param surface
+    svc: Service, name: str, state: str, page: int, query: str = "", direction: str = ""
 ) -> dict[str, Any]:
     view = await svc.queue_view(name)
     # No state in the URL → the tab with signal; an explicit one is respected.
     state = _coerce_state(state) if state else _default_state(view["counts"])
+    default_dir = _DEFAULT_DIR.get(state, "desc")
+    sort = direction if direction in ("asc", "desc") else default_dir
     query = query.strip()
-    base = {"q": view, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
+    base = {
+        "q": view,
+        "states": STATES,
+        "state": state,
+        "scan_limit": SCAN_LIMIT,
+        "sort": sort,
+    }
     if query:  # a deep-link or a typed search → render the results, not the list
         jobs, exact = await _search_jobs(svc, name, state, query)
         return {
@@ -323,7 +343,7 @@ async def _panel_ctx(
     total = view["counts"].get(state, 0)
     pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, pages))
-    jobs = await svc.jobs(name, state, page, PER_PAGE)
+    jobs = await svc.jobs(name, state, page, PER_PAGE, reverse=(sort != default_dir))
     return {
         **base,
         "jobs": jobs,
@@ -437,10 +457,15 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         )
 
     @router.get("/queues/{name}", response_class=HTMLResponse)
-    async def queue_view(
-        request: Request, name: str, state: str = "", page: int = 1, query: str = ""
+    async def queue_view(  # noqa: PLR0913 — the signature IS the query-param schema
+        request: Request,
+        name: str,
+        state: str = "",
+        page: int = 1,
+        query: str = "",
+        dir: str = "",  # noqa: A002 — established query-param name
     ):
-        ctx = await _panel_ctx(svc, name, state, page, query)
+        ctx = await _panel_ctx(svc, name, state, page, query, dir)
         if wants_fragment(request):
             return await _panel_with_sidebar(svc, request, name, ctx)
         # Full page: direct nav, reload, or history restore of a pushed URL.
@@ -491,8 +516,13 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         )
 
     @router.get("/queues/{name}/jobs", response_class=HTMLResponse)
-    async def jobs_fragment(
-        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
+    async def jobs_fragment(  # noqa: PLR0913 — the signature IS the query-param schema
+        request: Request,
+        name: str,
+        state: str = "active",
+        page: int = 1,
+        query: str = "",
+        dir: str = "",  # noqa: A002 — established query-param name
     ):
         query = query.strip()
         if query:
@@ -512,7 +542,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # No query → the normal paginated list (this is the live-refresh path). Emit the
         # tab counts from the SAME snapshot as the table so the badges and the list can't
         # disagree on a fast-churning state — this refresh is their single source.
-        ctx = await _panel_ctx(svc, name, state, page)
+        ctx = await _panel_ctx(svc, name, state, page, direction=dir)
         html = _render_str(request, "partials/jobs.html", name=name, **ctx)
         html += _render_str(
             request, "partials/tab_counts_oob.html", states=STATES, counts=ctx["q"]["counts"]

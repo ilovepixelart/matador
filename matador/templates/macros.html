@@ -18,6 +18,12 @@ w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset
 
 {# One badge style everywhere (paused, draining, state chips, counts) — the
    hand-rolled copies had drifted between px-1.5 and px-2. #}
+{# Per-state action-cell width (buttons + gap + padding, border-box) — the
+   header reserves the same space so the time/attempts columns align. #}
+{% macro action_cols(state) -%}
+{%- if state in ('failed', 'delayed') -%}w-[90px]{%- else -%}w-[54px]{%- endif %} shrink-0
+{%- endmacro %}
+
 {% macro badge(tone, extra='') -%}
 text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {%- endmacro %}
@@ -103,17 +109,17 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {# The state-relevant moment: finished / started / due / queued. Relative
          for scanning; the absolute moment lives on the hover title. #}
       {% if state == 'delayed' %}
-      <span class="text-xs text-warning {{ job_cols('time') }}"
+      <span class="text-xs text-warning {{ job_cols('time') }}" data-col="time"
             title="{{ (j.timestamp + j.delay)|at }}">{{ (j.timestamp + j.delay)|due }}</span>
       {% else %}
       {% set ts = j.finished_on if state in ('completed', 'failed')
                   else (j.processed_on if state == 'active' else j.timestamp) %}
-      <span class="text-xs text-muted {{ job_cols('time') }}"
+      <span class="text-xs text-muted {{ job_cols('time') }}" data-col="time"
             title="{{ ts|at }}">{{ ts|ago }}</span>
       {% endif %}
       <span class="text-xs text-muted {{ job_cols('attempts') }}">{{ j.attempts_made }}×</span>
     </div>
-    <div class="px-3 flex gap-1.5 shrink-0" data-no-toggle>
+    <div class="px-3 flex gap-1.5 justify-end {{ action_cols(state) }}" data-no-toggle>
       {% if state == 'delayed' %}
       <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
@@ -166,6 +172,6 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {% macro pglink(p, label, disabled=false, active=false) -%}
 <a class="pg{{ ' pg-active' if active }}{{ ' pg-disabled' if disabled }}"
    {% if not disabled %}href="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
-   hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
+   hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}&dir={{ sort }}"
    hx-push-url="true"{% endif %}>{{ label }}</a>
 {%- endmacro %}

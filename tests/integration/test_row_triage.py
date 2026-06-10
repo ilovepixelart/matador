@@ -43,3 +43,18 @@ async def test_queue_without_explicit_state_lands_on_the_signal_tab(client, seed
     # An explicit state is always respected.
     r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
     assert "alpha" in r.text
+
+
+async def test_dir_param_flips_the_backend_order(client, seeded):
+    # wait holds alpha, beta, gamma in FIFO order; dir=desc pages the same
+    # Redis set from the other end (backend sort — pagination stays global).
+    r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
+    assert r.text.index("alpha") < r.text.index("gamma")
+
+    r = await client.get(f"/queues/{QUEUE}?state=wait&dir=desc", headers=hx())
+    assert r.text.index("gamma") < r.text.index("alpha")
+
+
+async def test_pagination_preserves_the_sort_direction(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}?state=wait&dir=desc", headers=hx())
+    assert "&dir=desc" in r.text  # pager links carry the order through
