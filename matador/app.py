@@ -242,7 +242,7 @@ def _selected_from_url(url: str) -> str | None:
 
 async def _search_jobs(
     svc: Service, name: str, state: JobState, query: str
-) -> tuple[list[dict], bool]:
+) -> tuple[list[dict[str, Any]], bool]:
     # Exact id lookup is O(1) and cross-state (finds a job wherever it now is);
     # the bounded substring scan covers name/data within `state`. Returns the
     # merged hits plus whether the query was an exact id hit (drives the badge).

@@ -55,7 +55,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-playwright>=0.5",  # browser E2E
     "ruff>=0.6",
-    "ty>=0.0.44",
+    "ty>=0.0.47",
 ]
 
 [tool.uv]

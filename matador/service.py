@@ -53,7 +53,7 @@ class Service:
         # connection, not N — open tabs can't starve the action routes' pool.
         self._listeners: set[asyncio.Event] = set()
         self._broadcast_pubsub: PubSub | None = None
-        self._broadcast_task: asyncio.Task | None = None
+        self._broadcast_task: asyncio.Task[None] | None = None
         self._broadcast_lock = asyncio.Lock()
 
     def _q(self, name: str) -> Queue:
