@@ -52,11 +52,27 @@ jobs:
           persist-credentials: false
 
       # matador depends on toro through a local path (../toro), so check it out as a
-      # sibling. Assumes toro lives under the same owner; adjust `repository:` if not.
+      # sibling. Paired-branch development: if toro has a branch with the SAME name
+      # as this one, use it (uv.lock embeds the sibling's metadata, so CI must see
+      # the same toro the lock was generated against); otherwise fall back to main.
+      - name: Pick the toro ref
+        id: toro-ref
+        working-directory: matador
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="${{ github.head_ref || github.ref_name }}"
+          if gh api "repos/${{ github.repository_owner }}/toro/branches/$branch" --silent 2>/dev/null; then
+            echo "ref=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out toro (sibling dependency)
         uses: actions/checkout@v6.0.3
         with:
           repository: ${{ github.repository_owner }}/toro
+          ref: ${{ steps.toro-ref.outputs.ref }}
           path: toro
           persist-credentials: false
 
