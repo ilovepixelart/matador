@@ -106,3 +106,11 @@ def test_at():
     assert _at(0) == ""
     # Absolute moment with the date — relative times age, hover titles must not.
     assert re.fullmatch(r"\d\d \w\w\w \d{4} \d\d:\d\d:\d\d", _at(1700000000000))
+
+
+def test_asset_version_is_evaluated_per_render():
+    # A live server with assets rebuilt underneath it (tailwind --watch, deploys
+    # without restart) must hand out fresh ?v= values — an import-time int goes
+    # stale and pins every browser to cached assets.
+    assert callable(_TEMPLATES.env.globals["asset_v"])
+    assert _TEMPLATES.env.globals["asset_v"]() > 0

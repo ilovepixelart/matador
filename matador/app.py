@@ -217,6 +217,9 @@ _TEMPLATES.env.filters["at"] = _at
 def _asset_version() -> int:
     # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
     # a dev rebuild) is always picked up — browsers otherwise serve stale assets.
+    # Evaluated per full-page render (a handful of stats), NOT at import: a
+    # long-running server with assets rebuilt underneath it must not keep
+    # handing out the old version forever.
     try:
         static = _HERE / "static"
         return int(max(p.stat().st_mtime for p in static.rglob("*") if p.is_file()))
@@ -224,7 +227,7 @@ def _asset_version() -> int:
         return 0
 
 
-_TEMPLATES.env.globals["asset_v"] = _asset_version()  # ty: ignore[invalid-assignment]
+_TEMPLATES.env.globals["asset_v"] = _asset_version  # ty: ignore[invalid-assignment]
 
 
 # ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
