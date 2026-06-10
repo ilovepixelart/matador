@@ -25,3 +25,13 @@ def test_theme_toggle_keeps_name_and_tooltip(page: Page, base_url, seeded):
     expect(btn).to_have_accessible_name("Toggle theme")
     btn.hover()
     expect(page.locator("#tip")).to_have_text("Toggle theme")
+
+
+def test_icon_button_labels_are_for_screen_readers_only(page: Page, base_url, seeded):
+    # The sr-only name must stay invisible to eyes: 1px and clipped. Guards the
+    # build too — a stale app.css without the .sr-only utility renders these as
+    # plain text on every icon button.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    span = page.locator('#jobs button[data-tip="Retry this job"] .sr-only').first
+    box = span.bounding_box()
+    assert box["width"] <= 1 and box["height"] <= 1, f"sr-only text is visible: {box}"
