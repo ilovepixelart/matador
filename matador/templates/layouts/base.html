@@ -10,9 +10,12 @@
      reloads from the server instead). #}
   <meta name="htmx-config" content='{"selfRequestsOnly": true, "historyCacheSize": 0}' />
   <title>matador</title>
-  {# apply the saved theme before paint to avoid a flash #}
+  {# apply the theme before paint to avoid a flash: a saved choice wins,
+     otherwise follow the OS (prefers-color-scheme) #}
   <script>(function () {
-    if ((localStorage.matadorTheme || 'dark') === 'dark') document.documentElement.classList.add('dark');
+    var saved = localStorage.matadorTheme;
+    var dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    if (dark) document.documentElement.classList.add('dark');
   })();</script>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg').path }}" />
   <link rel="stylesheet" href="{{ url_for('static', path='app.css').path }}?v={{ asset_v() }}" />
