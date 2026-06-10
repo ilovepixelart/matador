@@ -110,7 +110,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
          for scanning; the absolute moment lives on the hover title. #}
       {% if state == 'delayed' %}
       <span class="text-xs text-warning {{ job_cols('time') }}" data-col="time"
-            title="{{ (j.timestamp + j.delay)|at }}">{{ (j.timestamp + j.delay)|due }}</span>
+            title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
       {% else %}
       {% set ts = j.finished_on if state in ('completed', 'failed')
                   else (j.processed_on if state == 'active' else j.timestamp) %}

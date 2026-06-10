@@ -17,14 +17,15 @@
     var dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
     if (dark) document.documentElement.classList.add('dark');
   })();</script>
+  {% set v = asset_v() %}{# one stat-walk per page render, shared by all 7 tags #}
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg').path }}" />
-  <link rel="stylesheet" href="{{ url_for('static', path='app.css').path }}?v={{ asset_v() }}" />
-  <script src="{{ url_for('static', path='js/htmx.min.js').path }}?v={{ asset_v() }}"></script>
-  <script src="{{ url_for('static', path='js/sse.js').path }}?v={{ asset_v() }}"></script>
-  <script src="{{ url_for('static', path='js/idiomorph-ext.min.js').path }}?v={{ asset_v() }}"></script>
-  <script src="{{ url_for('static', path='js/loading-states.js').path }}?v={{ asset_v() }}"></script>
-  <script src="{{ url_for('static', path='js/response-targets.js').path }}?v={{ asset_v() }}"></script>
-  <script type="module" src="{{ url_for('static', path='js/app.js').path }}?v={{ asset_v() }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css').path }}?v={{ v }}" />
+  <script src="{{ url_for('static', path='js/htmx.min.js').path }}?v={{ v }}"></script>
+  <script src="{{ url_for('static', path='js/sse.js').path }}?v={{ v }}"></script>
+  <script src="{{ url_for('static', path='js/idiomorph-ext.min.js').path }}?v={{ v }}"></script>
+  <script src="{{ url_for('static', path='js/loading-states.js').path }}?v={{ v }}"></script>
+  <script src="{{ url_for('static', path='js/response-targets.js').path }}?v={{ v }}"></script>
+  <script type="module" src="{{ url_for('static', path='js/app.js').path }}?v={{ v }}"></script>
 </head>
 <body class="bg-ink text-fg antialiased h-screen overflow-hidden flex flex-col"
       hx-ext="sse,morph,loading-states,response-targets"

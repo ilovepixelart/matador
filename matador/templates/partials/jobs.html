@@ -33,8 +33,10 @@
     <span class="{{ job_cols('id') }}" data-col="id">id</span>
     <span class="{{ job_cols('name') }}" data-col="name">job</span>
     <span class="flex-1 min-w-0">data</span>
-    <span class="{{ job_cols('time') }}" data-col="time">when</span>
-    <span class="{{ job_cols('attempts') }}" title="attempts">×</span>
+    {# header labels read left like every other header; the VALUES below stay
+       right-aligned (numeric convention) — hence the !important override. #}
+    <span class="{{ job_cols('time') }} !text-left" data-col="time">when</span>
+    <span class="{{ job_cols('attempts') }} !text-left" title="attempts">×</span>
   </div>
   <span class="{{ action_cols(state) }}"></span>
 </div>

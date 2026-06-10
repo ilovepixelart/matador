@@ -339,7 +339,7 @@ def _with_announcement(request: Request, panel: HTMLResponse, message: str) -> H
     # Append an OOB swap INTO the pre-declared #announce live region, so the
     # outcome of a bulk action is announced (politely) by assistive tech.
     oob = _render_str(request, "partials/announce_oob.html", message=message)
-    return HTMLResponse(bytes(panel.body).decode() + oob)
+    return HTMLResponse(bytes(panel.body) + oob.encode())
 
 
 async def _panel_with_sidebar(
@@ -641,9 +641,10 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
 
     @router.post("/queues/{name}/clean", response_class=HTMLResponse)
     async def clean(request: Request, name: str, state: str = "completed"):
-        count = await svc.clean(name, _coerce_state(state))
-        panel = await _panel(svc, request, name, state, 1)
-        return _with_announcement(request, panel, f"{count} {state} jobs removed")
+        cleaned = _coerce_state(state)  # announce what was ACTUALLY cleaned
+        count = await svc.clean(name, cleaned)
+        panel = await _panel(svc, request, name, cleaned, 1)
+        return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):

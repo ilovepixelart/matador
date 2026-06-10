@@ -98,7 +98,7 @@
             {% if d.reason == 'lost' %}
             <span class="{{ badge('danger') }}">lost · no heartbeat</span>
             {% else %}
-            <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-xs">stopped</span>
+            <span class="{{ badge('muted') }}">stopped</span>
             {% endif %}
             {% if d.current %}
             <span class="text-xs">while running</span>
