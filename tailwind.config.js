@@ -30,6 +30,16 @@ module.exports = {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      // Entry animations live here (the Tailwind home for keyframes), used as
+      // animate-acc-in / animate-dlg-in component utilities.
+      keyframes: {
+        accIn: { from: { opacity: '0', transform: 'translateY(-3px)' } },
+        dlgIn: { from: { opacity: '0', transform: 'translateY(-6px) scale(0.985)' } },
+      },
+      animation: {
+        'acc-in': 'accIn 0.18s ease',
+        'dlg-in': 'dlgIn 0.15s ease',
+      },
     },
   },
 };

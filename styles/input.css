@@ -31,13 +31,18 @@
     --accent: 240 82 82;
     --info: 56 189 248; --success: 52 211 153; --warning: 251 191 36; --danger: 251 113 133;
   }
-  body { font-feature-settings: "tnum"; }
+  body { @apply [font-feature-settings:'tnum']; }
+  /* Nav links (tabs, sidebar, pagination) and summaries get the same keyboard
+     focus treatment buttons have — preflight-level, so no element misses it. */
+  a:focus-visible,
+  summary:focus-visible { @apply outline outline-2 outline-accent/50 outline-offset-1 rounded-md; }
 }
 
 @layer components {
   .btn { @apply inline-flex items-center gap-1.5 rounded-lg text-sm font-medium transition-colors
                 px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50
-                focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
+                focus-visible:ring-offset-2 focus-visible:ring-offset-ink
+                disabled:cursor-not-allowed; }
   .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md min-h-6; }  /* 24px: WCAG 2.5.8 target size */
   .btn-ghost { @apply bg-panel2 text-fg hover:bg-line; }
   .btn-icon { @apply p-2; }  /* square icon button (defined after .btn so p-2 wins) */
@@ -56,166 +61,70 @@
                text-xs font-medium text-muted hover:bg-panel2 hover:text-fg transition-colors; }
   .pg-active { @apply bg-fg text-ink hover:bg-fg hover:text-ink; }
   .pg-disabled { @apply opacity-40 pointer-events-none; }
-}
 
-/* --- plain component CSS (not Tailwind utilities) --- */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 6px; }
-button.htmx-request, form.htmx-request { opacity: .55; pointer-events: none; }
-.htmx-indicator { opacity: 0; transition: opacity .15s ease; }
-.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
+  /* htmx request lifecycle hooks (library-owned class names). */
+  button.htmx-request,
+  form.htmx-request { @apply opacity-[.55] pointer-events-none; }
+  .htmx-indicator { @apply opacity-0 transition-opacity duration-150; }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator { @apply opacity-100; }
 
-/* Accordion: native <details> — chevron rotates on open, body fades in. */
-.acc-item:last-child { border-bottom: 0; }
-/* The live job table freezes while a row is open (so it can't move under you); reveal a
-   banner so a paused table never reads as "stuck". Mirrors the JS gate in jobs-live.js. */
-#queue-panel:has(#jobs details[open]) .jobs-paused { display: flex; }
-.chevron { transition: transform .2s ease; }
-details[open] > summary .chevron { transform: rotate(180deg); }
-details[open] > .acc-body { animation: accIn .18s ease; }
-@keyframes accIn { from { opacity: 0; transform: translateY(-3px); } }
+  /* Accordion: native <details> — chevron rotates on open, body fades in. */
+  .acc-item { @apply last:border-b-0; }
+  .chevron { @apply transition-transform duration-200; }
+  details[open] > summary .chevron { @apply rotate-180; }
+  details[open] > .acc-body { @apply animate-acc-in; }
+  /* The live job table freezes while a row is open (so it can't move under you);
+     reveal a banner so a paused table never reads as "stuck" (jobs-live.js). */
+  #queue-panel:has(#jobs details[open]) .jobs-paused { @apply flex; }
 
-/* Tooltip (fixed, positioned by JS so it escapes overflow + stays in viewport). */
-#tip { position: fixed; z-index: 1000; pointer-events: none;
-       background: rgb(var(--fg)); color: rgb(var(--ink));
-       font-size: 11px; font-weight: 500; line-height: 1.35;
-       max-width: 260px; overflow-wrap: break-word; padding: 5px 7px; border-radius: 6px;
-       box-shadow: 0 6px 16px rgb(0 0 0 / .28);
-       opacity: 0; transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; }
-#tip.show { opacity: 1; transform: translateY(0); }
+  /* Tooltip (fixed, positioned by JS so it escapes overflow + stays in viewport). */
+  #tip { @apply fixed z-[1000] pointer-events-none bg-fg text-ink
+                text-[11px] font-medium leading-[1.35] max-w-[260px] break-words
+                px-[7px] py-[5px] rounded-md shadow-[0_6px_16px_rgb(0_0_0/.28)]
+                opacity-0 translate-y-[3px] transition-all duration-[120ms] ease-out; }
+  #tip.show { @apply opacity-100 translate-y-0; }
 
-/* Confirmation dialog (native <dialog>, rendered in the top layer). */
-#confirm-dialog::backdrop { background: rgb(0 0 0 / 0.5); backdrop-filter: blur(2px); }
-#confirm-dialog[open] { animation: dlgIn 0.15s ease; }
-@keyframes dlgIn { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
+  /* Selected queue (server-rendered .q-active). */
+  .queue-item { @apply relative; }
+  .q-active { @apply bg-panel2 before:content-[''] before:absolute before:left-0
+                     before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-0.5
+                     before:rounded-full before:bg-accent; }
+  .q-active .q-name { @apply text-fg font-semibold; }
 
-/* Selected queue (server-rendered .q-active). */
-.queue-item { position: relative; }
-.q-active { background: rgb(var(--panel2)); }
-.q-active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-                    height: 60%; width: 2px; border-radius: 9999px; background: rgb(var(--accent)); }
-.q-active .q-name { color: rgb(var(--fg)); font-weight: 600; }
-
-/* Themed checkboxes (job rows + select-all), with check + indeterminate states. */
-.chk {
-  appearance: none;
-  -webkit-appearance: none;
-  flex-shrink: 0;
-  width: 1rem;
-  height: 1rem;
-  border: 1.5px solid rgb(var(--line));
-  border-radius: 4px;
-  background: rgb(var(--panel2));
-  cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
-}
-.chk:hover { border-color: rgb(var(--accent) / 0.6); }
-.chk:checked,
-.chk:indeterminate {
-  background-color: rgb(var(--accent));
-  border-color: rgb(var(--accent));
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 78%;
-}
-.chk:checked {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
-}
-.chk:indeterminate {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M4 8h8'/%3E%3C/svg%3E");
-}
-.chk:focus-visible { outline: 2px solid rgb(var(--accent) / 0.5); outline-offset: 1px; }
-
-/* Pretty JSON — Pygments token classes (server-rendered), themed for light + dark. */
-.jsonv { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.55;
-         white-space: pre-wrap; word-break: break-word; margin: 0; color: rgb(var(--fg)); }
-.jsonv .nt { color: rgb(var(--info)); }                       /* object keys */
-.jsonv .s2, .jsonv .s1, .jsonv .s { color: rgb(var(--success)); }  /* strings */
-.jsonv .mi, .jsonv .mf, .jsonv .m { color: rgb(var(--warning)); }  /* numbers */
-.jsonv .kc { color: rgb(var(--accent)); }                     /* true / false / null */
-.jsonv .p, .jsonv .err { color: rgb(var(--muted)); }          /* punctuation */
-
-/* Off-canvas sidebar (phones). The open state lives on <body> so a live OOB
-   morph of #sidebar can't snap an open drawer shut (behaviors/sidebar.js). */
-body.sidebar-open #sidebar { transform: translateX(0); }
-#sidebar-backdrop { display: none; }
-@media (max-width: 767px) {
-  body.sidebar-open #sidebar-backdrop { display: block; }
-}
-
-/* Screen-reader-only text — defined HERE, not left to the utility scanner: if
-   no template happens to use the class at build time, Tailwind drops its own
-   version and every icon-button label renders as visible text (it happened).
-   Owning the definition makes the build order-independent. */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* ---- Cursor semantics: the cursor tells you what a thing IS ---- */
-/* The native ✕ inside search inputs is a button — show it as one. */
-input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
-/* A button you can't press right now (htmx disables it while in flight). */
-button:disabled { cursor: not-allowed; }
-/* Hover-for-more on non-interactive informational titles (redis chips,
-   detail fields, departed timestamps). Clickable ancestors (rows, tabs,
-   sidebar links) keep their pointer — help would lie about the click. */
-#redis-bar .chip[title], dl dd[title], td[title] { cursor: help; }
-/* The drawer backdrop closes on click. */
-#sidebar-backdrop { cursor: pointer; }
-
-/* Native widgets (scrollbars, dialogs, form glyphs) must follow the active
-   theme — without color-scheme the browser paints them light-mode/system-
-   tinted (the search ✕ rendered macOS-accent blue on a dark page). */
-:root { color-scheme: light; }
-html.dark { color-scheme: dark; }
-
-/* Own the search ✕ outright: theme tokens, not the UA's widget set. */
-input[type="search"]::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 0.85rem;
-  width: 0.85rem;
-  cursor: pointer;
-  background-color: rgb(var(--muted));
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-input[type="search"]::-webkit-search-cancel-button:hover { background-color: rgb(var(--fg)); }
-
-/* The last native-paint leaks: selection and tap flashes were UA blue, and
-   nav links (tabs, sidebar, pagination) lacked the focus ring buttons have. */
-::selection { background: rgb(var(--accent) / 0.25); }
-html { -webkit-tap-highlight-color: transparent; }
-a:focus-visible, summary:focus-visible {
-  outline: 2px solid rgb(var(--accent) / 0.5);
-  outline-offset: 1px;
-  border-radius: 6px;
-}
-
-/* Less motion when the OS asks for it: animations collapse to a single
-   instant frame, transitions snap, and view transitions don't animate.
-   (0.01ms instead of none so JS animation-end hooks still fire.) */
-@media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+  /* Themed checkboxes (job rows + select-all), with check + indeterminate states.
+     The two glyphs are inline SVG data URIs — kept as plain declarations below. */
+  .chk { @apply appearance-none shrink-0 w-4 h-4 border-[1.5px] border-line rounded
+                bg-panel2 cursor-pointer transition-colors duration-[120ms]
+                hover:border-accent/60
+                checked:bg-accent checked:border-accent
+                indeterminate:bg-accent indeterminate:border-accent
+                checked:bg-center checked:bg-no-repeat checked:[background-size:78%]
+                indeterminate:bg-center indeterminate:bg-no-repeat indeterminate:[background-size:78%]
+                focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent/50
+                focus-visible:outline-offset-1; }
+  .chk:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
   }
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) { animation: none !important; }
-}
+  .chk:indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M4 8h8'/%3E%3C/svg%3E");
+  }
 
-@layer components {
+  /* Pretty JSON — Pygments token classes (server-rendered), themed for light + dark. */
+  .jsonv { @apply font-mono text-xs leading-[1.55] whitespace-pre-wrap break-words m-0 text-fg; }
+  .jsonv .nt { @apply text-info; }                          /* object keys */
+  .jsonv .s2, .jsonv .s1, .jsonv .s { @apply text-success; }  /* strings */
+  .jsonv .mi, .jsonv .mf, .jsonv .m { @apply text-warning; }  /* numbers */
+  .jsonv .kc { @apply text-accent; }                        /* true / false / null */
+  .jsonv .p, .jsonv .err { @apply text-muted; }             /* punctuation */
+
+  /* Hover-for-more on non-interactive informational titles (redis chips, detail
+     fields, departed timestamps). Clickable ancestors (rows, tabs, sidebar
+     links) keep their pointer — help would lie about the click. */
+  #redis-bar .chip[title],
+  dl dd[title],
+  td[title] { @apply cursor-help; }
+
   /* The job list IS a table: one grid; the header and every row are subgrids
      of it, so columns align by construction — no hand-maintained width math.
      Tracks: check · chevron · id · name · data · progress · time · attempts ·
@@ -232,4 +141,35 @@ a:focus-visible, summary:focus-visible {
   .jobs-cells { @apply [&>*]:py-2.5; }
   .jobs-row { @apply col-span-full grid grid-cols-subgrid; }
   .jobs-row > .acc-body { @apply col-span-full; }
+}
+
+/* ════ No Tailwind vocabulary below this line — each rule says why. ════ */
+
+/* Scrollbar pseudo-elements have no Tailwind variant (declarations still @apply). */
+::-webkit-scrollbar { @apply w-2.5 h-2.5; }
+::-webkit-scrollbar-thumb { @apply bg-line rounded-md; }
+
+/* Own the search ✕ outright (vendor pseudo-element + masked glyph): theme
+   tokens, not the UA's widget set — it rendered macOS-accent blue on a dark
+   page. The mask data URI can't be a utility. */
+input[type="search"]::-webkit-search-cancel-button {
+  @apply appearance-none h-[0.85rem] w-[0.85rem] cursor-pointer bg-muted hover:bg-fg;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Less motion when the OS asks for it: animations collapse to a single instant
+   frame, transitions snap, view transitions don't animate. A global * guard —
+   per-element motion-reduce: utilities would have to chase every animated
+   class forever. (0.01ms instead of none so JS animation-end hooks still fire.) */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }

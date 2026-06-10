@@ -1,6 +1,6 @@
 <!doctype html>
 {% from "macros.html" import icon %}
-<html lang="en">
+<html lang="en" class="[color-scheme:light] [&.dark]:[color-scheme:dark] [-webkit-tap-highlight-color:transparent]">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -27,7 +27,7 @@
   <script src="{{ url_for('static', path='js/response-targets.js').path }}?v={{ v }}"></script>
   <script type="module" src="{{ url_for('static', path='js/app.js').path }}?v={{ v }}"></script>
 </head>
-<body class="bg-ink text-fg antialiased h-screen overflow-hidden flex flex-col"
+<body class="bg-ink text-fg antialiased h-screen overflow-hidden flex flex-col selection:bg-accent/25"
       hx-ext="sse,morph,loading-states,response-targets"
       hx-target-error="#toast" sse-connect="{{ url_for('stream').path }}">
   <header class="flex items-center gap-3 px-5 h-14 border-b border-line bg-panel/40 backdrop-blur sticky top-0 z-20">
@@ -52,7 +52,7 @@
 
   {# Backdrop for the off-canvas sidebar (phones). Shown by body.sidebar-open
      via CSS; clicking it closes the drawer (behaviors/sidebar.js). #}
-  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/50 z-30 md:hidden"></div>
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/50 z-30 cursor-pointer hidden [.sidebar-open_&]:max-md:block"></div>
 
   {# Polite live region for action outcomes ("23 jobs queued for retry").
      Pre-declared and empty: assistive tech only announces changes in regions
@@ -65,7 +65,8 @@
 
   {# Confirmation dialog — replaces the native confirm() for every hx-confirm action. #}
   <dialog id="confirm-dialog"
-          class="bg-panel text-fg border border-line rounded-xl shadow-xl p-0 w-80 max-w-full">
+          class="bg-panel text-fg border border-line rounded-xl shadow-xl p-0 w-80 max-w-full
+                 open:animate-dlg-in [&::backdrop]:bg-black/50 [&::backdrop]:backdrop-blur-[2px]">
     <div class="p-5">
       <div class="flex items-center gap-3 mb-3">
         <span class="text-danger">{{ icon('warn', 'w-5 h-5') }}</span>
