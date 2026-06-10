@@ -2043,6 +2043,27 @@ input[type="search"]::-webkit-search-cancel-button:hover {
   background-color: rgb(var(--fg));
 }
 
+/* The last native-paint leaks: selection and tap flashes were UA blue, and
+   nav links (tabs, sidebar, pagination) lacked the focus ring buttons have. */
+
+::-moz-selection {
+  background: rgb(var(--accent) / 0.25);
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.25);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid rgb(var(--accent) / 0.5);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
 .hover\:bg-info\/20:hover {
   background-color: rgb(var(--info) / 0.2);
 }
