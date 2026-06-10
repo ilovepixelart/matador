@@ -8,7 +8,7 @@ document.body.appendChild(tip);
 let cur = null;
 
 function show(el) {
-  const label = el.getAttribute("data-tip");
+  const label = el.dataset.tip;
   if (!label) return;
   cur = el;
   tip.textContent = label;

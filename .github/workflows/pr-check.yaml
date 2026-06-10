@@ -135,7 +135,7 @@ jobs:
             -Dsonar.tests=tests
             -Dsonar.test.exclusions=tests/**
             -Dsonar.coverage.exclusions=tests/**,matador/static/js/**
-            -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js
+            -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js,matador/static/app.css
 
       # Browser behavior doesn't vary by Python — run the e2e layer once.
       - name: Install Playwright browser
