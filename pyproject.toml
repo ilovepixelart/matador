@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: System :: Monitoring",
+    "Typing :: Typed",
 ]
 dependencies = [
     "toro-queue>=0.1.0",
@@ -54,7 +55,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-playwright>=0.5",  # browser E2E
     "ruff>=0.6",
-    "ty>=0.0.44",
+    "ty>=0.0.47",
 ]
 
 [tool.uv]
@@ -122,6 +123,10 @@ skip_covered = true
 
 [tool.ty.environment]
 python-version = "3.10"
+
+# Strictest ty: every rule, including the warn-by-default ones, fails the build.
+[tool.ty.rules]
+all = "error"
 
 [tool.ty.src]
 include = ["matador"]

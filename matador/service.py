@@ -7,9 +7,12 @@ the UI needs. Keeping this separate from app.py keeps routes thin and testable.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
 from redis.asyncio import Redis
+from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
 STATES: tuple[JobState, ...] = ("active", "wait", "delayed", "completed", "failed")
@@ -44,6 +47,14 @@ class Service:
         self.queues: dict[str, Queue] = {
             name: Queue(name, connection=connection, url=url, prefix=prefix) for name in names
         }
+        # SSE plumbing: ONE pubsub subscription per Service, fanned out to every
+        # connected stream via per-client events (the same shared-listener shape
+        # as toro's result() dispatcher). N open dashboard tabs cost one Redis
+        # connection, not N — open tabs can't starve the action routes' pool.
+        self._listeners: set[asyncio.Event] = set()
+        self._broadcast_pubsub: PubSub | None = None
+        self._broadcast_task: asyncio.Task[None] | None = None
+        self._broadcast_lock = asyncio.Lock()
 
     def _q(self, name: str) -> Queue:
         q = self.queues.get(name)
@@ -51,7 +62,7 @@ class Service:
             raise UnknownQueueError(name)
         return q
 
-    async def redis_stats(self) -> dict:
+    async def redis_stats(self) -> dict[str, Any]:
         """Live Redis health for the top bar. Surfaces the memory + eviction-policy
         footguns that actually bite queue users.
         """
@@ -93,7 +104,7 @@ class Service:
             "ok": ok,  # False → Redis was unreachable; values are placeholders
         }
 
-    async def overview(self) -> list[dict]:
+    async def overview(self) -> list[dict[str, Any]]:
         out = []
         for name, q in self.queues.items():
             out.append(
@@ -105,9 +116,9 @@ class Service:
             )
         return out
 
-    async def workers(self) -> list[dict]:
+    async def workers(self) -> list[dict[str, Any]]:
         """Every live worker across all queues (each record carries its `queue`)."""
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         for name, q in self.queues.items():
             for w in await q.workers():
                 w["queue"] = name
@@ -115,9 +126,9 @@ class Service:
         out.sort(key=lambda w: (w["queue"], w["started"]))
         return out
 
-    async def departed_workers(self, limit: int = 15) -> list[dict]:
+    async def departed_workers(self, limit: int = 15) -> list[dict[str, Any]]:
         """Recent worker departures across all queues, newest first (the death-log)."""
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         for name, q in self.queues.items():
             for d in await q.departed_workers(limit=limit):
                 d["queue"] = name
@@ -132,7 +143,7 @@ class Service:
             total += await q.clear_departed()
         return total
 
-    async def queue_view(self, name: str) -> dict:
+    async def queue_view(self, name: str) -> dict[str, Any]:
         q = self._q(name)
         return {
             "name": name,
@@ -143,18 +154,18 @@ class Service:
 
     async def jobs(
         self, name: str, state: JobState, page: int = 1, per_page: int = 20
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         start = (page - 1) * per_page
         jobs = await self._q(name).get_jobs(state, start, start + per_page - 1)
         return [{**self._summary(j), "queue": name} for j in jobs]
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         jobs = await self._q(name).search(state, query, scan_limit)
         return [{**self._summary(j), "queue": name} for j in jobs]
 
-    async def job(self, name: str, job_id: str) -> dict | None:
+    async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
         q = self._q(name)
         j = await q.get_job(job_id)
         if not j:
@@ -164,7 +175,7 @@ class Service:
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         return detail
 
-    async def schedulers(self, name: str) -> list[dict]:
+    async def schedulers(self, name: str) -> list[dict[str, Any]]:
         return await self._q(name).schedulers()
 
     # ---- actions ----------------------------------------------------------
@@ -176,11 +187,14 @@ class Service:
         return await self._q(name).remove_job(job_id)
 
     async def remove_many(self, name: str, job_ids: list[str]) -> int:
-        """Remove a specific set of jobs (multi-select bulk delete). Returns the count."""
+        """Remove a specific set of jobs (multi-select bulk delete). Returns how
+        many were ACTUALLY removed — a job that vanished in a race doesn't count.
+        """
         q = self._q(name)
+        removed = 0
         for job_id in job_ids:
-            await q.remove_job(job_id)
-        return len(job_ids)
+            removed += 1 if await q.remove_job(job_id) else 0
+        return removed
 
     async def pause(self, name: str) -> None:
         await self._q(name).pause()
@@ -214,43 +228,85 @@ class Service:
     async def trigger_scheduler(self, name: str, scheduler_id: str) -> None:
         await self._q(name).trigger_scheduler(scheduler_id)
 
+    async def _ensure_broadcaster(self) -> None:
+        """Start the shared events listener (or restart it after a crash)."""
+        if self._broadcast_task is not None and not self._broadcast_task.done():
+            return
+        async with self._broadcast_lock:
+            if self._broadcast_task is not None and not self._broadcast_task.done():
+                return  # someone else won the race while we awaited the lock
+            if self._broadcast_pubsub is not None:  # a dead broadcaster's leftovers
+                with contextlib.suppress(Exception):
+                    await self._broadcast_pubsub.aclose()
+            pubsub = next(iter(self.queues.values())).redis.pubsub()
+            await pubsub.subscribe(*[q.keys.events for q in self.queues.values()])
+            self._broadcast_pubsub = pubsub
+            self._broadcast_task = asyncio.create_task(self._broadcast(pubsub))
+
+    async def _broadcast(self, pubsub: PubSub) -> None:
+        """Consume the shared subscription; wake every connected stream per event."""
+        try:
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=None)
+                if msg is not None:
+                    for ev in self._listeners:
+                        ev.set()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The subscription died (Redis restart, network): wake every client so
+            # its stream ends promptly; browsers reconnect on the retry hint and
+            # the next stream restarts the broadcaster.
+            for ev in self._listeners:
+                ev.set()
+
     async def event_stream(
         self, is_disconnected: Callable[[], Awaitable[bool]] | None = None
     ) -> AsyncIterator[str]:
         """SSE stream: emit a COALESCED `changed` signal whenever any queue publishes
         a job event. toro publishes one event per job (completed/failed/progress), so
-        under load that's a firehose; we emit on the first event, then drain the burst
-        for ~200ms before emitting again — so a thousand finishes cost one repaint
-        (~5 `changed`/s ceiling), not hundreds. An 8s heartbeat covers quiet changes.
+        under load that's a firehose; we emit on the first event, then let whatever
+        lands in the next ~200ms ride the same repaint — a thousand finishes cost one
+        refresh (~5 `changed`/s ceiling). The same signal doubles as the heartbeat
+        after 8 quiet seconds. All streams share ONE pubsub via the broadcaster.
         """
-        loop = asyncio.get_running_loop()
-        r = next(iter(self.queues.values())).redis
-        pubsub = r.pubsub()
-        await pubsub.subscribe(*[q.keys.events for q in self.queues.values()])
+        try:
+            await self._ensure_broadcaster()
+        except Exception:
+            # Redis is unreachable right now: hand the client its reconnect cadence
+            # and end cleanly — it retries until the broadcaster can subscribe again.
+            yield "retry: 3000\n\n"
+            return
+        ev = asyncio.Event()
+        self._listeners.add(ev)
         try:
             yield "retry: 3000\n\n"
             while True:
                 # Exit promptly when the client goes away instead of waiting for the
-                # next yield to raise — frees the pubsub/connection without delay.
+                # next yield to raise — drops our listener registration right away.
                 if is_disconnected is not None and await is_disconnected():
                     break
-                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=8.0)
-                yield "event: changed\ndata: 1\n\n"
-                if msg is not None:
-                    # Coalesce the rest of the burst: consume + discard whatever lands
-                    # in the next 200ms so the client repaints once, and the pub/sub
-                    # buffer can't grow unbounded under high throughput.
-                    deadline = loop.time() + 0.2
-                    while (remaining := deadline - loop.time()) > 0:
-                        drained = await pubsub.get_message(
-                            ignore_subscribe_messages=True, timeout=remaining
-                        )
-                        if drained is None:
-                            break
+                if self._broadcast_task is None or self._broadcast_task.done():
+                    break  # subscription died: end the stream, the client reconnects
+                with contextlib.suppress(TimeoutError, asyncio.TimeoutError):
+                    await asyncio.wait_for(ev.wait(), timeout=8.0)
+                yield "event: changed\ndata: 1\n\n"  # signal, or heartbeat on timeout
+                if ev.is_set():
+                    await asyncio.sleep(0.2)  # the burst rides this repaint
+                    ev.clear()
         finally:
-            await pubsub.aclose()
+            self._listeners.discard(ev)
 
     async def close(self) -> None:
+        if self._broadcast_task is not None:
+            self._broadcast_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._broadcast_task
+            self._broadcast_task = None
+        if self._broadcast_pubsub is not None:
+            with contextlib.suppress(Exception):
+                await self._broadcast_pubsub.aclose()
+            self._broadcast_pubsub = None
         # Only close connections matador opened; a shared host client is theirs to manage.
         if self._owns_connection:
             for q in self.queues.values():
@@ -259,7 +315,7 @@ class Service:
     # ---- shaping ----------------------------------------------------------
 
     @staticmethod
-    def _summary(j: Job) -> dict:
+    def _summary(j: Job) -> dict[str, Any]:
         return {
             "id": j.id,
             "name": j.name,
@@ -271,7 +327,7 @@ class Service:
         }
 
     @classmethod
-    def _detail(cls, j: Job) -> dict:
+    def _detail(cls, j: Job) -> dict[str, Any]:
         return {
             **cls._summary(j),
             "opts": j.opts.to_dict(),

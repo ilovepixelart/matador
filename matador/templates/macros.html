@@ -74,18 +74,18 @@
       {% if state == 'delayed' %}
       <button class="btn btn-sm btn-success tip" aria-label="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}<span class="sr-only">Promote, run now</span></button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}</button>
       {% endif %}
       {% if state == 'failed' %}
       <button class="btn btn-sm btn-info tip" aria-label="Retry this job"
               hx-post="{{ url_for('retry', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry this job</span></button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}</button>
       {% endif %}
       <button class="btn btn-sm btn-danger tip" aria-label="Remove this job"
               hx-delete="{{ url_for('remove', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
               hx-target="#queue-panel" hx-confirm="Remove job #{{ j.id }}?"
               data-loading-disable data-loading-aria-busy>
-        {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove this job</span></button>
+        {{ icon('trash', 'w-3.5 h-3.5') }}</button>
     </div>
   </summary>
   <div class="acc-body"></div>

@@ -20,7 +20,7 @@
                     hx-delete="{{ url_for('remove_scheduler', name=name, scheduler_id=s.id).path }}"
                     hx-target="#schedulers" hx-confirm="Remove scheduler {{ s.id }}?"
                     data-loading-disable data-loading-aria-busy>
-              {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove scheduler</span></button>
+              {{ icon('trash', 'w-3.5 h-3.5') }}</button>
           </div>
         </td>
       </tr>

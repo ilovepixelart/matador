@@ -22,7 +22,7 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, FastAPI, Form, Request, params
@@ -107,7 +107,7 @@ MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out 
 _SIDEBAR_OOB = "partials/sidebar_oob.html"
 
 
-def _schedule_label(s: dict) -> str:
+def _schedule_label(s: dict[str, Any]) -> str:
     if s.get("cron"):
         return f"cron {s['cron']}"
     every = s.get("every") or 0
@@ -182,15 +182,16 @@ _TEMPLATES.env.filters["uptime"] = _uptime
 
 
 def _asset_version() -> int:
-    # Cache-bust the stylesheet by its build mtime so a rebuilt app.css is always
-    # picked up (browsers otherwise serve the cached one).
+    # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
+    # a dev rebuild) is always picked up — browsers otherwise serve stale assets.
     try:
-        return int((_HERE / "static" / "app.css").stat().st_mtime)
-    except OSError:
+        static = _HERE / "static"
+        return int(max(p.stat().st_mtime for p in static.rglob("*") if p.is_file()))
+    except (OSError, ValueError):
         return 0
 
 
-_TEMPLATES.env.globals["css_v"] = _asset_version()  # ty: ignore[invalid-assignment]
+_TEMPLATES.env.globals["asset_v"] = _asset_version()  # ty: ignore[invalid-assignment]
 
 
 # ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
@@ -241,7 +242,7 @@ def _selected_from_url(url: str) -> str | None:
 
 async def _search_jobs(
     svc: Service, name: str, state: JobState, query: str
-) -> tuple[list[dict], bool]:
+) -> tuple[list[dict[str, Any]], bool]:
     # Exact id lookup is O(1) and cross-state (finds a job wherever it now is);
     # the bounded substring scan covers name/data within `state`. Returns the
     # merged hits plus whether the query was an exact id hit (drives the badge).
@@ -252,7 +253,9 @@ async def _search_jobs(
     return jobs, exact is not None
 
 
-async def _panel_ctx(svc: Service, name: str, state: str, page: int, query: str = "") -> dict:
+async def _panel_ctx(
+    svc: Service, name: str, state: str, page: int, query: str = ""
+) -> dict[str, Any]:
     state = _coerce_state(state)
     view = await svc.queue_view(name)
     query = query.strip()
@@ -284,7 +287,9 @@ async def _panel_ctx(svc: Service, name: str, state: str, page: int, query: str 
     }
 
 
-async def _panel_with_sidebar(svc: Service, request: Request, name: str, ctx: dict) -> HTMLResponse:
+async def _panel_with_sidebar(
+    svc: Service, request: Request, name: str, ctx: dict[str, Any]
+) -> HTMLResponse:
     # Panel + an out-of-band sidebar refresh, so the active-queue highlight
     # updates in the SAME response (no lag, no second request).
     panel = _render_str(request, "partials/queue.html", **ctx)
@@ -545,7 +550,8 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
         ids: Annotated[str, Form()] = "",
     ):
         # `ids` is a comma-joined set submitted by the client (persists across pages).
-        selected = [i for i in ids.split(",") if i]
+        # Stripped defensively: a hand-crafted " id" must not silently no-op.
+        selected = [i.strip() for i in ids.split(",") if i.strip()]
         if len(selected) > MAX_BULK_REMOVE:
             return _toast(
                 request,
