@@ -136,10 +136,10 @@ _TEMPLATES.env.filters["clockms"] = (
 )
 
 
-def _uptime(started_ms: int) -> str:
-    if not started_ms:
-        return "—"
-    secs = max(0, int(time.time() - started_ms / 1000))
+def _span(secs: int) -> str:
+    """ONE duration phrasing for every relative filter (uptime, ago, due) —
+    keeping the unit thresholds in a single place so they can't drift apart.
+    """
     if secs < 60:
         return f"{secs}s"
     if secs < 3600:
@@ -148,6 +148,14 @@ def _uptime(started_ms: int) -> str:
         hours, mins = divmod(secs // 60, 60)
         return f"{hours}h {mins}m" if mins else f"{hours}h"
     return f"{secs // 86400}d"
+
+
+# NB: these treat a 0/None timestamp as missing ("—"). A literal epoch-0 value
+# would be swallowed, but toro always stamps now-milliseconds — accepted.
+def _uptime(started_ms: int) -> str:
+    if not started_ms:
+        return "—"
+    return _span(max(0, int(time.time() - started_ms / 1000)))
 
 
 def _ago(ms: int | None) -> str:
@@ -160,15 +168,7 @@ def _due(due_ms: int | None) -> str:
     if not due_ms:
         return "—"
     secs = int(due_ms / 1000 - time.time())
-    if secs <= 0:
-        return "due now"
-    if secs < 60:
-        return f"due in {secs}s"
-    if secs < 3600:
-        return f"due in {secs // 60}m"
-    if secs < 86400:
-        return f"due in {secs // 3600}h"
-    return f"due in {secs // 86400}d"
+    return "due now" if secs <= 0 else f"due in {_span(secs)}"
 
 
 def _at(ms: int | None) -> str:
