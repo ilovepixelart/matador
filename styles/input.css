@@ -134,3 +134,11 @@ details[open] > .acc-body { animation: accIn .18s ease; }
 .jsonv .mi, .jsonv .mf, .jsonv .m { color: rgb(var(--warning)); }  /* numbers */
 .jsonv .kc { color: rgb(var(--accent)); }                     /* true / false / null */
 .jsonv .p, .jsonv .err { color: rgb(var(--muted)); }          /* punctuation */
+
+/* Off-canvas sidebar (phones). The open state lives on <body> so a live OOB
+   morph of #sidebar can't snap an open drawer shut (behaviors/sidebar.js). */
+body.sidebar-open #sidebar { transform: translateX(0); }
+#sidebar-backdrop { display: none; }
+@media (max-width: 767px) {
+  body.sidebar-open #sidebar-backdrop { display: block; }
+}

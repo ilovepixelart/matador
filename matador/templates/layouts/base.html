@@ -27,6 +27,8 @@
       hx-ext="sse,morph,loading-states,response-targets"
       hx-target-error="#toast" sse-connect="{{ url_for('stream').path }}">
   <header class="flex items-center gap-3 px-5 h-14 border-b border-line bg-panel/40 backdrop-blur sticky top-0 z-20">
+    <button data-js-sidebar-toggle class="btn btn-ghost btn-icon md:hidden" aria-label="Menu">
+      {{ icon('menu', 'w-5 h-5') }}</button>
     <span class="text-accent">{{ icon('bolt', 'w-5 h-5') }}</span>
     <span class="font-semibold tracking-tight">matador</span>
     <span class="text-muted text-sm hidden sm:inline">·</span>
@@ -42,6 +44,10 @@
        hx-get="{{ url_for('redis_bar').path }}" hx-swap="morph:innerHTML"
        hx-trigger="load, sse:changed throttle:1s, every 8s"></div>
   {% block body %}{% endblock %}
+
+  {# Backdrop for the off-canvas sidebar (phones). Shown by body.sidebar-open
+     via CSS; clicking it closes the drawer (behaviors/sidebar.js). #}
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/50 z-30 md:hidden"></div>
 
   {# Toast zone — response-targets routes any 4xx/5xx action error here (hx-target-error
      on <body>), so a failed action surfaces instead of failing silently. #}
