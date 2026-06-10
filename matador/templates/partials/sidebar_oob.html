@@ -1,7 +1,8 @@
 {# Out-of-band sidebar refresh: replaces #sidebar (active queue marked) and keeps
    the SSE-triggered refresh. Sent alongside the panel so the highlight updates with no lag. #}
+{% from "macros.html" import sidebar_classes %}
 <aside id="sidebar" hx-swap-oob="morph"
-       class="w-72 shrink-0 border-r border-line overflow-y-auto p-3"
+       class="{{ sidebar_classes() }}"
        hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
        hx-swap="morph:innerHTML" hx-sync="this:drop">
   {% include "partials/sidebar.html" %}

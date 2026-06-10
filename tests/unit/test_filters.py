@@ -5,7 +5,7 @@ import re
 import pytest
 
 from matador import app
-from matador.app import _TEMPLATES, _compact, _dur, _schedule_label, _uptime
+from matador.app import _TEMPLATES, _ago, _at, _compact, _due, _dur, _schedule_label, _uptime
 
 
 def test_schedule_label_cron():
@@ -74,3 +74,43 @@ def test_compact(n, expected):
 )
 def test_dur(ms, expected):
     assert _dur(ms) == expected
+
+
+def test_ago(monkeypatch):
+    monkeypatch.setattr(app.time, "time", lambda: 10_000.0)
+    assert _ago(None) == "—"
+    assert _ago(0) == "—"
+    assert _ago((10_000 - 45) * 1000) == "45s ago"
+    assert _ago((10_000 - 300) * 1000) == "5m ago"
+    assert _ago((10_000 - 7200) * 1000) == "2h ago"
+
+
+def test_uptime_days(monkeypatch):
+    # Row times can be days old; uptime gains a days unit (workers reuse it too).
+    monkeypatch.setattr(app.time, "time", lambda: 1_000_000.0)
+    assert _uptime((1_000_000 - 2 * 86_400) * 1000) == "2d"
+
+
+def test_due(monkeypatch):
+    monkeypatch.setattr(app.time, "time", lambda: 10_000.0)
+    assert _due(None) == "—"
+    assert _due((10_000 - 5) * 1000) == "due now"  # already past
+    assert _due((10_000 + 30) * 1000) == "due in 30s"
+    assert _due((10_000 + 300) * 1000) == "due in 5m"
+    assert _due((10_000 + 7200) * 1000) == "due in 2h"
+    assert _due((10_000 + 2 * 86_400) * 1000) == "due in 2d"
+
+
+def test_at():
+    assert _at(None) == ""
+    assert _at(0) == ""
+    # Absolute moment with the date — relative times age, hover titles must not.
+    assert re.fullmatch(r"\d\d \w\w\w \d{4} \d\d:\d\d:\d\d", _at(1700000000000))
+
+
+def test_asset_version_is_evaluated_per_render():
+    # A live server with assets rebuilt underneath it (tailwind --watch, deploys
+    # without restart) must hand out fresh ?v= values — an import-time int goes
+    # stale and pins every browser to cached assets.
+    assert callable(_TEMPLATES.env.globals["asset_v"])
+    assert _TEMPLATES.env.globals["asset_v"]() > 0

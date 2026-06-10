@@ -1,0 +1,5 @@
+{# Swap the message INTO the pre-declared #announce live region (base.html).
+   The carrier div has no id of its own — it becomes the region's content, so
+   the region element (whose aria-live existed before the change, as assistive
+   tech requires) is never replaced or duplicated. #}
+<div hx-swap-oob="innerHTML:#announce">{{ message }}</div>

@@ -6,14 +6,14 @@
     <div><dt class="text-muted text-xs uppercase tracking-wider">queue</dt><dd class="font-mono">{{ job.queue }}</dd></div>
     {% endif %}
     {% if job.processed_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">processed</dt><dd class="font-mono">{{ job.processed_on|clockms }}</dd></div>
+    <div><dt class="text-muted text-xs uppercase tracking-wider">processed</dt><dd class="font-mono" title="{{ job.processed_on|at }}">{{ job.processed_on|clockms }}</dd></div>
     {% endif %}
     {% if job.processed_on and job.finished_on %}
     <div><dt class="text-muted text-xs uppercase tracking-wider">duration</dt>
       <dd class="font-mono">{{ (job.finished_on - job.processed_on)|dur }}</dd></div>
     {% endif %}
     {% if job.finished_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">finished</dt><dd class="font-mono">{{ job.finished_on|clockms }}</dd></div>
+    <div><dt class="text-muted text-xs uppercase tracking-wider">finished</dt><dd class="font-mono" title="{{ job.finished_on|at }}">{{ job.finished_on|clockms }}</dd></div>
     {% endif %}
 
     {% if job.progress is not none %}
@@ -42,10 +42,6 @@
     <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">result</dt>
       <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.returnvalue|pretty }}</pre></dd></div>
     {% endif %}
-    {% if job.failed_reason %}
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider">error</dt>
-      <dd class="font-mono text-danger break-all">{{ job.failed_reason }}</dd></div>
-    {% endif %}
 
     {% if job.logs %}
     <div class="col-span-2">
@@ -54,6 +50,11 @@
         {% for line in job.logs %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
       </dd>
     </div>
+    {% endif %}
+
+    {% if job.failed_reason %}
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider">error</dt>
+      <dd class="font-mono text-danger break-all">{{ job.failed_reason }}</dd></div>
     {% endif %}
 
     {% if job.stacktrace and show_stacktraces|default(true) %}

@@ -1,7 +1,8 @@
 {% extends "layouts/base.html" %}
+{% from "macros.html" import sidebar_classes %}
 {% block body %}
 <div class="flex flex-1 min-h-0">
-  <aside id="sidebar" class="w-72 shrink-0 border-r border-line overflow-y-auto p-3"
+  <aside id="sidebar" class="{{ sidebar_classes() }}"
          hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
          hx-swap="morph:innerHTML" hx-sync="this:drop">
     {% include "partials/sidebar.html" %}

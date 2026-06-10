@@ -97,6 +97,20 @@ jobs:
       - name: Tests (unit + integration)
         run: uv run pytest -m "unit or integration" --cov=matador --cov-report=xml
 
+      # The committed app.css must match a fresh build of styles/input.css over
+      # the current templates — a stale build ships broken styling (e.g. dropped
+      # utilities rendering sr-only labels as visible text). Run once per matrix.
+      - name: CSS build is fresh
+        if: matrix.python-version == '3.13'
+        run: |
+          curl -sSL -o /tmp/tailwindcss \
+            https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.0/tailwindcss-linux-x64
+          echo "73f0e5459054e5cfaa8ab6f3b940f3fbe0f13cc7fd83bc24e7c655033c203400  /tmp/tailwindcss" | sha256sum -c -
+          chmod +x /tmp/tailwindcss
+          /tmp/tailwindcss -i styles/input.css -o matador/static/app.css
+          git diff --exit-code matador/static/app.css || {
+            echo "::error::matador/static/app.css is stale — rebuild with ./tailwindcss -i styles/input.css -o matador/static/app.css"; exit 1; }
+
       # Runs only when SONAR_TOKEN is set (skipped on forks / before setup, so the
       # check stays green), and only once per matrix — one coverage upload.
       # Config is inline; projectBaseDir targets the matador checkout because
@@ -121,7 +135,7 @@ jobs:
             -Dsonar.tests=tests
             -Dsonar.test.exclusions=tests/**
             -Dsonar.coverage.exclusions=tests/**,matador/static/js/**
-            -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js
+            -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js,matador/static/app.css
 
       # Browser behavior doesn't vary by Python — run the e2e layer once.
       - name: Install Playwright browser

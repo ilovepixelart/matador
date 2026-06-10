@@ -1,4 +1,17 @@
 {# ---- Heroicons (outline, MIT) as inline SVG — no build step needed ---- #}
+{# The sidebar's class list — ONE definition shared by the page shell and the
+   OOB refresh, so a live update can't morph the drawer styling out from under
+   an open drawer. Off-canvas below md; the open state lives on <body>. #}
+{% macro sidebar_classes() -%}
+w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:bg-ink max-md:-translate-x-full max-md:transition-transform max-md:duration-200 [.sidebar-open_&]:max-md:translate-x-0
+{%- endmacro %}
+
+{# One badge style everywhere (paused, draining, state chips, counts) — the
+   hand-rolled copies had drifted between px-1.5 and px-2. #}
+{% macro badge(tone, extra='') -%}
+text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
+{%- endmacro %}
+
 {% macro icon(name, cls="w-4 h-4") -%}
 <svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
      aria-hidden="true">
@@ -17,10 +30,12 @@
 {%- elif name == 'clock' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
 {%- elif name == 'warn' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
 {%- elif name == 'chevron' -%}<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+{%- elif name == 'keys' -%}<path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z"/>
+{%- elif name == 'menu' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
 {%- elif name == 'search' -%}<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
 {%- elif name == 'inbox' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H6.911a2.25 2.25 0 0 0-2.15 1.588L2.35 13.177a2.25 2.25 0 0 0-.1.661Z"/>
 {%- elif name == 'server' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z"/>
-{%- elif name == 'queue' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+{%- elif name == 'queue' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/>
 {%- endif -%}
 </svg>
 {%- endmacro %}
@@ -38,55 +53,78 @@
 {# One job as a native <details> accordion row. `state` keys the per-row actions
    (use the job's own state for search results that span states). #}
 {% macro job_row(name, j, state, page=1) -%}
-<details id="jrow-{{ state }}-{{ j.id }}" class="acc-item border-b border-line"
+<details id="jrow-{{ state }}-{{ j.id }}" class="jobs-row acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
-         hx-target="find .acc-body" hx-trigger="toggle once">
-  <summary class="flex items-center hover:bg-panel2/30 transition-colors cursor-pointer
+         hx-target="find .acc-body" hx-trigger="toggle[this.open]">
+  {# One cell per grid track — check · chevron · id · name · data · progress ·
+     time · attempts · actions, in exactly this order; the subgrid does the
+     aligning (.jobs-table in input.css). #}
+  <summary class="jobs-cells hover:bg-panel2/30 transition-colors cursor-pointer
                   list-none [&::-webkit-details-marker]:hidden">
-    <label class="pl-3 flex items-center shrink-0">
+    <label class="cursor-pointer">
       <input type="checkbox" class="jcheck chk" value="{{ j.id }}"
              aria-label="Select job {{ j.id }}" />
     </label>
-    <div class="flex-1 flex items-center gap-3 px-4 py-2.5 min-w-0">
-      <span class="chevron text-muted shrink-0">{{ icon('chevron', 'w-4 h-4') }}</span>
-      <span class="font-mono text-muted shrink-0 whitespace-nowrap pr-2">#{{ j.id }}</span>
-      <span class="font-medium w-28 truncate shrink-0">{{ j.name }}</span>
+    <span class="chevron text-muted">{{ icon('chevron', 'w-4 h-4') }}</span>
+    <span class="text-muted font-mono truncate" data-col="id" title="#{{ j.id }}">#{{ j.id }}</span>
+    <span class="gap-1" data-col="name">
+      {# The name is what operators scan; the full name is one hover away. #}
+      <span class="font-medium truncate" title="{{ j.name }}">{{ j.name }}</span>
       {% if j.id.startswith('repeat:') %}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under
          Schedulers and names the schedule it came from. #}
-      <span class="tip inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-accent/10 text-accent shrink-0"
-            aria-label="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
-        {{ icon('clock', 'w-3 h-3') }} scheduled</span>
+      <span class="tip inline-flex items-center gap-1 {{ badge('accent', 'shrink-0') }}"
+            data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
+        {{ icon('clock', 'w-3 h-3') }} scheduled<span class="sr-only"> occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
       {% endif %}
-      <span class="font-mono text-muted text-xs flex-1 truncate min-w-0">{{ j.data|tojson }}</span>
+    </span>
+    {% if state == 'failed' and j.failed_reason %}
+    {# Failed rows lead with WHY — the payload is one expand away, the reason
+       is what an operator scans for. #}
+    <span class="text-xs text-danger"><span class="truncate" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span></span>
+    {% else %}
+    <span class="font-mono text-muted text-xs"><span class="truncate">{{ j.data|tojson }}</span></span>
+    {% endif %}
+    <span>
       {% if j.progress is number %}
-      <span class="w-28 shrink-0 hidden md:flex items-center gap-1.5">
+      <span class="w-28 hidden md:flex items-center gap-1.5">
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
           <span class="block h-full {{ bar_color(j.state) }} rounded-full transition-[width] duration-300" style="width: {{ j.progress }}%"></span>
         </span>
         <span class="text-xs text-muted tabular-nums w-7 text-right">{{ j.progress }}%</span>
       </span>
       {% endif %}
-      <span class="text-xs text-muted tabular-nums w-9 text-right shrink-0">{{ j.attempts_made }}×</span>
-    </div>
-    <div class="px-3 flex gap-1.5 shrink-0" data-no-toggle>
+    </span>
+    {# The state-relevant moment: finished / started / due / queued. Relative
+       for scanning; the absolute moment lives on the hover title. #}
+    {% if state == 'delayed' %}
+    <span class="text-xs text-warning justify-end whitespace-nowrap" data-col="time"
+          title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
+    {% else %}
+    {% set ts = j.finished_on if state in ('completed', 'failed')
+                else (j.processed_on if state == 'active' else j.timestamp) %}
+    <span class="text-xs text-muted justify-end whitespace-nowrap" data-col="time"
+          title="{{ ts|at }}">{{ ts|ago }}</span>
+    {% endif %}
+    <span class="text-xs text-muted tabular-nums justify-end">{{ j.attempts_made }}×</span>
+    <span class="gap-1.5 justify-end" data-no-toggle>
       {% if state == 'delayed' %}
-      <button class="btn btn-sm btn-success tip" aria-label="Promote, run now"
+      <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}</button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}<span class="sr-only">Promote, run now</span></button>
       {% endif %}
       {% if state == 'failed' %}
-      <button class="btn btn-sm btn-info tip" aria-label="Retry this job"
+      <button class="btn btn-sm btn-info tip" data-tip="Retry this job"
               hx-post="{{ url_for('retry', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}</button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry this job</span></button>
       {% endif %}
-      <button class="btn btn-sm btn-danger tip" aria-label="Remove this job"
+      <button class="btn btn-sm btn-danger tip" data-tip="Remove this job"
               hx-delete="{{ url_for('remove', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
               hx-target="#queue-panel" hx-confirm="Remove job #{{ j.id }}?"
               data-loading-disable data-loading-aria-busy>
-        {{ icon('trash', 'w-3.5 h-3.5') }}</button>
-    </div>
+        {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove this job</span></button>
+    </span>
   </summary>
   <div class="acc-body"></div>
 </details>

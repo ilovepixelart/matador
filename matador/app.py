@@ -61,6 +61,17 @@ def _coerce_state(state: str) -> JobState:
     return cast("JobState", state) if state in STATES else "active"
 
 
+def _default_state(counts: dict[str, int]) -> JobState:
+    """Pick the tab with the most signal when the URL doesn't say: running work
+    if any, else problems, else what's queued — never an empty `active` list on
+    a healthy idle queue.
+    """
+    for s in ("active", "failed", "wait", "delayed"):
+        if counts.get(s):
+            return cast("JobState", s)
+    return "completed"
+
+
 def _page_window(page: int, pages: int, span: int = 2) -> list[int | None]:
     """Page numbers to show: first, last, and `span` either side of current,
     with None marking an ellipsis gap. e.g. [1, None, 4, 5, 6, None, 20].
@@ -125,16 +136,46 @@ _TEMPLATES.env.filters["clockms"] = (
 )
 
 
-def _uptime(started_ms: int) -> str:
-    if not started_ms:
-        return "—"
-    secs = max(0, int(time.time() - started_ms / 1000))
+def _span(secs: int) -> str:
+    """ONE duration phrasing for every relative filter (uptime, ago, due) —
+    keeping the unit thresholds in a single place so they can't drift apart.
+    """
     if secs < 60:
         return f"{secs}s"
     if secs < 3600:
         return f"{secs // 60}m"
-    hours, mins = divmod(secs // 60, 60)
-    return f"{hours}h {mins}m" if mins else f"{hours}h"
+    if secs < 86400:
+        hours, mins = divmod(secs // 60, 60)
+        return f"{hours}h {mins}m" if mins else f"{hours}h"
+    return f"{secs // 86400}d"
+
+
+# NB: these treat a 0/None timestamp as missing ("—"). A literal epoch-0 value
+# would be swallowed, but toro always stamps now-milliseconds — accepted.
+def _uptime(started_ms: int) -> str:
+    if not started_ms:
+        return "—"
+    return _span(max(0, int(time.time() - started_ms / 1000)))
+
+
+def _ago(ms: int | None) -> str:
+    # Relative past for job rows — same duration phrasing as the workers view.
+    return f"{_uptime(ms)} ago" if ms else "—"
+
+
+def _due(due_ms: int | None) -> str:
+    # When a delayed job will run: "due in 3m", or "due now" once promotable.
+    if not due_ms:
+        return "—"
+    secs = int(due_ms / 1000 - time.time())
+    return "due now" if secs <= 0 else f"due in {_span(secs)}"
+
+
+def _at(ms: int | None) -> str:
+    # The absolute moment, for hover titles — relative times age, this doesn't.
+    if not ms:
+        return ""
+    return datetime.fromtimestamp(ms / 1000).strftime("%d %b %Y %H:%M:%S")  # noqa: DTZ006
 
 
 def _compact(n: int) -> str:
@@ -179,11 +220,17 @@ _TEMPLATES.env.filters["compact"] = _compact
 _TEMPLATES.env.filters["dur"] = _dur
 _TEMPLATES.env.filters["pretty"] = _pretty_json
 _TEMPLATES.env.filters["uptime"] = _uptime
+_TEMPLATES.env.filters["ago"] = _ago
+_TEMPLATES.env.filters["due"] = _due
+_TEMPLATES.env.filters["at"] = _at
 
 
 def _asset_version() -> int:
     # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
     # a dev rebuild) is always picked up — browsers otherwise serve stale assets.
+    # Evaluated per full-page render (a handful of stats), NOT at import: a
+    # long-running server with assets rebuilt underneath it must not keep
+    # handing out the old version forever.
     try:
         static = _HERE / "static"
         return int(max(p.stat().st_mtime for p in static.rglob("*") if p.is_file()))
@@ -191,7 +238,7 @@ def _asset_version() -> int:
         return 0
 
 
-_TEMPLATES.env.globals["asset_v"] = _asset_version()  # ty: ignore[invalid-assignment]
+_TEMPLATES.env.globals["asset_v"] = _asset_version  # ty: ignore[invalid-assignment]
 
 
 # ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
@@ -256,8 +303,9 @@ async def _search_jobs(
 async def _panel_ctx(
     svc: Service, name: str, state: str, page: int, query: str = ""
 ) -> dict[str, Any]:
-    state = _coerce_state(state)
     view = await svc.queue_view(name)
+    # No state in the URL → the tab with signal; an explicit one is respected.
+    state = _coerce_state(state) if state else _default_state(view["counts"])
     query = query.strip()
     base = {"q": view, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
     if query:  # a deep-link or a typed search → render the results, not the list
@@ -285,6 +333,13 @@ async def _panel_ctx(
         "total": total,
         "nav": _page_window(page, pages),
     }
+
+
+def _with_announcement(request: Request, panel: HTMLResponse, message: str) -> HTMLResponse:
+    # Append an OOB swap INTO the pre-declared #announce live region, so the
+    # outcome of a bulk action is announced (politely) by assistive tech.
+    oob = _render_str(request, "partials/announce_oob.html", message=message)
+    return HTMLResponse(bytes(panel.body) + oob.encode())
 
 
 async def _panel_with_sidebar(
@@ -329,6 +384,21 @@ async def _security_headers(
     return response
 
 
+class _RevalidatedStatic(StaticFiles):
+    """StaticFiles with ``Cache-Control: no-cache``: browsers revalidate every
+    asset with ETag/If-Modified-Since (cheap 304s) instead of heuristically
+    caching it. The entry points carry an ``?v=`` buster, but their module
+    imports (``behaviors/*.js``) don't — without this header a warm browser
+    pins an old behavior module until its heuristic expiry.
+    """
+
+    # typing.override needs 3.12; the floor is 3.10 (and no typing_extensions dep).
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:  # ty: ignore[missing-override-decorator]
+        response = super().file_response(*args, **kwargs)
+        response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
+
 def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
     return _TEMPLATES.TemplateResponse(
         request,
@@ -351,7 +421,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         if not queues:
             return _full_page(request, queues=[], selected=None, q=None)
         name = queues[0]["name"]
-        ctx = await _panel_ctx(svc, name, "active", 1)
+        ctx = await _panel_ctx(svc, name, "", 1)  # signal-based default tab
         return _full_page(request, queues=queues, selected=name, **ctx)
 
     @router.get("/redis", response_class=HTMLResponse)
@@ -368,7 +438,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/queues/{name}", response_class=HTMLResponse)
     async def queue_view(
-        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
+        request: Request, name: str, state: str = "", page: int = 1, query: str = ""
     ):
         ctx = await _panel_ctx(svc, name, state, page, query)
         if wants_fragment(request):
@@ -559,18 +629,22 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
                 f"Remove at most {MAX_BULK_REMOVE:,} jobs at once.",
                 status=413,
             )
-        await svc.remove_many(name, selected)
-        return await _panel(svc, request, name, state, page)
+        removed = await svc.remove_many(name, selected)
+        panel = await _panel(svc, request, name, state, page)
+        return _with_announcement(request, panel, f"{removed} jobs removed")
 
     @router.post("/queues/{name}/retry-all", response_class=HTMLResponse)
     async def retry_all(request: Request, name: str):
-        await svc.retry_all(name)
-        return await _panel(svc, request, name, "failed", 1)
+        count = await svc.retry_all(name)
+        panel = await _panel(svc, request, name, "failed", 1)
+        return _with_announcement(request, panel, f"{count} jobs queued for retry")
 
     @router.post("/queues/{name}/clean", response_class=HTMLResponse)
     async def clean(request: Request, name: str, state: str = "completed"):
-        await svc.clean(name, _coerce_state(state))
-        return await _panel(svc, request, name, state, 1)
+        cleaned = _coerce_state(state)  # announce what was ACTUALLY cleaned
+        count = await svc.clean(name, cleaned)
+        panel = await _panel(svc, request, name, cleaned, 1)
+        return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):
@@ -630,7 +704,7 @@ def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configura
         await svc.close()
 
     app = FastAPI(title="matador", lifespan=lifespan, dependencies=list(dependencies or []))
-    app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
+    app.mount("/static", _RevalidatedStatic(directory=str(_HERE / "static")), name="static")
 
     # Middleware runs outermost-last-registered, so security_headers wraps same_origin:
     # a blocked cross-origin response still carries the hardening headers.

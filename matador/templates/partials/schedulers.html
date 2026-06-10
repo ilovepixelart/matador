@@ -4,7 +4,7 @@
 <div class="card">
   <table class="w-full text-sm">
     <thead class="bg-panel2/60">
-      <tr><th class="th">name</th><th class="th">schedule</th><th class="th">next run</th><th class="th"></th></tr>
+      <tr><th scope="col" class="th">name</th><th scope="col" class="th">schedule</th><th scope="col" class="th">next run</th><th scope="col" class="th"><span class="sr-only">actions</span></th></tr>
     </thead>
     <tbody>
     {% for s in schedulers %}
@@ -16,11 +16,11 @@
           <div class="inline-flex gap-1.5">
             <button class="btn btn-sm btn-info" hx-post="{{ url_for('trigger', name=name, scheduler_id=s.id).path }}"
                     hx-target="#schedulers" data-loading-disable data-loading-aria-busy>{{ icon('bolt', 'w-3.5 h-3.5') }} run now</button>
-            <button class="btn btn-sm btn-danger tip" aria-label="Remove scheduler"
+            <button class="btn btn-sm btn-danger tip" data-tip="Remove scheduler"
                     hx-delete="{{ url_for('remove_scheduler', name=name, scheduler_id=s.id).path }}"
                     hx-target="#schedulers" hx-confirm="Remove scheduler {{ s.id }}?"
                     data-loading-disable data-loading-aria-busy>
-              {{ icon('trash', 'w-3.5 h-3.5') }}</button>
+              {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove scheduler</span></button>
           </div>
         </td>
       </tr>

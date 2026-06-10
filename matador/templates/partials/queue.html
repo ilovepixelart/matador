@@ -1,11 +1,11 @@
-{% from "macros.html" import icon, state_color %}
+{% from "macros.html" import badge, icon, state_color %}
 <div class="p-5">
   <div class="flex items-center justify-between mb-5 gap-3">
     <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
       <span class="text-accent shrink-0">{{ icon('queue', 'w-5 h-5') }}</span>
       <span class="truncate">{{ q.name }}</span>
       {% if q.paused %}
-      <span class="text-xs px-2 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">paused</span>
+      <span class="{{ badge('warning', 'shrink-0') }}">paused</span>
       {% endif %}
     </h1>
     <div class="flex gap-2 items-start shrink-0">

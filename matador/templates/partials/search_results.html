@@ -5,9 +5,9 @@
   {% if exact %}<span class="text-success">· exact id match</span>{% endif %}
   <span class="opacity-70">· scanned the most recent {{ scan_limit }} {{ state }} jobs</span>
 </div>
-<div>
+<div class="jobs-table">
 {% for j in jobs %}{{ job_row(name, j, j.state or state) }}
 {% else %}
-  {{ empty_state('search', 'no jobs match “' ~ query ~ '”') }}
+  <div class="col-span-full">{{ empty_state('search', 'no jobs match “' ~ query ~ '”') }}</div>
 {% endfor %}
 </div>

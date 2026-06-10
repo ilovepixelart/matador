@@ -1,4 +1,4 @@
-{% from "macros.html" import icon %}
+{% from "macros.html" import badge, icon %}
 <div class="text-xs uppercase tracking-wider text-muted px-2 mb-2">Queues</div>
 {% for qq in queues %}
 <a id="q-{{ qq.name }}" href="{{ url_for('queue_view', name=qq.name).path }}" hx-get="{{ url_for('queue_view', name=qq.name).path }}"
@@ -11,15 +11,15 @@
       <span class="q-name font-medium truncate">{{ qq.name }}</span>
     </span>
     {% if qq.paused %}
-    <span class="text-xs px-1.5 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">paused</span>
+    <span class="{{ badge('warning', 'shrink-0') }}">paused</span>
     {% endif %}
   </div>
   {# Always render all three so they never appear/disappear (the main source of jumping);
      tabular-nums keeps the digits aligned as the numbers change. #}
   <div class="mt-1.5 flex gap-1 text-xs tabular-nums">
-    <span class="px-1.5 py-0.5 rounded-md bg-info/10 text-info">{{ qq.counts.active|compact }} active</span>
-    <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-muted">{{ qq.counts.wait|compact }} wait</span>
-    <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger">{{ qq.counts.failed|compact }} failed</span>
+    <span class="{{ badge('info') }}" title="{{ qq.counts.active|comma }}">{{ qq.counts.active|compact }} active</span>
+    <span class="{{ badge('muted') }}" title="{{ qq.counts.wait|comma }}">{{ qq.counts.wait|compact }} wait</span>
+    <span class="{{ badge('danger') }}" title="{{ qq.counts.failed|comma }}">{{ qq.counts.failed|compact }} failed</span>
   </div>
 </a>
 {% else %}

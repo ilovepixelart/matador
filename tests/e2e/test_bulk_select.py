@@ -37,7 +37,7 @@ def test_clicking_row_action_area_does_not_open_it(page: Page, base_url, seeded_
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     expect(page.locator("#jobs details[open]")).to_have_count(0)
 
-    page.locator("summary div[data-no-toggle]").first.click(position={"x": 2, "y": 10})
+    page.locator("summary [data-no-toggle]").first.click(position={"x": 2, "y": 10})
     expect(page.locator("#jobs details[open]")).to_have_count(0)  # row stayed closed
 
 
