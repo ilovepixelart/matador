@@ -40,3 +40,16 @@ def test_job_list_columns_align_with_the_header(page: Page, base_url, seeded):
         header_x = page.locator(f'#jobs [data-col="{col}"]').first.bounding_box()["x"]
         row_x = page.locator(f'#jobs details [data-col="{col}"]').first.bounding_box()["x"]
         assert abs(header_x - row_x) < 1, f"{col} column drifts: header {header_x} vs row {row_x}"
+
+
+def test_cursor_semantics(page: Page, base_url, seeded):
+    # The cursor communicates affordance: pointer on clickables, help on
+    # hover-for-more info, not-allowed on disabled controls.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    cur = lambda sel: page.eval_on_selector(sel, "el => getComputedStyle(el).cursor")  # noqa: E731
+    assert cur("#jobs details summary") == "pointer"  # rows open
+    assert cur("#sidebar-backdrop") == "pointer"  # closes the drawer
+    page.wait_for_selector("#redis-bar .chip[title]")
+    assert cur("#redis-bar .chip[title]") == "help"  # info on hover, not clickable
+    page.eval_on_selector("#jobs button", "el => el.disabled = true")
+    assert cur("#jobs button") == "not-allowed"  # can't press while in flight
