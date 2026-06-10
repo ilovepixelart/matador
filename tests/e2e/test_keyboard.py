@@ -41,3 +41,44 @@ def test_escape_closes_the_drawer(page: Page, base_url, seeded):
     expect(page.locator("#sidebar")).to_be_in_viewport()
     page.keyboard.press("Escape")
     expect(page.locator("#sidebar")).not_to_be_in_viewport()
+
+
+def test_j_and_k_move_the_row_cursor(page: Page, base_url, seeded):
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    page.keyboard.press("j")  # no cursor yet: j lands on the first row
+    first = page.locator("#jobs details summary").first
+    expect(first).to_be_focused()
+    page.keyboard.press("j")
+    expect(page.locator("#jobs details summary").nth(1)).to_be_focused()
+    page.keyboard.press("k")
+    expect(first).to_be_focused()
+    page.keyboard.press("k")  # top of the list: stays put
+    expect(first).to_be_focused()
+
+
+def test_o_opens_and_closes_the_focused_row(page: Page, base_url, seeded):
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    page.keyboard.press("j")
+    page.keyboard.press("o")
+    expect(page.locator("#jobs details[open]")).to_have_count(1)
+    page.keyboard.press("o")
+    expect(page.locator("#jobs details[open]")).to_have_count(0)
+
+
+def test_x_selects_the_focused_row(page: Page, base_url, seeded):
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    page.keyboard.press("j")
+    page.keyboard.press("x")
+    expect(page.locator("#jobs .jcheck:checked")).to_have_count(1)
+    expect(page.locator("#bulk-bar")).to_be_visible()  # selection feeds the bulk bar
+    page.keyboard.press("x")
+    expect(page.locator("#jobs .jcheck:checked")).to_have_count(0)
+
+
+def test_jkxo_type_normally_in_the_search_box(page: Page, base_url, seeded):
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    box = page.locator('input[name="query"]')
+    box.click()
+    page.keyboard.type("jokx")
+    expect(box).to_have_value("jokx")
+    expect(page.locator("#jobs details[open]")).to_have_count(0)
