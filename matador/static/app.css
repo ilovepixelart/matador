@@ -830,6 +830,67 @@ body {
   opacity: 0.4;
 }
 
+/* The job list IS a table: one grid; the header and every row are subgrids
+     of it, so columns align by construction — no hand-maintained width math.
+     Tracks: check · chevron · id · name · data · progress · time · attempts ·
+     actions. max-content tracks size to the widest cell in the whole list
+     (even mixed-state search results stay aligned). */
+
+.jobs-table {
+  display: grid;
+  grid-template-columns: max-content 1rem 4rem 7rem minmax(0,1fr) max-content max-content 2.25rem max-content;
+  -moz-column-gap: 0.75rem;
+       column-gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .jobs-table {
+    grid-template-columns: max-content 1rem 4rem 11rem minmax(0,1fr) max-content max-content 2.25rem max-content;
+  }
+}
+
+/* every cell: flex centering + vertical rhythm + edge padding, in ONE place */
+
+.jobs-head, .jobs-cells {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+}
+
+.jobs-head>*, .jobs-cells>* {
+  display: flex;
+  min-width: 0px;
+  align-items: center;
+}
+
+.jobs-head>:first-child, .jobs-cells>:first-child {
+  padding-left: 0.75rem;
+}
+
+.jobs-head>:last-child, .jobs-cells>:last-child {
+  padding-right: 0.75rem;
+}
+
+.jobs-head>* {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.jobs-cells>* {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.jobs-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+}
+
+.jobs-row > .acc-body {
+  grid-column: 1 / -1;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -913,6 +974,10 @@ body {
 
 .col-span-2 {
   grid-column: span 2 / span 2;
+}
+
+.col-span-full {
+  grid-column: 1 / -1;
 }
 
 .mb-1 {
@@ -1051,16 +1116,8 @@ body {
   width: 2.5rem;
 }
 
-.w-16 {
-  width: 4rem;
-}
-
 .w-2 {
   width: 0.5rem;
-}
-
-.w-24 {
-  width: 6rem;
 }
 
 .w-28 {
@@ -1097,18 +1154,6 @@ body {
 
 .w-80 {
   width: 20rem;
-}
-
-.w-9 {
-  width: 2.25rem;
-}
-
-.w-\[54px\] {
-  width: 54px;
-}
-
-.w-\[90px\] {
-  width: 90px;
 }
 
 .w-full {
@@ -1281,10 +1326,6 @@ body {
   --tw-space-y-reverse: 0;
   margin-top: calc(0.125rem * calc(1 - var(--tw-space-y-reverse)));
   margin-bottom: calc(0.125rem * var(--tw-space-y-reverse));
-}
-
-.self-stretch {
-  align-self: stretch;
 }
 
 .overflow-auto {
@@ -1559,14 +1600,6 @@ body {
 
 .\!pl-9 {
   padding-left: 2.25rem !important;
-}
-
-.pl-3 {
-  padding-left: 0.75rem;
-}
-
-.\!text-left {
-  text-align: left !important;
 }
 
 .text-left {
@@ -2188,10 +2221,6 @@ a:focus-visible, summary:focus-visible {
 
   .md\:hidden {
     display: none;
-  }
-
-  .md\:w-44 {
-    width: 11rem;
   }
 }
 

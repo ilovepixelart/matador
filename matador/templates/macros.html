@@ -6,24 +6,8 @@
 w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:bg-ink max-md:-translate-x-full max-md:transition-transform max-md:duration-200
 {%- endmacro %}
 
-{# The job-list column contract — ONE definition consumed by both the header
-   (jobs.html) and the rows (job_row), so widths can't drift apart again. #}
-{% macro job_cols(col) -%}
-{%- if col == 'id' -%}font-mono w-16 truncate shrink-0
-{%- elif col == 'name' -%}w-28 md:w-44 truncate shrink-0
-{%- elif col == 'time' -%}w-24 text-right whitespace-nowrap shrink-0
-{%- elif col == 'attempts' -%}w-9 text-right tabular-nums shrink-0
-{%- endif -%}
-{%- endmacro %}
-
 {# One badge style everywhere (paused, draining, state chips, counts) — the
    hand-rolled copies had drifted between px-1.5 and px-2. #}
-{# Per-state action-cell width (buttons + gap + padding, border-box) — the
-   header reserves the same space so the time/attempts columns align. #}
-{% macro action_cols(state) -%}
-{%- if state in ('failed', 'delayed') -%}w-[90px]{%- else -%}w-[54px]{%- endif %} shrink-0
-{%- endmacro %}
-
 {% macro badge(tone, extra='') -%}
 text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {%- endmacro %}
@@ -68,21 +52,23 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {# One job as a native <details> accordion row. `state` keys the per-row actions
    (use the job's own state for search results that span states). #}
 {% macro job_row(name, j, state, page=1) -%}
-<details id="jrow-{{ state }}-{{ j.id }}" class="acc-item border-b border-line"
+<details id="jrow-{{ state }}-{{ j.id }}" class="jobs-row acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
          hx-target="find .acc-body" hx-trigger="toggle once">
-  <summary class="flex items-center hover:bg-panel2/30 transition-colors cursor-pointer
+  {# One cell per grid track — check · chevron · id · name · data · progress ·
+     time · attempts · actions, in exactly this order; the subgrid does the
+     aligning (.jobs-table in input.css). #}
+  <summary class="jobs-cells hover:bg-panel2/30 transition-colors cursor-pointer
                   list-none [&::-webkit-details-marker]:hidden">
-    <label class="pl-3 self-stretch flex items-center shrink-0">
+    <label class="cursor-pointer">
       <input type="checkbox" class="jcheck chk" value="{{ j.id }}"
              aria-label="Select job {{ j.id }}" />
     </label>
-    <div class="flex-1 flex items-center gap-3 px-4 py-2.5 min-w-0">
-      <span class="chevron text-muted shrink-0">{{ icon('chevron', 'w-4 h-4') }}</span>
-      <span class="text-muted {{ job_cols('id') }}" data-col="id" title="#{{ j.id }}">#{{ j.id }}</span>
-      {# Wider on md+ — the name is what operators scan; the payload preview is
-         the cell that can spare the width. Full name one hover away. #}
-      <span class="font-medium {{ job_cols('name') }}" data-col="name" title="{{ j.name }}">{{ j.name }}</span>
+    <span class="chevron text-muted">{{ icon('chevron', 'w-4 h-4') }}</span>
+    <span class="text-muted font-mono truncate" data-col="id" title="#{{ j.id }}">#{{ j.id }}</span>
+    <span class="gap-1" data-col="name">
+      {# The name is what operators scan; the full name is one hover away. #}
+      <span class="font-medium truncate" title="{{ j.name }}">{{ j.name }}</span>
       {% if j.id.startswith('repeat:') %}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under
@@ -91,35 +77,37 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
             data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
         {{ icon('clock', 'w-3 h-3') }} scheduled<span class="sr-only"> occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
       {% endif %}
-      {% if state == 'failed' and j.failed_reason %}
-      {# Failed rows lead with WHY — the payload is one expand away, the reason
-         is what an operator scans for. #}
-      <span class="text-xs text-danger flex-1 truncate min-w-0" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span>
-      {% else %}
-      <span class="font-mono text-muted text-xs flex-1 truncate min-w-0">{{ j.data|tojson }}</span>
-      {% endif %}
+    </span>
+    {% if state == 'failed' and j.failed_reason %}
+    {# Failed rows lead with WHY — the payload is one expand away, the reason
+       is what an operator scans for. #}
+    <span class="text-xs text-danger"><span class="truncate" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span></span>
+    {% else %}
+    <span class="font-mono text-muted text-xs"><span class="truncate">{{ j.data|tojson }}</span></span>
+    {% endif %}
+    <span>
       {% if j.progress is number %}
-      <span class="w-28 shrink-0 hidden md:flex items-center gap-1.5">
+      <span class="w-28 hidden md:flex items-center gap-1.5">
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
           <span class="block h-full {{ bar_color(j.state) }} rounded-full transition-[width] duration-300" style="width: {{ j.progress }}%"></span>
         </span>
         <span class="text-xs text-muted tabular-nums w-7 text-right">{{ j.progress }}%</span>
       </span>
       {% endif %}
-      {# The state-relevant moment: finished / started / due / queued. Relative
-         for scanning; the absolute moment lives on the hover title. #}
-      {% if state == 'delayed' %}
-      <span class="text-xs text-warning {{ job_cols('time') }}" data-col="time"
-            title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
-      {% else %}
-      {% set ts = j.finished_on if state in ('completed', 'failed')
-                  else (j.processed_on if state == 'active' else j.timestamp) %}
-      <span class="text-xs text-muted {{ job_cols('time') }}" data-col="time"
-            title="{{ ts|at }}">{{ ts|ago }}</span>
-      {% endif %}
-      <span class="text-xs text-muted {{ job_cols('attempts') }}">{{ j.attempts_made }}×</span>
-    </div>
-    <div class="px-3 flex gap-1.5 justify-end {{ action_cols(state) }}" data-no-toggle>
+    </span>
+    {# The state-relevant moment: finished / started / due / queued. Relative
+       for scanning; the absolute moment lives on the hover title. #}
+    {% if state == 'delayed' %}
+    <span class="text-xs text-warning justify-end whitespace-nowrap" data-col="time"
+          title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
+    {% else %}
+    {% set ts = j.finished_on if state in ('completed', 'failed')
+                else (j.processed_on if state == 'active' else j.timestamp) %}
+    <span class="text-xs text-muted justify-end whitespace-nowrap" data-col="time"
+          title="{{ ts|at }}">{{ ts|ago }}</span>
+    {% endif %}
+    <span class="text-xs text-muted tabular-nums justify-end">{{ j.attempts_made }}×</span>
+    <span class="gap-1.5 justify-end" data-no-toggle>
       {% if state == 'delayed' %}
       <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
@@ -135,7 +123,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
               hx-target="#queue-panel" hx-confirm="Remove job #{{ j.id }}?"
               data-loading-disable data-loading-aria-busy>
         {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove this job</span></button>
-    </div>
+    </span>
   </summary>
   <div class="acc-body"></div>
 </details>

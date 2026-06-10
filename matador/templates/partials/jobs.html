@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, bar_color, job_row, job_cols, action_cols, empty_state, pglink with context %}
+{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink with context %}
 {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
 <div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
   {# Bulk-action bar — shown by JS only when ≥1 row is selected (persists across pages). #}
@@ -23,30 +23,31 @@
     {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state }}</button>
 </div>
 
-{# Table header — the select-all aligns with the row checkboxes. #}
-<div class="flex items-center border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
-  <label class="pl-3 self-stretch flex items-center shrink-0 cursor-pointer">
-    <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
-  </label>
-  <div class="flex-1 flex items-center gap-3 px-4 py-2 min-w-0">
-    <span class="w-4 shrink-0"></span>
-    <span class="{{ job_cols('id') }}" data-col="id">id</span>
-    <span class="{{ job_cols('name') }}" data-col="name">job</span>
-    <span class="flex-1 min-w-0">data</span>
-    {# header labels read left like every other header; the VALUES below stay
-       right-aligned (numeric convention) — hence the !important override. #}
-    <span class="{{ job_cols('time') }} !text-left" data-col="time">when</span>
-    <span class="{{ job_cols('attempts') }} !text-left" title="attempts">×</span>
-  </div>
-  <span class="{{ action_cols(state) }}"></span>
-</div>
 {% endif %}
 
-<div data-view="{{ name }}:{{ state }}">
-{% for j in jobs %}{{ job_row(name, j, state, page) }}
-{% else %}
-  {{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' — all clear' if state == 'failed' else '')) }}
-{% endfor %}
+{# data-view sits ON the grid itself (bulk-select page identity) — no extra
+   wrapper: idiomorph relocates id-keyed rows across intermediate divs. #}
+<div class="jobs-table" data-view="{{ name }}:{{ state }}">
+  {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
+  {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
+  <div class="jobs-head border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
+    <label class="cursor-pointer">
+      <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
+    </label>
+    <span></span>
+    <span data-col="id">id</span>
+    <span data-col="name">job</span>
+    <span>data</span>
+    <span></span>
+    <span data-col="time">when</span>
+    <span title="attempts">×</span>
+    <span></span>
+  </div>
+  {% endif %}
+  {% for j in jobs %}{{ job_row(name, j, state, page) }}
+  {% else %}
+  <div class="col-span-full">{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' — all clear' if state == 'failed' else '')) }}</div>
+  {% endfor %}
 </div>
 
 {# Live-refresh the list (table + total count + pagination) on any job event, for every

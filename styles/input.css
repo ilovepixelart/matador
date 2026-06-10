@@ -214,3 +214,22 @@ a:focus-visible, summary:focus-visible {
   ::view-transition-old(*),
   ::view-transition-new(*) { animation: none !important; }
 }
+
+@layer components {
+  /* The job list IS a table: one grid; the header and every row are subgrids
+     of it, so columns align by construction — no hand-maintained width math.
+     Tracks: check · chevron · id · name · data · progress · time · attempts ·
+     actions. max-content tracks size to the widest cell in the whole list
+     (even mixed-state search results stay aligned). */
+  .jobs-table { @apply grid gap-x-3
+    grid-cols-[max-content_1rem_4rem_7rem_minmax(0,1fr)_max-content_max-content_2.25rem_max-content]
+    md:grid-cols-[max-content_1rem_4rem_11rem_minmax(0,1fr)_max-content_max-content_2.25rem_max-content]; }
+  /* every cell: flex centering + vertical rhythm + edge padding, in ONE place */
+  .jobs-head, .jobs-cells { @apply col-span-full grid grid-cols-subgrid
+    [&>*]:flex [&>*]:items-center [&>*]:min-w-0
+    [&>:first-child]:pl-3 [&>:last-child]:pr-3; }
+  .jobs-head { @apply [&>*]:py-2; }
+  .jobs-cells { @apply [&>*]:py-2.5; }
+  .jobs-row { @apply col-span-full grid grid-cols-subgrid; }
+  .jobs-row > .acc-body { @apply col-span-full; }
+}
