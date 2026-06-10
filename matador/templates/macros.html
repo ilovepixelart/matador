@@ -58,7 +58,9 @@ w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset
     <div class="flex-1 flex items-center gap-3 px-4 py-2.5 min-w-0">
       <span class="chevron text-muted shrink-0">{{ icon('chevron', 'w-4 h-4') }}</span>
       <span class="font-mono text-muted shrink-0 whitespace-nowrap pr-2">#{{ j.id }}</span>
-      <span class="font-medium w-28 truncate shrink-0">{{ j.name }}</span>
+      {# Wider on md+ — the name is what operators scan; the payload preview is
+         the cell that can spare the width. Full name one hover away. #}
+      <span class="font-medium w-28 md:w-44 truncate shrink-0" title="{{ j.name }}">{{ j.name }}</span>
       {% if j.id.startswith('repeat:') %}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under

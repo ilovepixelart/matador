@@ -26,3 +26,9 @@ async def test_delayed_rows_show_when_they_are_due(client, seeded):
     r = await client.get(f"/queues/{QUEUE}?state=delayed", headers=hx())
     assert r.status_code == 200
     assert "due in" in r.text or "due now" in r.text
+
+
+async def test_job_names_expose_their_full_text_on_hover(client, seeded):
+    # The name column truncates; the untruncated name must be one hover away.
+    r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
+    assert 'title="alpha"' in r.text
