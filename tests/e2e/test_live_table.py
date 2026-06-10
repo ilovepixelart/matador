@@ -30,3 +30,21 @@ def test_enqueued_job_appears_live_on_empty_tab(page: Page, base_url, drive):
     # no page.reload() — the table must refresh itself off the SSE `changed` signal.
     # timeout < the 8s heartbeat, so this proves the ENQUEUE event drove it, not the backstop.
     expect(page.locator("#jobs")).to_contain_text("liveappear", timeout=6000)
+
+
+def test_live_refresh_keeps_rows_inside_the_grid(page: Page, base_url, seeded, drive):
+    # idiomorph once relocated id-keyed rows OUTSIDE .jobs-table on refresh
+    # (an intermediate wrapper confused it) — the grid stopped applying and
+    # every column collapsed. Assert the structure survives a live morph.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    page.wait_for_timeout(2000)  # let the SSE connection establish
+
+    async def enqueue():
+        q = Queue(QUEUE, prefix=PREFIX)
+        await q.add("late-arrival", {"n": 1})
+        await q.close()
+
+    drive(enqueue())
+    expect(page.locator("#jobs details")).to_have_count(4)  # refresh happened
+    inside = page.locator("#jobs .jobs-table > details")
+    expect(inside).to_have_count(4)  # ...and every row is still a grid row
