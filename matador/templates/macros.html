@@ -59,7 +59,13 @@
             aria-label="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
         {{ icon('clock', 'w-3 h-3') }} scheduled</span>
       {% endif %}
+      {% if state == 'failed' and j.failed_reason %}
+      {# Failed rows lead with WHY — the payload is one expand away, the reason
+         is what an operator scans for. #}
+      <span class="text-xs text-danger flex-1 truncate min-w-0" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span>
+      {% else %}
       <span class="font-mono text-muted text-xs flex-1 truncate min-w-0">{{ j.data|tojson }}</span>
+      {% endif %}
       {% if j.progress is number %}
       <span class="w-28 shrink-0 hidden md:flex items-center gap-1.5">
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
@@ -67,6 +73,17 @@
         </span>
         <span class="text-xs text-muted tabular-nums w-7 text-right">{{ j.progress }}%</span>
       </span>
+      {% endif %}
+      {# The state-relevant moment: finished / started / due / queued. Relative
+         for scanning; the absolute moment lives on the hover title. #}
+      {% if state == 'delayed' %}
+      <span class="text-xs text-warning whitespace-nowrap shrink-0"
+            title="{{ (j.timestamp + j.delay)|at }}">{{ (j.timestamp + j.delay)|due }}</span>
+      {% else %}
+      {% set ts = j.finished_on if state in ('completed', 'failed')
+                  else (j.processed_on if state == 'active' else j.timestamp) %}
+      <span class="text-xs text-muted whitespace-nowrap shrink-0"
+            title="{{ ts|at }}">{{ ts|ago }}</span>
       {% endif %}
       <span class="text-xs text-muted tabular-nums w-9 text-right shrink-0">{{ j.attempts_made }}×</span>
     </div>

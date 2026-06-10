@@ -324,6 +324,12 @@ class Service:
             "data": j.data,
             "failed_reason": j.failed_reason,
             "progress": j.progress,
+            # Triage times — which one matters depends on the state the row is
+            # in (queued / started / finished / due); the row template picks.
+            "timestamp": j.timestamp,
+            "processed_on": j.processed_on,
+            "finished_on": j.finished_on,
+            "delay": j.opts.delay,
         }
 
     @classmethod

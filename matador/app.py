@@ -133,8 +133,38 @@ def _uptime(started_ms: int) -> str:
         return f"{secs}s"
     if secs < 3600:
         return f"{secs // 60}m"
-    hours, mins = divmod(secs // 60, 60)
-    return f"{hours}h {mins}m" if mins else f"{hours}h"
+    if secs < 86400:
+        hours, mins = divmod(secs // 60, 60)
+        return f"{hours}h {mins}m" if mins else f"{hours}h"
+    return f"{secs // 86400}d"
+
+
+def _ago(ms: int | None) -> str:
+    # Relative past for job rows — same duration phrasing as the workers view.
+    return f"{_uptime(ms)} ago" if ms else "—"
+
+
+def _due(due_ms: int | None) -> str:
+    # When a delayed job will run: "due in 3m", or "due now" once promotable.
+    if not due_ms:
+        return "—"
+    secs = int(due_ms / 1000 - time.time())
+    if secs <= 0:
+        return "due now"
+    if secs < 60:
+        return f"due in {secs}s"
+    if secs < 3600:
+        return f"due in {secs // 60}m"
+    if secs < 86400:
+        return f"due in {secs // 3600}h"
+    return f"due in {secs // 86400}d"
+
+
+def _at(ms: int | None) -> str:
+    # The absolute moment, for hover titles — relative times age, this doesn't.
+    if not ms:
+        return ""
+    return datetime.fromtimestamp(ms / 1000).strftime("%d %b %Y %H:%M:%S")  # noqa: DTZ006
 
 
 def _compact(n: int) -> str:
@@ -179,6 +209,9 @@ _TEMPLATES.env.filters["compact"] = _compact
 _TEMPLATES.env.filters["dur"] = _dur
 _TEMPLATES.env.filters["pretty"] = _pretty_json
 _TEMPLATES.env.filters["uptime"] = _uptime
+_TEMPLATES.env.filters["ago"] = _ago
+_TEMPLATES.env.filters["due"] = _due
+_TEMPLATES.env.filters["at"] = _at
 
 
 def _asset_version() -> int:

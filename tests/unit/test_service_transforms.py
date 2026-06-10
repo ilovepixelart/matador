@@ -34,6 +34,11 @@ def test_summary_has_exactly_the_list_fields():
         "data": {"to": "ada@example.com"},
         "failed_reason": None,
         "progress": 100,
+        # triage times: the row template picks the state-relevant one
+        "timestamp": 1700000000000,
+        "processed_on": 1700000000100,
+        "finished_on": 1700000000500,
+        "delay": 0,
     }
 
 
