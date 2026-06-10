@@ -11,7 +11,8 @@ def test_tab_swaps_start_a_view_transition(page: Page, base_url, seeded):
     page.evaluate(
         """() => { window.__vt = 0;
              const orig = document.startViewTransition?.bind(document);
-             if (orig) document.startViewTransition = (cb) => { window.__vt++; return orig(cb); } }"""
+             if (orig) document.startViewTransition =
+               (cb) => { window.__vt++; return orig(cb); } }"""
     )
     page.locator(f'a[hx-get="/queues/{QUEUE}?state=failed"]').click()
     expect(page.locator("#jobs")).to_contain_text("badjob")  # swap landed

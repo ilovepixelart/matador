@@ -36,3 +36,12 @@ def test_pause_then_resume(page: Page, base_url, seeded):
     expect(page.get_by_role("button", name="Resume")).to_be_visible()
     page.get_by_role("button", name="Resume").click()
     expect(page.get_by_role("button", name="Pause")).to_be_visible()
+
+
+def test_retry_all_outcome_lands_in_the_live_region(page, base_url, seeded):
+    from playwright.sync_api import expect
+
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    page.locator('button:has-text("retry all")').click()
+    page.locator("#confirm-ok").click()
+    expect(page.locator("#announce")).to_contain_text("queued for retry")

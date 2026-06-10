@@ -26,7 +26,7 @@ def test_pointer_targets_meet_24px_minimum(page: Page, base_url, seeded):
         ("select-all label", "#jobs label:has(#select-all)"),
         ("toolbar retry-all", '#jobs button:has-text("retry all")'),
         ("theme toggle", "[data-js-theme-toggle]"),
-        ("tab link", '#queue-panel a[hx-push-url]'),
+        ("tab link", "#queue-panel a[hx-push-url]"),
     ]:
         box = _box(page, sel)
         if box["width"] < MIN or box["height"] < MIN:

@@ -335,6 +335,13 @@ async def _panel_ctx(
     }
 
 
+def _with_announcement(request: Request, panel: HTMLResponse, message: str) -> HTMLResponse:
+    # Append an OOB swap INTO the pre-declared #announce live region, so the
+    # outcome of a bulk action is announced (politely) by assistive tech.
+    oob = _render_str(request, "partials/announce_oob.html", message=message)
+    return HTMLResponse(bytes(panel.body).decode() + oob)
+
+
 async def _panel_with_sidebar(
     svc: Service, request: Request, name: str, ctx: dict[str, Any]
 ) -> HTMLResponse:
@@ -622,18 +629,21 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
                 f"Remove at most {MAX_BULK_REMOVE:,} jobs at once.",
                 status=413,
             )
-        await svc.remove_many(name, selected)
-        return await _panel(svc, request, name, state, page)
+        removed = await svc.remove_many(name, selected)
+        panel = await _panel(svc, request, name, state, page)
+        return _with_announcement(request, panel, f"{removed} jobs removed")
 
     @router.post("/queues/{name}/retry-all", response_class=HTMLResponse)
     async def retry_all(request: Request, name: str):
-        await svc.retry_all(name)
-        return await _panel(svc, request, name, "failed", 1)
+        count = await svc.retry_all(name)
+        panel = await _panel(svc, request, name, "failed", 1)
+        return _with_announcement(request, panel, f"{count} jobs queued for retry")
 
     @router.post("/queues/{name}/clean", response_class=HTMLResponse)
     async def clean(request: Request, name: str, state: str = "completed"):
-        await svc.clean(name, _coerce_state(state))
-        return await _panel(svc, request, name, state, 1)
+        count = await svc.clean(name, _coerce_state(state))
+        panel = await _panel(svc, request, name, state, 1)
+        return _with_announcement(request, panel, f"{count} {state} jobs removed")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):
