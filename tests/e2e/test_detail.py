@@ -36,3 +36,30 @@ def test_accordion_expands_scheduled_occurrence(page: Page, base_url, seeded, dr
     expect(row).not_to_contain_text("opts")  # detail not loaded yet
     row.locator("summary").click()
     expect(row).to_contain_text("opts")  # detail lazy-loaded on expand (was broken)
+
+
+def test_reopen_after_live_refresh_still_loads_the_detail(page: Page, base_url, seeded, drive):
+    # `toggle once` + a live morph lost the reference: the morph emptied the
+    # closed row's body but the preserved node remembered it already fetched —
+    # reopening expanded nothing, forever.
+    from toro import Queue
+
+    from .conftest import PREFIX
+
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    page.wait_for_timeout(2000)  # SSE connect
+    row = page.locator("#jobs details").first
+    row.locator("summary").click()
+    expect(row).to_contain_text("opts")  # detail loaded
+    row.locator("summary").click()  # close it
+
+    async def background_noise():
+        q = Queue(QUEUE, prefix=PREFIX)
+        await q.add("background-noise", {})
+        await q.close()
+
+    drive(background_noise())  # changed event → the list morphs while closed
+    expect(page.locator("#jobs")).to_contain_text("background-noise", timeout=6000)
+
+    row.locator("summary").click()  # reopen — the detail must come back
+    expect(row).to_contain_text("opts")

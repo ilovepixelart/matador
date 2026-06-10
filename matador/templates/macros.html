@@ -55,7 +55,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {% macro job_row(name, j, state, page=1) -%}
 <details id="jrow-{{ state }}-{{ j.id }}" class="jobs-row acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
-         hx-target="find .acc-body" hx-trigger="toggle once">
+         hx-target="find .acc-body" hx-trigger="toggle[this.open]">
   {# One cell per grid track — check · chevron · id · name · data · progress ·
      time · attempts · actions, in exactly this order; the subgrid does the
      aligning (.jobs-table in input.css). #}
