@@ -53,13 +53,3 @@ def test_cursor_semantics(page: Page, base_url, seeded):
     assert cur("#redis-bar .chip[title]") == "help"  # info on hover, not clickable
     page.eval_on_selector("#jobs button", "el => el.disabled = true")
     assert cur("#jobs button") == "not-allowed"  # can't press while in flight
-
-
-def test_clicking_the_time_header_flips_the_order(page: Page, base_url, seeded):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
-    first = page.locator("#jobs details [data-col='name']").first
-    expect(first).to_have_text("alpha")  # FIFO: front of the queue
-
-    page.locator("#jobs a[data-col='time']").click()
-    expect(first).to_have_text("gamma")  # flipped: back of the queue
-    expect(page).to_have_url(re.compile("dir=desc"))  # backend sort is URL state

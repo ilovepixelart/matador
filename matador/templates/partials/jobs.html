@@ -33,15 +33,7 @@
     <span class="{{ job_cols('id') }}" data-col="id">id</span>
     <span class="{{ job_cols('name') }}" data-col="name">job</span>
     <span class="flex-1 min-w-0">data</span>
-    {% set next_dir = 'asc' if sort == 'desc' else 'desc' %}
-    {# Backend sort: flipping pages the same Redis set from the other end —
-       pagination keeps a global order, nothing is shuffled client-side. #}
-    <a class="{{ job_cols('time') }} normal-case flex items-center justify-end gap-0.5
-              text-muted hover:text-fg transition-colors"
-       data-col="time" title="sort by time, {{ next_dir }} next"
-       href="{{ url_for('queue_view', name=name).path }}?state={{ state }}&dir={{ next_dir }}"
-       hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&dir={{ next_dir }}"
-       hx-push-url="true">when {{ icon('chevron', 'w-3 h-3' ~ (' rotate-180' if sort == 'asc' else '')) }}</a>
+    <span class="{{ job_cols('time') }}" data-col="time">when</span>
     <span class="{{ job_cols('attempts') }}" title="attempts">×</span>
   </div>
   <span class="{{ action_cols(state) }}"></span>
@@ -60,7 +52,7 @@
    load, the refresh still fires — just without the pause). Morph + stable row ids keep
    it flicker-free; throttle + drop rate-cap it. #}
 <div data-jobs-live class="hidden"
-     hx-get="{{ url_for('jobs_fragment', name=name).path }}?state={{ state }}&page={{ page }}&dir={{ sort }}"
+     hx-get="{{ url_for('jobs_fragment', name=name).path }}?state={{ state }}&page={{ page }}"
      hx-trigger="sse:changed throttle:1s" hx-target="#jobs"
      hx-swap="morph:innerHTML" hx-sync="this:drop"></div>
 
