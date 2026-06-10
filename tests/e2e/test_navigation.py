@@ -53,3 +53,14 @@ def test_cursor_semantics(page: Page, base_url, seeded):
     assert cur("#redis-bar .chip[title]") == "help"  # info on hover, not clickable
     page.eval_on_selector("#jobs button", "el => el.disabled = true")
     assert cur("#jobs button") == "not-allowed"  # can't press while in flight
+
+
+def test_open_row_does_not_deform_the_columns(page: Page, base_url, seeded):
+    # The detail body spans every track of the shared subgrid — without a zero
+    # intrinsic width it feeds the max-content tracks and deforms ALL rows.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    label = page.locator("#jobs details summary label").first
+    before = label.bounding_box()["width"]
+    page.locator("#jobs details summary").first.click()
+    expect(page.locator("#jobs details[open] .acc-body > *").first).to_be_visible()
+    assert abs(label.bounding_box()["width"] - before) < 1, "open row inflated the checkbox track"

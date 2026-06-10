@@ -140,7 +140,10 @@
   .jobs-head { @apply [&>*]:py-2; }
   .jobs-cells { @apply [&>*]:py-2.5; }
   .jobs-row { @apply col-span-full grid grid-cols-subgrid; }
-  .jobs-row > .acc-body { @apply col-span-full; }
+  /* w-0 + min-w-full: the body fills the row but contributes ZERO intrinsic
+     width, so its wide detail content can't inflate the shared max-content
+     tracks and deform every row in the table. */
+  .jobs-row > .acc-body { @apply col-span-full w-0 min-w-full; }
 }
 
 /* ════ No Tailwind vocabulary below this line — each rule says why. ════ */

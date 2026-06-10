@@ -1136,8 +1136,14 @@ details[open] > .acc-body {
   grid-template-columns: subgrid;
 }
 
+/* w-0 + min-w-full: the body fills the row but contributes ZERO intrinsic
+     width, so its wide detail content can't inflate the shared max-content
+     tracks and deform every row in the table. */
+
 .jobs-row > .acc-body {
   grid-column: 1 / -1;
+  width: 0px;
+  min-width: 100%;
 }
 
 .sr-only {
