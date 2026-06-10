@@ -1,3 +1,18 @@
+/* Tailwind v4, CSS-first: tokens, dark variant, dynamic-class pins and
+   keyframes all live here — there is no tailwind.config.js. Templates are the
+   only scan source (source() restricts the auto-detector). */
+@import "tailwindcss" source("../matador/templates");
+
+/* The badge/state macros build class names in Jinja (`bg-{{token}}/10`), which
+   the scanner can't see — pin exactly those utilities (was: safelist). */
+@source inline("{text,bg}-{info,success,warning,danger,muted}");
+@source inline("bg-{info,success,warning,danger,muted}/10");
+@source inline("ring-{info,success,warning,danger,muted}/30");
+
+/* Class-strategy dark mode: the pre-paint script in base.html sets html.dark
+   (saved choice first, else prefers-color-scheme). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Inter — self-hosted variable font (offline, like our Tailwind build). */
 @font-face {
   font-family: 'Inter';
@@ -9,38 +24,64 @@
   src: url('fonts/inter.woff2') format('woff2');
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Semantic design tokens. Markup uses ONLY these (never raw palette colors).
+   Surfaces stack by elevation: ink (app) < panel < panel2. `accent` is the one
+   brand colour (selection/focus/primary). The four status colours carry MEANING
+   and map to job states; each is tuned per theme (darker on light, lighter on
+   dark) so `text-X`, `bg-X/10`, `ring-X/30` all read correctly in both.
+   `inline` makes utilities reference var() at use-site, so flipping html.dark
+   re-themes everything at runtime; opacity modifiers go through color-mix. */
+@theme inline {
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-info: var(--info);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --animate-acc-in: accIn 0.18s ease;
+  --animate-dlg-in: dlgIn 0.15s ease;
+}
+@keyframes accIn { from { opacity: 0; transform: translateY(-3px); } }
+@keyframes dlgIn { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 
 @layer base {
-  /* Semantic design tokens. Markup uses ONLY these (never raw palette colors).
-     Surfaces stack by elevation: ink (app) < panel < panel2. `accent` is the one
-     brand colour (selection/focus/primary). The four status colours carry MEANING
-     and map to job states; each is tuned per theme (darker on light, lighter on
-     dark) so `text-X`, `bg-X/10`, `ring-X/30` all read correctly in both. */
   :root {
-    --ink: 248 250 252; --panel: 255 255 255; --panel2: 241 245 249;
-    --line: 226 232 240; --fg: 15 23 42; --muted: 100 116 139;
-    --accent: 226 59 59;
-    --info: 2 132 199; --success: 5 150 105; --warning: 202 110 8; --danger: 225 29 72;
+    --ink: rgb(248 250 252); --panel: rgb(255 255 255); --panel2: rgb(241 245 249);
+    --line: rgb(226 232 240); --fg: rgb(15 23 42); --muted: rgb(100 116 139);
+    --accent: rgb(226 59 59);
+    --info: rgb(2 132 199); --success: rgb(5 150 105);
+    --warning: rgb(202 110 8); --danger: rgb(225 29 72);
   }
   html.dark {
-    --ink: 14 16 20; --panel: 22 25 34; --panel2: 28 32 41;
-    --line: 39 44 56; --fg: 226 232 240; --muted: 148 163 184;
-    --accent: 240 82 82;
-    --info: 56 189 248; --success: 52 211 153; --warning: 251 191 36; --danger: 251 113 133;
+    --ink: rgb(14 16 20); --panel: rgb(22 25 34); --panel2: rgb(28 32 41);
+    --line: rgb(39 44 56); --fg: rgb(226 232 240); --muted: rgb(148 163 184);
+    --accent: rgb(240 82 82);
+    --info: rgb(56 189 248); --success: rgb(52 211 153);
+    --warning: rgb(251 191 36); --danger: rgb(251 113 133);
   }
-  body { @apply [font-feature-settings:'tnum']; }
+  body { font-feature-settings: 'tnum'; }
+  /* v4 preflight makes buttons cursor:default — interactive means pointer here. */
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
   /* Nav links (tabs, sidebar, pagination) and summaries get the same keyboard
      focus treatment buttons have — preflight-level, so no element misses it. */
   a:focus-visible,
-  summary:focus-visible { @apply outline outline-2 outline-accent/50 outline-offset-1 rounded-md; }
+  summary:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent);
+    outline-offset: 1px;
+    border-radius: var(--radius-md);
+  }
 }
 
 @layer components {
   .btn { @apply inline-flex items-center gap-1.5 rounded-lg text-sm font-medium transition-colors
-                px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50
+                px-3 py-1.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/50
                 focus-visible:ring-offset-2 focus-visible:ring-offset-ink
                 disabled:cursor-not-allowed; }
   .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md min-h-6; }  /* 24px: WCAG 2.5.8 target size */
@@ -50,9 +91,9 @@
   .btn-danger { @apply bg-danger/10 text-danger hover:bg-danger/20; }
   .btn-success { @apply bg-success/10 text-success hover:bg-success/20; }
   .btn-warning { @apply bg-warning/10 text-warning hover:bg-warning/20; }
-  .card { @apply rounded-xl border border-line bg-panel overflow-hidden shadow-sm; }
+  .card { @apply rounded-xl border border-line bg-panel overflow-hidden shadow-xs; }
   .input { @apply w-full bg-ink border border-line rounded-lg px-2.5 py-1.5 text-sm
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40
+                  focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/40
                   focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
   .chip { @apply inline-flex items-center gap-1.5 text-xs text-muted; }
   .th { @apply text-left font-medium px-4 py-2.5 text-xs uppercase tracking-wider text-muted; }
@@ -94,14 +135,14 @@
 
   /* Themed checkboxes (job rows + select-all), with check + indeterminate states.
      The two glyphs are inline SVG data URIs — kept as plain declarations below. */
-  .chk { @apply appearance-none shrink-0 w-4 h-4 border-[1.5px] border-line rounded
+  .chk { @apply appearance-none shrink-0 w-4 h-4 border-[1.5px] border-line rounded-sm
                 bg-panel2 cursor-pointer transition-colors duration-[120ms]
                 hover:border-accent/60
                 checked:bg-accent checked:border-accent
                 indeterminate:bg-accent indeterminate:border-accent
                 checked:bg-center checked:bg-no-repeat checked:[background-size:78%]
                 indeterminate:bg-center indeterminate:bg-no-repeat indeterminate:[background-size:78%]
-                focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent/50
+                focus-visible:outline-2 focus-visible:outline-accent/50
                 focus-visible:outline-offset-1; }
   .chk:checked {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
@@ -140,10 +181,13 @@
   .jobs-head { @apply [&>*]:py-2; }
   .jobs-cells { @apply [&>*]:py-2.5; }
   .jobs-row { @apply col-span-full grid grid-cols-subgrid; }
-  /* w-0 + min-w-full: the body fills the row but contributes ZERO intrinsic
-     width, so its wide detail content can't inflate the shared max-content
-     tracks and deform every row in the table. */
-  .jobs-row > .acc-body { @apply col-span-full w-0 min-w-full; }
+  /* The open body must span the full row WITHOUT feeding the shared
+     max-content tracks (contain:inline-size = measures as empty for track
+     sizing). Chromium wraps details content in an internal ::details-content
+     box — THAT is the real grid item there; the .acc-body rule covers engines
+     without the wrapper. */
+  .jobs-row { @apply [&::details-content]:col-span-full [&::details-content]:[contain:inline-size]; }
+  .jobs-row > .acc-body { @apply col-span-full [contain:inline-size]; }
 }
 
 /* ════ No Tailwind vocabulary below this line — each rule says why. ════ */

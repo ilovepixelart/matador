@@ -64,3 +64,7 @@ def test_open_row_does_not_deform_the_columns(page: Page, base_url, seeded):
     page.locator("#jobs details summary").first.click()
     expect(page.locator("#jobs details[open] .acc-body > *").first).to_be_visible()
     assert abs(label.bounding_box()["width"] - before) < 1, "open row inflated the checkbox track"
+    # ...and the body must still get the full row width (not a squeezed strip)
+    body = page.locator("#jobs details[open] .acc-body").bounding_box()
+    table = page.locator("#jobs .jobs-table").bounding_box()
+    assert body["width"] > table["width"] * 0.95, f"detail body squeezed to {body['width']}px"
