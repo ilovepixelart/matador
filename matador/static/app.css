@@ -250,6 +250,9 @@
   .col-span-full {
     grid-column: 1 / -1;
   }
+  .m-auto {
+    margin: auto;
+  }
   .mt-1\.5 {
     margin-top: calc(var(--spacing) * 1.5);
   }
@@ -475,6 +478,13 @@
       --tw-space-y-reverse: 0;
       margin-block-start: calc(calc(var(--spacing) * 0.5) * var(--tw-space-y-reverse));
       margin-block-end: calc(calc(var(--spacing) * 0.5) * calc(1 - var(--tw-space-y-reverse)));
+    }
+  }
+  .space-y-3 {
+    :where(& > :not(:last-child)) {
+      --tw-space-y-reverse: 0;
+      margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+      margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
     }
   }
   .gap-x-2 {
@@ -1054,6 +1064,11 @@
       backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
     }
   }
+  .\[\&\:popover-open\]\:animate-dlg-in {
+    &:popover-open {
+      animation: dlgIn 0.15s ease;
+    }
+  }
   .\[\.sidebar-open_\&\]\:max-md\:block {
     .sidebar-open & {
       @media (width < 48rem) {
@@ -1155,21 +1170,17 @@
       }
     }
     &:focus-visible {
-      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
-      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      outline-style: var(--tw-outline-style);
+      outline-width: 2px;
     }
     &:focus-visible {
-      --tw-ring-color: var(--accent);
+      outline-offset: 1px;
+    }
+    &:focus-visible {
+      outline-color: var(--accent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--accent) 50%, transparent);
+        outline-color: color-mix(in oklab, var(--accent) 50%, transparent);
       }
-    }
-    &:focus-visible {
-      --tw-ring-offset-width: 2px;
-      --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-    }
-    &:focus-visible {
-      --tw-ring-offset-color: var(--ink);
     }
     &:disabled {
       cursor: not-allowed;
@@ -1286,21 +1297,17 @@
       }
     }
     &:focus-visible {
-      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
-      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      outline-style: var(--tw-outline-style);
+      outline-width: 2px;
     }
     &:focus-visible {
-      --tw-ring-color: var(--accent);
+      outline-offset: 1px;
+    }
+    &:focus-visible {
+      outline-color: var(--accent);
       @supports (color: color-mix(in lab, red, red)) {
-        --tw-ring-color: color-mix(in oklab, var(--accent) 40%, transparent);
+        outline-color: color-mix(in oklab, var(--accent) 40%, transparent);
       }
-    }
-    &:focus-visible {
-      --tw-ring-offset-width: 2px;
-      --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-    }
-    &:focus-visible {
-      --tw-ring-offset-color: var(--ink);
     }
   }
   .chip {
@@ -1372,6 +1379,23 @@
   .pg-disabled {
     pointer-events: none;
     opacity: 40%;
+  }
+  .kbd {
+    display: inline-flex;
+    height: calc(var(--spacing) * 6);
+    min-width: calc(var(--spacing) * 6);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+    border-color: var(--line);
+    background-color: var(--ink);
+    padding-inline: calc(var(--spacing) * 1.5);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--text-xs);
+    line-height: var(--tw-leading, var(--text-xs--line-height));
+    color: var(--muted);
   }
   button.htmx-request, form.htmx-request {
     pointer-events: none;
@@ -1842,6 +1866,11 @@ input[type="search"]::-webkit-search-cancel-button {
   syntax: "*";
   inherits: false;
 }
+@property --tw-outline-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
 @property --tw-leading {
   syntax: "*";
   inherits: false;
@@ -1854,11 +1883,6 @@ input[type="search"]::-webkit-search-cancel-button {
   syntax: "*";
   initial-value: "";
   inherits: false;
-}
-@property --tw-outline-style {
-  syntax: "*";
-  inherits: false;
-  initial-value: solid;
 }
 @keyframes spin {
   to {
@@ -1909,10 +1933,10 @@ input[type="search"]::-webkit-search-cancel-button {
       --tw-backdrop-saturate: initial;
       --tw-backdrop-sepia: initial;
       --tw-duration: initial;
+      --tw-outline-style: solid;
       --tw-leading: initial;
       --tw-ease: initial;
       --tw-content: "";
-      --tw-outline-style: solid;
     }
   }
 }

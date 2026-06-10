@@ -37,7 +37,10 @@
     <span class="font-semibold tracking-tight">matador</span>
     <span class="text-muted text-sm hidden sm:inline">·</span>
     <span class="text-muted text-sm hidden sm:inline">toro dashboard</span>
-    <div class="ml-auto">
+    <div class="ml-auto flex items-center gap-1">
+      <button popovertarget="hotkeys" class="btn btn-ghost btn-icon tip" data-tip="Keyboard shortcuts">
+        {{ icon('keys') }}<span class="sr-only">Keyboard shortcuts</span>
+      </button>
       <button data-js-theme-toggle class="btn btn-ghost btn-icon tip" data-tip="Toggle theme">
         <span class="hidden dark:inline">{{ icon('sun') }}</span>
         <span class="dark:hidden">{{ icon('moon') }}</span>
@@ -63,9 +66,29 @@
      on <body>), so a failed action surfaces instead of failing silently. #}
   <div id="toast" class="fixed bottom-4 right-4 z-50 max-w-sm"></div>
 
+  {# Hotkeys modal — a native popover (button wiring, Esc and light-dismiss all
+     come from the platform), styled as a centered modal like the dialog. #}
+  <div id="hotkeys" popover
+       class="m-auto w-80 max-w-full bg-panel text-fg border border-line rounded-xl shadow-xl p-5
+              [&:popover-open]:animate-dlg-in [&::backdrop]:bg-black/50 [&::backdrop]:backdrop-blur-[2px]">
+    <h3 class="text-base font-semibold mb-4">Keyboard shortcuts</h3>
+    <dl class="space-y-3 text-sm">
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted">Search the current tab</dt><dd><kbd class="kbd">/</kbd></dd>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted">Close row, drawer or dialog</dt><dd><kbd class="kbd">esc</kbd></dd>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted">These shortcuts</dt><dd><kbd class="kbd">?</kbd></dd>
+      </div>
+    </dl>
+  </div>
+
   {# Confirmation dialog — replaces the native confirm() for every hx-confirm action. #}
+  {# m-auto: v4 preflight zeroes dialog margins, which kills the UA's centering #}
   <dialog id="confirm-dialog"
-          class="bg-panel text-fg border border-line rounded-xl shadow-xl p-0 w-80 max-w-full
+          class="m-auto bg-panel text-fg border border-line rounded-xl shadow-xl p-0 w-80 max-w-full
                  open:animate-dlg-in [&::backdrop]:bg-black/50 [&::backdrop]:backdrop-blur-[2px]">
     <div class="p-5">
       <div class="flex items-center gap-3 mb-3">

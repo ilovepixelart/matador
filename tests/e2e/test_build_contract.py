@@ -31,3 +31,16 @@ def test_jinja_built_badge_classes_are_styled(page: Page, base_url, seeded):
         "#sidebar a .tabular-nums > span", "el => getComputedStyle(el).backgroundColor"
     )
     assert bg not in ("rgba(0, 0, 0, 0)", "transparent"), f"badge unstyled: {bg}"
+
+
+def test_confirm_dialog_opens_centered(page: Page, base_url, seeded):
+    # v4 preflight zeroes margins on EVERYTHING including <dialog>, which
+    # silently kills the UA's margin:auto centering — it happened.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    page.locator('#jobs button[data-tip="Remove this job"]').first.click()
+    box = page.locator("#confirm-dialog").bounding_box()
+    vw, vh = page.viewport_size["width"], page.viewport_size["height"]
+    # generous tolerance: the UA reserves slightly asymmetric space at small
+    # viewports; the regression guarded here is a full top-left jump
+    assert abs(box["x"] - (vw - box["x"] - box["width"])) < 30, "dialog off-center horizontally"
+    assert abs(box["y"] - (vh - box["y"] - box["height"])) < 30, "dialog off-center vertically"

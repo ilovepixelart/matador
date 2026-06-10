@@ -80,9 +80,12 @@
 }
 
 @layer components {
+  /* focus: the same outline language as links/summaries/checkboxes — outlines
+     are surface-independent (ring-offset assumed an ink background and painted
+     a black halo on dialog/panel surfaces). */
   .btn { @apply inline-flex items-center gap-1.5 rounded-lg text-sm font-medium transition-colors
-                px-3 py-1.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/50
-                focus-visible:ring-offset-2 focus-visible:ring-offset-ink
+                px-3 py-1.5 focus:outline-hidden
+                focus-visible:outline-2 focus-visible:outline-accent/50 focus-visible:outline-offset-1
                 disabled:cursor-not-allowed; }
   .btn-sm { @apply text-xs px-2 py-1 gap-1 rounded-md min-h-6; }  /* 24px: WCAG 2.5.8 target size */
   .btn-ghost { @apply bg-panel2 text-fg hover:bg-line; }
@@ -93,8 +96,8 @@
   .btn-warning { @apply bg-warning/10 text-warning hover:bg-warning/20; }
   .card { @apply rounded-xl border border-line bg-panel overflow-hidden shadow-xs; }
   .input { @apply w-full bg-ink border border-line rounded-lg px-2.5 py-1.5 text-sm
-                  focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/40
-                  focus-visible:ring-offset-2 focus-visible:ring-offset-ink; }
+                  focus:outline-hidden
+                  focus-visible:outline-2 focus-visible:outline-accent/40 focus-visible:outline-offset-1; }
   .chip { @apply inline-flex items-center gap-1.5 text-xs text-muted; }
   .th { @apply text-left font-medium px-4 py-2.5 text-xs uppercase tracking-wider text-muted; }
   .td { @apply px-4 py-2.5; }
@@ -102,6 +105,8 @@
                text-xs font-medium text-muted hover:bg-panel2 hover:text-fg transition-colors; }
   .pg-active { @apply bg-fg text-ink hover:bg-fg hover:text-ink; }
   .pg-disabled { @apply opacity-40 pointer-events-none; }
+  .kbd { @apply inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-md
+                border border-line bg-ink font-mono text-xs text-muted; }
 
   /* htmx request lifecycle hooks (library-owned class names). */
   button.htmx-request,
