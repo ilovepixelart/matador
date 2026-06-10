@@ -32,3 +32,14 @@ async def test_job_names_expose_their_full_text_on_hover(client, seeded):
     # The name column truncates; the untruncated name must be one hover away.
     r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
     assert 'title="alpha"' in r.text
+
+
+async def test_queue_without_explicit_state_lands_on_the_signal_tab(client, seeded):
+    # Seeded queue: 0 active, 1 failed — a bare /queues/{name} should land on
+    # failed (the tab with signal), not an empty active list.
+    r = await client.get(f"/queues/{QUEUE}", headers=hx())
+    assert "badjob" in r.text
+
+    # An explicit state is always respected.
+    r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
+    assert "alpha" in r.text

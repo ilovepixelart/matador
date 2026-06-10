@@ -61,6 +61,17 @@ def _coerce_state(state: str) -> JobState:
     return cast("JobState", state) if state in STATES else "active"
 
 
+def _default_state(counts: dict[str, int]) -> JobState:
+    """Pick the tab with the most signal when the URL doesn't say: running work
+    if any, else problems, else what's queued — never an empty `active` list on
+    a healthy idle queue.
+    """
+    for s in ("active", "failed", "wait", "delayed"):
+        if counts.get(s):
+            return cast("JobState", s)
+    return "completed"
+
+
 def _page_window(page: int, pages: int, span: int = 2) -> list[int | None]:
     """Page numbers to show: first, last, and `span` either side of current,
     with None marking an ellipsis gap. e.g. [1, None, 4, 5, 6, None, 20].
@@ -292,8 +303,9 @@ async def _search_jobs(
 async def _panel_ctx(
     svc: Service, name: str, state: str, page: int, query: str = ""
 ) -> dict[str, Any]:
-    state = _coerce_state(state)
     view = await svc.queue_view(name)
+    # No state in the URL → the tab with signal; an explicit one is respected.
+    state = _coerce_state(state) if state else _default_state(view["counts"])
     query = query.strip()
     base = {"q": view, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
     if query:  # a deep-link or a typed search → render the results, not the list
@@ -402,7 +414,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         if not queues:
             return _full_page(request, queues=[], selected=None, q=None)
         name = queues[0]["name"]
-        ctx = await _panel_ctx(svc, name, "active", 1)
+        ctx = await _panel_ctx(svc, name, "", 1)  # signal-based default tab
         return _full_page(request, queues=queues, selected=name, **ctx)
 
     @router.get("/redis", response_class=HTMLResponse)
@@ -419,7 +431,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/queues/{name}", response_class=HTMLResponse)
     async def queue_view(
-        request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
+        request: Request, name: str, state: str = "", page: int = 1, query: str = ""
     ):
         ctx = await _panel_ctx(svc, name, state, page, query)
         if wants_fragment(request):
