@@ -29,3 +29,14 @@ def test_back_button_restores_previous_tab(page: Page, base_url, seeded):
     page.go_back()
     expect(page).to_have_url(re.compile(r"state=wait"))
     expect(page.locator("#jobs")).to_contain_text("alpha")
+
+
+def test_job_list_columns_align_with_the_header(page: Page, base_url, seeded):
+    # The header and rows consume one column contract (job_cols) — measure the
+    # rendered left edges so width drift between them can't come back.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    for col in ("id", "name"):
+        # document order: the header span precedes every row span
+        header_x = page.locator(f'#jobs [data-col="{col}"]').first.bounding_box()["x"]
+        row_x = page.locator(f'#jobs details [data-col="{col}"]').first.bounding_box()["x"]
+        assert abs(header_x - row_x) < 1, f"{col} column drifts: header {header_x} vs row {row_x}"

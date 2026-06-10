@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink with context %}
+{% from "macros.html" import icon, bar_color, job_row, job_cols, empty_state, pglink with context %}
 {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
 <div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
   {# Bulk-action bar — shown by JS only when ≥1 row is selected (persists across pages). #}
@@ -19,7 +19,7 @@
     {{ icon('retry', 'w-3.5 h-3.5') }} retry all</button>
   {% endif %}
   <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean', name=name).path }}?state={{ state }}"
-          hx-confirm="Remove ALL {{ state }} jobs?" data-loading-disable data-loading-aria-busy>
+          hx-confirm="Clean ALL {{ state }} jobs?" data-loading-disable data-loading-aria-busy>
     {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state }}</button>
 </div>
 
@@ -30,8 +30,8 @@
   </label>
   <div class="flex-1 flex items-center gap-3 px-4 py-2 min-w-0">
     <span class="w-4 shrink-0"></span>
-    <span class="w-16 shrink-0">id</span>
-    <span class="w-28 shrink-0">job</span>
+    <span class="{{ job_cols('id') }}" data-col="id">id</span>
+    <span class="{{ job_cols('name') }}" data-col="name">job</span>
     <span class="flex-1 min-w-0">data</span>
   </div>
 </div>

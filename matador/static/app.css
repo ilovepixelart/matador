@@ -1056,6 +1056,10 @@ body {
   width: 0.5rem;
 }
 
+.w-24 {
+  width: 6rem;
+}
+
 .w-28 {
   width: 7rem;
 }
@@ -1344,10 +1348,6 @@ body {
   background-color: rgb(var(--accent) / var(--tw-bg-opacity, 1));
 }
 
-.bg-accent\/10 {
-  background-color: rgb(var(--accent) / 0.1);
-}
-
 .bg-black\/50 {
   background-color: rgb(0 0 0 / 0.5);
 }
@@ -1544,10 +1544,6 @@ body {
 
 .pl-3 {
   padding-left: 0.75rem;
-}
-
-.pr-2 {
-  padding-right: 0.5rem;
 }
 
 .text-left {

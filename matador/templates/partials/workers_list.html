@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, job_chip, empty_state with context %}
+{% from "macros.html" import badge, icon, job_chip, empty_state with context %}
 {% if workers %}
 <div class="flex items-center gap-x-5 gap-y-1 flex-wrap mb-4 text-sm">
   <span class="flex items-center gap-1.5">
@@ -16,32 +16,32 @@
   <table class="w-full text-sm">
     <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
       <tr>
-        <th class="font-medium px-4 py-2.5">Worker</th>
-        {% if multi %}<th class="font-medium px-3 py-2.5">Queue</th>{% endif %}
-        <th class="font-medium px-3 py-2.5">Running</th>
-        <th class="font-medium px-3 py-2.5 text-right">Done</th>
-        <th class="font-medium px-3 py-2.5 text-right">Failed</th>
-        <th class="font-medium px-4 py-2.5 text-right">Uptime</th>
+        <th scope="col" class="th">Worker</th>
+        {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
+        <th scope="col" class="th">Running</th>
+        <th scope="col" class="th text-right">Done</th>
+        <th scope="col" class="th text-right">Failed</th>
+        <th scope="col" class="th text-right">Uptime</th>
       </tr>
     </thead>
     <tbody>
       {% for w in workers %}
       <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20">
-        <td class="px-4 py-2.5">
+        <td class="td">
           <div class="flex items-center gap-2 min-w-0">
             {% if w.state == 'stopping' %}
-            <span class="w-2 h-2 rounded-full bg-warning animate-pulse shrink-0" aria-label="draining"></span>
+            <span class="w-2 h-2 rounded-full bg-warning animate-pulse shrink-0"><span class="sr-only">draining</span></span>
             {% else %}
-            <span class="w-2 h-2 rounded-full bg-success animate-pulse shrink-0" aria-label="live"></span>
+            <span class="w-2 h-2 rounded-full bg-success animate-pulse shrink-0"><span class="sr-only">live</span></span>
             {% endif %}
             <span class="font-medium truncate">{{ w.host }}</span>
             <span class="font-mono text-xs text-muted shrink-0">pid {{ w.pid }}</span>
             <span class="text-xs text-muted shrink-0">×{{ w.concurrency }}</span>
-            {% if w.state == 'stopping' %}<span class="text-xs px-1.5 py-0.5 rounded-md bg-warning/10 text-warning shrink-0">draining</span>{% endif %}
+            {% if w.state == 'stopping' %}<span class="{{ badge('warning', 'shrink-0') }}">draining</span>{% endif %}
           </div>
         </td>
-        {% if multi %}<td class="px-3 py-2.5 text-muted">{{ w.queue }}</td>{% endif %}
-        <td class="px-3 py-2.5">
+        {% if multi %}<td class="td text-muted">{{ w.queue }}</td>{% endif %}
+        <td class="td">
           {% if w.current %}
           <div class="flex flex-wrap items-center gap-1">
             {% for jid in w.current %}{{ job_chip(w.queue, jid) }}{% endfor %}
@@ -49,9 +49,9 @@
           </div>
           {% else %}<span class="text-muted text-xs">idle</span>{% endif %}
         </td>
-        <td class="px-3 py-2.5 text-right tabular-nums">{{ w.processed|compact }}</td>
-        <td class="px-3 py-2.5 text-right tabular-nums{{ ' text-danger' if w.failed }}">{{ w.failed|compact }}</td>
-        <td class="px-4 py-2.5 text-right tabular-nums text-muted">{{ w.started|uptime }}</td>
+        <td class="td text-right tabular-nums">{{ w.processed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-danger' if w.failed }}">{{ w.failed|compact }}</td>
+        <td class="td text-right tabular-nums text-muted">{{ w.started|uptime }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -68,35 +68,35 @@
           hx-post="{{ url_for('clear_departed').path }}"
           hx-target="#workers-list" hx-swap="morph:innerHTML"
           hx-confirm="Clear the stopped-worker history?"
-          data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} Clear<span class="sr-only"> stopped-worker history</span></button>
+          data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} clear<span class="sr-only"> stopped-worker history</span></button>
 </div>
 <div class="rounded-xl border border-line overflow-hidden">
   <table class="w-full text-sm">
     <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
       <tr>
-        <th class="font-medium px-4 py-2.5">Worker</th>
-        {% if multi %}<th class="font-medium px-3 py-2.5">Queue</th>{% endif %}
-        <th class="font-medium px-3 py-2.5">Status</th>
-        <th class="font-medium px-3 py-2.5 text-right">Done</th>
-        <th class="font-medium px-3 py-2.5 text-right">Failed</th>
-        <th class="font-medium px-4 py-2.5 text-right">Stopped</th>
+        <th scope="col" class="th">Worker</th>
+        {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
+        <th scope="col" class="th">Status</th>
+        <th scope="col" class="th text-right">Done</th>
+        <th scope="col" class="th text-right">Failed</th>
+        <th scope="col" class="th text-right">Stopped</th>
       </tr>
     </thead>
     <tbody>
       {% for d in departed %}
       <tr id="d-{{ d.host }}-{{ d.pid }}" class="border-t border-line hover:bg-panel2/20 text-muted">
-        <td class="px-4 py-2.5">
+        <td class="td">
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full shrink-0 {{ 'bg-danger' if d.reason == 'lost' else 'bg-muted/50' }}"></span>
             <span class="truncate">{{ d.host }}</span>
             <span class="font-mono text-xs shrink-0">pid {{ d.pid }}</span>
           </div>
         </td>
-        {% if multi %}<td class="px-3 py-2.5">{{ d.queue }}</td>{% endif %}
-        <td class="px-3 py-2.5">
+        {% if multi %}<td class="td">{{ d.queue }}</td>{% endif %}
+        <td class="td">
           <div class="flex items-center gap-2 flex-wrap">
             {% if d.reason == 'lost' %}
-            <span class="px-1.5 py-0.5 rounded-md bg-danger/10 text-danger text-xs">lost · no heartbeat</span>
+            <span class="{{ badge('danger') }}">lost · no heartbeat</span>
             {% else %}
             <span class="px-1.5 py-0.5 rounded-md bg-muted/10 text-xs">stopped</span>
             {% endif %}
@@ -106,9 +106,9 @@
             {% endif %}
           </div>
         </td>
-        <td class="px-3 py-2.5 text-right tabular-nums">{{ d.processed|compact }}</td>
-        <td class="px-3 py-2.5 text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
-        <td class="px-4 py-2.5 text-right tabular-nums text-xs"
+        <td class="td text-right tabular-nums">{{ d.processed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
+        <td class="td text-right tabular-nums text-xs"
             title="last heartbeat {{ ((d.at - d.last_seen) / 1000)|round(1) }}s before detected">{{ d.at|uptime }} ago</td>
       </tr>
       {% endfor %}
