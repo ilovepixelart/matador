@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from redis.asyncio import Redis
+from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
 STATES: tuple[JobState, ...] = ("active", "wait", "delayed", "completed", "failed")
@@ -51,7 +52,7 @@ class Service:
         # as toro's result() dispatcher). N open dashboard tabs cost one Redis
         # connection, not N — open tabs can't starve the action routes' pool.
         self._listeners: set[asyncio.Event] = set()
-        self._broadcast_pubsub: Any = None
+        self._broadcast_pubsub: PubSub | None = None
         self._broadcast_task: asyncio.Task | None = None
         self._broadcast_lock = asyncio.Lock()
 
@@ -61,7 +62,7 @@ class Service:
             raise UnknownQueueError(name)
         return q
 
-    async def redis_stats(self) -> dict:
+    async def redis_stats(self) -> dict[str, Any]:
         """Live Redis health for the top bar. Surfaces the memory + eviction-policy
         footguns that actually bite queue users.
         """
@@ -103,7 +104,7 @@ class Service:
             "ok": ok,  # False → Redis was unreachable; values are placeholders
         }
 
-    async def overview(self) -> list[dict]:
+    async def overview(self) -> list[dict[str, Any]]:
         out = []
         for name, q in self.queues.items():
             out.append(
@@ -115,9 +116,9 @@ class Service:
             )
         return out
 
-    async def workers(self) -> list[dict]:
+    async def workers(self) -> list[dict[str, Any]]:
         """Every live worker across all queues (each record carries its `queue`)."""
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         for name, q in self.queues.items():
             for w in await q.workers():
                 w["queue"] = name
@@ -125,9 +126,9 @@ class Service:
         out.sort(key=lambda w: (w["queue"], w["started"]))
         return out
 
-    async def departed_workers(self, limit: int = 15) -> list[dict]:
+    async def departed_workers(self, limit: int = 15) -> list[dict[str, Any]]:
         """Recent worker departures across all queues, newest first (the death-log)."""
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         for name, q in self.queues.items():
             for d in await q.departed_workers(limit=limit):
                 d["queue"] = name
@@ -142,7 +143,7 @@ class Service:
             total += await q.clear_departed()
         return total
 
-    async def queue_view(self, name: str) -> dict:
+    async def queue_view(self, name: str) -> dict[str, Any]:
         q = self._q(name)
         return {
             "name": name,
@@ -153,18 +154,18 @@ class Service:
 
     async def jobs(
         self, name: str, state: JobState, page: int = 1, per_page: int = 20
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         start = (page - 1) * per_page
         jobs = await self._q(name).get_jobs(state, start, start + per_page - 1)
         return [{**self._summary(j), "queue": name} for j in jobs]
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         jobs = await self._q(name).search(state, query, scan_limit)
         return [{**self._summary(j), "queue": name} for j in jobs]
 
-    async def job(self, name: str, job_id: str) -> dict | None:
+    async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
         q = self._q(name)
         j = await q.get_job(job_id)
         if not j:
@@ -174,7 +175,7 @@ class Service:
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         return detail
 
-    async def schedulers(self, name: str) -> list[dict]:
+    async def schedulers(self, name: str) -> list[dict[str, Any]]:
         return await self._q(name).schedulers()
 
     # ---- actions ----------------------------------------------------------
@@ -242,7 +243,7 @@ class Service:
             self._broadcast_pubsub = pubsub
             self._broadcast_task = asyncio.create_task(self._broadcast(pubsub))
 
-    async def _broadcast(self, pubsub: Any) -> None:
+    async def _broadcast(self, pubsub: PubSub) -> None:
         """Consume the shared subscription; wake every connected stream per event."""
         try:
             while True:
@@ -314,7 +315,7 @@ class Service:
     # ---- shaping ----------------------------------------------------------
 
     @staticmethod
-    def _summary(j: Job) -> dict:
+    def _summary(j: Job) -> dict[str, Any]:
         return {
             "id": j.id,
             "name": j.name,
@@ -326,7 +327,7 @@ class Service:
         }
 
     @classmethod
-    def _detail(cls, j: Job) -> dict:
+    def _detail(cls, j: Job) -> dict[str, Any]:
         return {
             **cls._summary(j),
             "opts": j.opts.to_dict(),

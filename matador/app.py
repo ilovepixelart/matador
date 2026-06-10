@@ -22,7 +22,7 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, FastAPI, Form, Request, params
@@ -107,7 +107,7 @@ MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out 
 _SIDEBAR_OOB = "partials/sidebar_oob.html"
 
 
-def _schedule_label(s: dict) -> str:
+def _schedule_label(s: dict[str, Any]) -> str:
     if s.get("cron"):
         return f"cron {s['cron']}"
     every = s.get("every") or 0
@@ -253,7 +253,9 @@ async def _search_jobs(
     return jobs, exact is not None
 
 
-async def _panel_ctx(svc: Service, name: str, state: str, page: int, query: str = "") -> dict:
+async def _panel_ctx(
+    svc: Service, name: str, state: str, page: int, query: str = ""
+) -> dict[str, Any]:
     state = _coerce_state(state)
     view = await svc.queue_view(name)
     query = query.strip()
@@ -285,7 +287,9 @@ async def _panel_ctx(svc: Service, name: str, state: str, page: int, query: str 
     }
 
 
-async def _panel_with_sidebar(svc: Service, request: Request, name: str, ctx: dict) -> HTMLResponse:
+async def _panel_with_sidebar(
+    svc: Service, request: Request, name: str, ctx: dict[str, Any]
+) -> HTMLResponse:
     # Panel + an out-of-band sidebar refresh, so the active-queue highlight
     # updates in the SAME response (no lag, no second request).
     panel = _render_str(request, "partials/queue.html", **ctx)
