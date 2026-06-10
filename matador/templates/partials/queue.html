@@ -23,6 +23,7 @@
     {% for s in states %}
     <a href="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}"
        hx-get="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}" hx-push-url="true"
+       hx-swap="innerHTML transition:true"
        class="relative flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors {{ 'text-fg' if s == state else 'text-muted hover:text-fg' }}">
       {{ s }}
       <span id="tabcount-{{ s }}" title="{{ q.counts[s]|comma }}" class="text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md {{ state_color(s) }}">{{ q.counts[s]|compact }}</span>

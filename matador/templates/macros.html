@@ -167,5 +167,5 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 <a class="pg{{ ' pg-active' if active }}{{ ' pg-disabled' if disabled }}"
    {% if not disabled %}href="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
    hx-get="{{ url_for('queue_view', name=name).path }}?state={{ state }}&page={{ p }}"
-   hx-push-url="true"{% endif %}>{{ label }}</a>
+   hx-push-url="true" hx-swap="innerHTML transition:true"{% endif %}>{{ label }}</a>
 {%- endmacro %}

@@ -2,7 +2,7 @@
 <div class="text-xs uppercase tracking-wider text-muted px-2 mb-2">Queues</div>
 {% for qq in queues %}
 <a id="q-{{ qq.name }}" href="{{ url_for('queue_view', name=qq.name).path }}" hx-get="{{ url_for('queue_view', name=qq.name).path }}"
-   hx-target="#queue-panel" hx-push-url="true"
+   hx-target="#queue-panel" hx-push-url="true" hx-swap="innerHTML transition:true"
    class="queue-item block rounded-lg px-3 py-2.5 mb-1 hover:bg-panel2 transition-colors{{ ' q-active' if qq.name == selected }}"
    {% if qq.name == selected %}aria-current="page"{% endif %}>
   <div class="flex items-center justify-between gap-2">
@@ -28,7 +28,7 @@
 
 <div class="text-xs uppercase tracking-wider text-muted px-2 mb-2 mt-5">Cluster</div>
 <a id="nav-workers" href="{{ url_for('workers_view').path }}" hx-get="{{ url_for('workers_view').path }}"
-   hx-target="#queue-panel" hx-push-url="true"
+   hx-target="#queue-panel" hx-push-url="true" hx-swap="innerHTML transition:true"
    class="queue-item flex items-center gap-2.5 rounded-lg px-3 py-2.5 hover:bg-panel2 transition-colors{{ ' q-active' if selected == '__workers__' }}"
    {% if selected == '__workers__' %}aria-current="page"{% endif %}>
   <span class="text-muted">{{ icon('server', 'w-4 h-4') }}</span>
