@@ -182,15 +182,16 @@ _TEMPLATES.env.filters["uptime"] = _uptime
 
 
 def _asset_version() -> int:
-    # Cache-bust the stylesheet by its build mtime so a rebuilt app.css is always
-    # picked up (browsers otherwise serve the cached one).
+    # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
+    # a dev rebuild) is always picked up — browsers otherwise serve stale assets.
     try:
-        return int((_HERE / "static" / "app.css").stat().st_mtime)
-    except OSError:
+        static = _HERE / "static"
+        return int(max(p.stat().st_mtime for p in static.rglob("*") if p.is_file()))
+    except (OSError, ValueError):
         return 0
 
 
-_TEMPLATES.env.globals["css_v"] = _asset_version()  # ty: ignore[invalid-assignment]
+_TEMPLATES.env.globals["asset_v"] = _asset_version()  # ty: ignore[invalid-assignment]
 
 
 # ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
@@ -545,7 +546,8 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
         ids: Annotated[str, Form()] = "",
     ):
         # `ids` is a comma-joined set submitted by the client (persists across pages).
-        selected = [i for i in ids.split(",") if i]
+        # Stripped defensively: a hand-crafted " id" must not silently no-op.
+        selected = [i.strip() for i in ids.split(",") if i.strip()]
         if len(selected) > MAX_BULK_REMOVE:
             return _toast(
                 request,

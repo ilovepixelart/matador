@@ -6,10 +6,12 @@ be re-rendered.
 
 ## One signal, not a firehose
 
-matador subscribes to every watched queue's toro events channel (Redis pub/sub)
-and exposes a single SSE endpoint, `/stream`. It does **not** forward job events
-to the browser. Whatever arrives — one finish or a thousand — the stream emits
-the same coalesced signal:
+A single **broadcaster** per dashboard holds ONE pub/sub subscription across
+every watched queue's toro events channel and fans a wakeup out to each
+connected stream — so N open tabs cost one Redis connection, not N, and idle
+tabs can't starve the action routes' pool. `/stream` does **not** forward job
+events to the browser. Whatever arrives — one finish or a thousand — each
+stream emits the same coalesced signal:
 
 ```
 event: changed
@@ -18,10 +20,9 @@ data: 1
 
 The coalescing works like this (`Service.event_stream`):
 
-1. A pub/sub message arrives → emit `changed` immediately (no added latency for
-   the common, quiet case).
-2. Then drain: consume everything else that arrives for the next **200ms** into
-   that same signal.
+1. A job event arrives → the broadcaster wakes every stream, which emits
+   `changed` immediately (no added latency for the common, quiet case).
+2. Whatever else lands in the next **200ms** rides that same repaint.
 3. Repeat.
 
 So under a storm of job events the browser sees at most ~5 `changed`/s, and the
@@ -29,7 +30,9 @@ cost of a refresh is bounded by the HTML render, not by queue throughput. When
 the queues are quiet, the same `changed` signal is emitted after 8 seconds of
 silence anyway — a heartbeat that keeps the connection alive through proxies
 (and is why idle regions still refresh occasionally). The stream advertises
-`retry: 3000`, so a dropped connection reconnects on its own.
+`retry: 3000`, so a dropped connection reconnects on its own — including when
+Redis itself goes away: the stream ends cleanly and the browser's reconnect
+loop picks things back up once the broadcaster can subscribe again.
 
 ## How the page reacts
 

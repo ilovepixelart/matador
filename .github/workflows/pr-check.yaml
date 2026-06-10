@@ -14,10 +14,20 @@ on:
 permissions:
   contents: read
 
+# A new push to the same branch/PR supersedes the previous run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
-    name: Lint, types, tests, e2e & Sonar
+    name: Lint, types, tests, e2e (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Everything the classifiers claim to support.
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     permissions:
       contents: read
     services:
@@ -54,6 +64,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+          python-version: ${{ matrix.python-version }}
 
       - name: Sync dependencies
         run: uv sync
@@ -71,10 +82,11 @@ jobs:
         run: uv run pytest -m "unit or integration" --cov=matador --cov-report=xml
 
       # Runs only when SONAR_TOKEN is set (skipped on forks / before setup, so the
-      # check stays green). Config is inline; projectBaseDir targets the matador
-      # checkout because this job uses a sibling layout (matador/ + toro/).
+      # check stays green), and only once per matrix — one coverage upload.
+      # Config is inline; projectBaseDir targets the matador checkout because
+      # this job uses a sibling layout (matador/ + toro/).
       - name: SonarCloud scan
-        if: env.SONAR_TOKEN
+        if: matrix.python-version == '3.13' && env.SONAR_TOKEN
         uses: SonarSource/sonarqube-scan-action@v8.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,8 +107,11 @@ jobs:
             -Dsonar.coverage.exclusions=tests/**,matador/static/js/**
             -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js
 
+      # Browser behavior doesn't vary by Python — run the e2e layer once.
       - name: Install Playwright browser
+        if: matrix.python-version == '3.13'
         run: uv run playwright install --with-deps chromium
 
       - name: Tests (e2e)
+        if: matrix.python-version == '3.13'
         run: uv run pytest -m e2e
