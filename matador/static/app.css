@@ -2071,6 +2071,25 @@ a:focus-visible, summary:focus-visible {
   border-radius: 6px;
 }
 
+/* Less motion when the OS asks for it: animations collapse to a single
+   instant frame, transitions snap, and view transitions don't animate.
+   (0.01ms instead of none so JS animation-end hooks still fire.) */
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 .hover\:bg-info\/20:hover {
   background-color: rgb(var(--info) / 0.2);
 }
