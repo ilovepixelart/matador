@@ -585,7 +585,7 @@ wheels = [
 
 [[package]]
 name = "matador-dashboard"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -1063,7 +1063,7 @@ wheels = [
 
 [[package]]
 name = "toro-queue"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../toro" }
 dependencies = [
     { name = "croniter" },
