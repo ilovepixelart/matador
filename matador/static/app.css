@@ -352,8 +352,8 @@
   .min-h-0 {
     min-height: calc(var(--spacing) * 0);
   }
-  .min-h-9 {
-    min-height: calc(var(--spacing) * 9);
+  .min-h-7 {
+    min-height: calc(var(--spacing) * 7);
   }
   .w-2 {
     width: calc(var(--spacing) * 2);
