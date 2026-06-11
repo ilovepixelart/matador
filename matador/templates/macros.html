@@ -82,9 +82,9 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     {% if state == 'failed' and j.failed_reason %}
     {# Failed rows lead with WHY — the payload is one expand away, the reason
        is what an operator scans for. #}
-    <span class="text-xs text-danger"><span class="truncate" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span></span>
+    <span class="text-danger"><span class="truncate" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span></span>
     {% else %}
-    <span class="font-mono text-muted text-xs"><span class="truncate">{{ j.data|tojson }}</span></span>
+    <span class="font-mono text-muted"><span class="truncate">{{ j.data|tojson }}</span></span>
     {% endif %}
     <span>
       {% if j.progress is number %}
@@ -92,22 +92,22 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
           <span class="block h-full {{ bar_color(j.state) }} rounded-full transition-[width] duration-300" style="width: {{ j.progress }}%"></span>
         </span>
-        <span class="text-xs text-muted tabular-nums w-7 text-right">{{ j.progress }}%</span>
+        <span class="text-muted tabular-nums w-9 text-right">{{ j.progress }}%</span>
       </span>
       {% endif %}
     </span>
     {# The state-relevant moment: finished / started / due / queued. Relative
        for scanning; the absolute moment lives on the hover title. #}
     {% if state == 'delayed' %}
-    <span class="text-xs text-warning justify-end whitespace-nowrap" data-col="time"
+    <span class="text-warning justify-end whitespace-nowrap" data-col="time"
           title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
     {% else %}
     {% set ts = j.finished_on if state in ('completed', 'failed')
                 else (j.processed_on if state == 'active' else j.timestamp) %}
-    <span class="text-xs text-muted justify-end whitespace-nowrap" data-col="time"
+    <span class="text-muted justify-end whitespace-nowrap" data-col="time"
           title="{{ ts|at }}">{{ ts|ago }}</span>
     {% endif %}
-    <span class="text-xs text-muted tabular-nums justify-end">{{ j.attempts_made }}×</span>
+    <span class="text-muted tabular-nums justify-end">{{ j.attempts_made }}×</span>
     <span class="gap-1.5 justify-end" data-no-toggle>
       {% if state == 'delayed' %}
       <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"

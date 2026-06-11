@@ -176,7 +176,9 @@
      Tracks: check · chevron · id · name · data · progress · time · attempts ·
      actions. max-content tracks size to the widest cell in the whole list
      (even mixed-state search results stay aligned). */
-  .jobs-table { @apply grid gap-x-3
+  /* text-sm matches the workers/schedulers tables; row cells inherit it so
+     no cell carries its own size. */
+  .jobs-table { @apply grid gap-x-3 text-sm
     grid-cols-[max-content_1rem_4rem_7rem_minmax(0,1fr)_max-content_max-content_2.25rem_max-content]
     md:grid-cols-[max-content_1rem_4rem_11rem_minmax(0,1fr)_max-content_max-content_2.25rem_max-content]; }
   /* every cell: flex centering + vertical rhythm + edge padding, in ONE place */

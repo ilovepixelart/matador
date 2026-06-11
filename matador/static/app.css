@@ -373,6 +373,9 @@
   .w-8 {
     width: calc(var(--spacing) * 8);
   }
+  .w-9 {
+    width: calc(var(--spacing) * 9);
+  }
   .w-10 {
     width: calc(var(--spacing) * 10);
   }
@@ -1623,6 +1626,8 @@
     display: grid;
     grid-template-columns: max-content 1rem 4rem 7rem minmax(0,1fr) max-content max-content 2.25rem max-content;
     column-gap: calc(var(--spacing) * 3);
+    font-size: var(--text-sm);
+    line-height: var(--tw-leading, var(--text-sm--line-height));
     @media (width >= 48rem) {
       grid-template-columns: max-content 1rem 4rem 11rem minmax(0,1fr) max-content max-content 2.25rem max-content;
     }
