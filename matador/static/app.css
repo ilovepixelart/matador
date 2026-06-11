@@ -1455,6 +1455,9 @@
   details[open] > .acc-body {
     animation: accIn 0.18s ease;
   }
+  .jobs-paused {
+    display: none;
+  }
   #queue-panel:has(#jobs details[open]) .jobs-paused {
     display: flex;
   }
