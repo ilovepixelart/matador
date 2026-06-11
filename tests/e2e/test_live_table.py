@@ -69,5 +69,6 @@ def test_stale_jobs_fragment_cannot_eat_the_panel(page: Page, base_url, seeded):
     page.wait_for_timeout(500)
     expect(page.locator("#queue-panel h1")).to_be_visible()  # chrome intact
     expect(page.locator("#jobs [data-view]")).to_have_attribute(
-        "data-view", f"{QUEUE}:failed"  # the stale wait-view never rendered
+        "data-view",
+        f"{QUEUE}:failed",  # the stale wait-view never rendered
     )
