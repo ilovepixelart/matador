@@ -34,8 +34,13 @@ deep-links all work. It reads straight from Redis through toro's async API.
 
 ## Features
 
-- **Queues sidebar** with per-state counts, and **state tabs** (active / waiting /
-  delayed / completed / failed) that swap the job list over HTMX.
+- **Queues sidebar** with per-state counts, a **per-queue activity sparkline**
+  (last hour, all queues on one shared scale, failures in red), and **state
+  tabs** (active / waiting / delayed / completed / failed) that swap the job
+  list over HTMX.
+- **Health chips** per queue: latency (age of the next job in line, warns past
+  30s), completed/failed counts with failure share, and average duration over
+  the last hour — server-rendered SVG, no chart library.
 - **Job detail** lazy-loaded on expand: data, options, return value, timings,
   logs, and stack traces — syntax-highlighted server-side (Pygments, no client JS).
 - **Search** within a state by job id or a name/data substring.
