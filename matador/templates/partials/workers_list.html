@@ -35,8 +35,8 @@
             <span class="w-2 h-2 rounded-full bg-success animate-pulse shrink-0"><span class="sr-only">live</span></span>
             {% endif %}
             <span class="font-medium truncate">{{ w.host }}</span>
-            <span class="font-mono text-xs text-muted shrink-0">pid {{ w.pid }}</span>
-            <span class="text-xs text-muted shrink-0">×{{ w.concurrency }}</span>
+            <span class="font-mono text-muted shrink-0">pid {{ w.pid }}</span>
+            <span class="text-muted shrink-0">×{{ w.concurrency }}</span>
             {% if w.state == 'stopping' %}<span class="{{ badge('warning', 'shrink-0') }}">draining</span>{% endif %}
           </div>
         </td>
@@ -45,9 +45,9 @@
           {% if w.current %}
           <div class="flex flex-wrap items-center gap-1">
             {% for jid in w.current %}{{ job_chip(w.queue, jid) }}{% endfor %}
-            <span class="text-xs text-muted ml-0.5 tabular-nums">{{ w.current|length }}/{{ w.concurrency }}</span>
+            <span class="text-muted ml-0.5 tabular-nums">{{ w.current|length }}/{{ w.concurrency }}</span>
           </div>
-          {% else %}<span class="text-muted text-xs">idle</span>{% endif %}
+          {% else %}<span class="text-muted">idle</span>{% endif %}
         </td>
         <td class="td text-right tabular-nums">{{ w.processed|compact }}</td>
         <td class="td text-right tabular-nums{{ ' text-danger' if w.failed }}">{{ w.failed|compact }}</td>
@@ -89,7 +89,7 @@
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full shrink-0 {{ 'bg-danger' if d.reason == 'lost' else 'bg-muted/50' }}"></span>
             <span class="truncate">{{ d.host }}</span>
-            <span class="font-mono text-xs shrink-0">pid {{ d.pid }}</span>
+            <span class="font-mono shrink-0">pid {{ d.pid }}</span>
           </div>
         </td>
         {% if multi %}<td class="td">{{ d.queue }}</td>{% endif %}
@@ -101,14 +101,14 @@
             <span class="{{ badge('muted') }}">stopped</span>
             {% endif %}
             {% if d.current %}
-            <span class="text-xs">while running</span>
+            <span>while running</span>
             {% for jid in d.current %}{{ job_chip(d.queue, jid) }}{% endfor %}
             {% endif %}
           </div>
         </td>
         <td class="td text-right tabular-nums">{{ d.processed|compact }}</td>
         <td class="td text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
-        <td class="td text-right tabular-nums text-xs"
+        <td class="td text-right tabular-nums"
             title="last heartbeat {{ ((d.at - d.last_seen) / 1000)|round(1) }}s before detected">{{ d.at|uptime }} ago</td>
       </tr>
       {% endfor %}
