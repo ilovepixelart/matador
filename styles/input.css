@@ -199,6 +199,13 @@
 
 /* ════ No Tailwind vocabulary below this line — each rule says why. ════ */
 
+/* Sidebar sparklines: geometry transitions ride the live morph — idiomorph
+   updates y/height attributes on existing rects, so changed bars slide
+   instead of flashing. Gated on reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .q-spark rect { transition: y 0.25s ease-out, height 0.25s ease-out; }
+}
+
 /* Scrollbar pseudo-elements have no Tailwind variant (declarations still @apply). */
 ::-webkit-scrollbar { @apply w-2.5 h-2.5; }
 ::-webkit-scrollbar-thumb { @apply bg-line rounded-md; }

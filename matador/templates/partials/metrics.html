@@ -1,0 +1,21 @@
+{% from "macros.html" import icon %}
+{# Queue health chips. The bar chart lives in the sidebar (one sparkline per
+   queue, shared scale) — in here it's just the headline numbers. Latency
+   leads: depth says how much is queued, latency says how far behind we are.
+   Failed renders only when nonzero, so color always means a problem. #}
+<div id="metrics-strip" class="flex flex-wrap items-center gap-x-5 gap-y-2">
+  <span class="chip tip" data-tip="Age of the next job in line. The honest backlog number."
+        data-latency="{{ m.latency }}">
+    <span class="text-muted">{{ icon('clock', 'w-3.5 h-3.5') }}</span> latency
+    <span class="font-medium tabular-nums {{ 'text-warning' if m.latency >= 30000 else 'text-fg' }}">
+      {{ m.latency|dur if m.latency else '0ms' }}</span></span>
+  <span class="chip" data-done="{{ m.completed }}">
+    <b class="text-fg tabular-nums">{{ m.completed|compact }}</b> done</span>
+  {% if m.failed %}
+  <span class="chip" data-failed="{{ m.failed }}">
+    <b class="text-danger tabular-nums">{{ m.failed|compact }}</b>
+    <span class="text-danger">failed · {{ m.fail_pct }}%</span></span>
+  {% endif %}
+  {% if m.avg_ms %}<span class="chip">avg <b class="text-fg tabular-nums">{{ m.avg_ms|dur }}</b></span>{% endif %}
+  <span class="chip text-muted">last {{ m.minutes }}m</span>
+</div>

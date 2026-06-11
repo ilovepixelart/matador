@@ -1,4 +1,5 @@
 {% from "macros.html" import badge, icon %}
+{% set sb = sparkbars(queues) %}
 <div class="text-xs uppercase tracking-wider text-muted px-2 mb-2">Queues</div>
 {% for qq in queues %}
 <a id="q-{{ qq.name }}" href="{{ url_for('queue_view', name=qq.name).path }}" hx-get="{{ url_for('queue_view', name=qq.name).path }}"
@@ -14,6 +15,20 @@
     <span class="{{ badge('warning', 'shrink-0') }}">paused</span>
     {% endif %}
   </div>
+  {% if sb.get(qq.name) %}
+  {# Small multiple: every queue's last hour on ONE shared scale, so a glance
+     at the sidebar compares queues honestly. Neutral ink for done, danger
+     for failed — the one chart per queue, anywhere in the app. #}
+  <svg viewBox="0 0 120 20" width="120" height="20" class="q-spark mt-1.5 w-full"
+       role="img" shape-rendering="crispEdges" preserveAspectRatio="none"
+       aria-label="{{ qq.name }} activity, last hour">
+    <line x1="0" y1="19.5" x2="120" y2="19.5" class="stroke-line"/>
+    {% for b in sb[qq.name] %}
+    {% if b.dh %}<rect x="{{ b.x }}" y="{{ b.y_done }}" width="3" height="{{ b.dh }}" class="fill-muted/40{{ ' opacity-40' if loop.last }}"/>{% endif %}
+    {% if b.fh %}<rect x="{{ b.x }}" y="{{ b.y_fail }}" width="3" height="{{ b.fh }}" class="fill-danger{{ ' opacity-40' if loop.last }}"/>{% endif %}
+    {% endfor %}
+  </svg>
+  {% endif %}
   {# Always render all three so they never appear/disappear (the main source of jumping);
      tabular-nums keeps the digits aligned as the numbers change. #}
   <div class="mt-1.5 flex gap-1 text-xs tabular-nums">
