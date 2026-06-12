@@ -116,6 +116,27 @@
   .htmx-request.htmx-indicator { @apply opacity-100; }
 
   /* Accordion: native <details> - chevron rotates on open, body fades in. */
+  /* Flow tree: real connector elbows, not a bare indent line. Each nested li
+     draws its own trunk segment (::before) and elbow tick (::after); the last
+     child's trunk stops at its elbow, so branches visibly terminate. Geometry:
+     trunk x sits just inside the parent's id chip,
+     elbows meet the child row at first-line height. */
+  .ftree { @apply text-sm; }
+  .ftree ul { @apply ml-[2.5px] mt-0.5; }
+  .ftree ul > li { @apply relative pl-4; }
+  .ftree ul > li::before {
+    content: '';
+    @apply absolute left-0 top-0 bottom-0 border-l border-line;
+  }
+  .ftree ul > li:last-child::before { @apply bottom-auto h-[1.05rem]; }
+  .ftree ul > li::after {
+    content: '';
+    @apply absolute left-0 top-[1.05rem] w-2.5 border-t border-line;
+  }
+  .ftree-row { @apply flex items-center gap-2 py-1 min-w-0 rounded-md; }
+  /* "you are here" - lifted surface + hairline ring, no colour spent */
+  .ftree-here { @apply bg-panel2/60 px-1.5 -mx-1.5 ring-1 ring-line; }
+
   .acc-item { @apply last:border-b-0; }
   .chevron { @apply transition-transform duration-200; }
   details[open] > summary .chevron { @apply rotate-180; }

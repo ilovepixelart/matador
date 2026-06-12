@@ -54,14 +54,19 @@
         {% endif %}
       </dt>
       <dd>
+        {# Segmented fan-in bar: done · failed · pending each own their share,
+           so "2 done, 1 failed, 2 pending" reads at a glance and a failed
+           flow can never paint itself fully green. #}
+        {% set done_pct = (job.children_done * 100 / job.children_total)|round|int %}
+        {% set failed_pct = (job.children_failed * 100 / job.children_total)|round|int %}
         <div class="flex items-center gap-2 mb-2">
-          <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden">
-            <div class="h-full {{ bar_color(job.state) }} rounded-full transition-all"
-                 style="width: {{ (job.children_done * 100 / job.children_total)|round|int }}%"></div>
+          <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden flex">
+            <div class="h-full bg-success transition-all" style="width: {{ done_pct }}%"></div>
+            <div class="h-full bg-danger transition-all" style="width: {{ failed_pct }}%"></div>
           </div>
-          <span class="text-xs text-muted tabular-nums">{{ (job.children_done * 100 / job.children_total)|round|int }}%</span>
+          <span class="text-xs text-muted tabular-nums">{{ done_pct }}%</span>
         </div>
-        <ul class="bg-ink rounded-lg border border-line px-3 py-2 overflow-auto max-h-72">
+        <ul class="ftree bg-ink rounded-lg border border-line px-3 py-2 overflow-auto max-h-72">
           {{ flow_node(job.queue or name, job.flow, job.id) }}
         </ul>
       </dd>
@@ -72,11 +77,11 @@
     {% endif %}
     {% if job.children_failures %}
     <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">child failures</dt>
-      <dd class="space-y-1">
+      <dd class="bg-ink rounded-lg border border-line p-2.5 space-y-1 overflow-auto max-h-56">
         {% for cid, reason in job.children_failures.items() %}
-        <div class="flex items-baseline gap-2 text-sm">
+        <div class="flex items-baseline gap-2 text-sm min-w-0">
           {{ job_chip(job.queue or name, cid) }}
-          <span class="font-mono text-danger break-all">{{ reason }}</span>
+          <span class="font-mono text-xs text-danger break-all">{{ reason }}</span>
         </div>
         {% endfor %}
       </dd></div>
