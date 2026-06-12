@@ -192,9 +192,17 @@ class Service:
         q = self._q(name)
         jobs = await q.get_jobs(state, start, start + per_page - 1)
         rows = [{**self._summary(j), "queue": name} for j in jobs]
-        if state == "waiting-children":
-            # fan-in progress per parked parent, one pipelined HLEN batch - so the
-            # flows tab triages without opening each row.
+        return await self._with_flow_progress(q, rows, state)
+
+    async def _with_flow_progress(
+        self, q: Queue, rows: list[dict[str, Any]], state: JobState
+    ) -> list[dict[str, Any]]:
+        """On the flows tab, attach fan-in progress per parked parent via one
+        pipelined HLEN batch - so a row triages without being opened. Both the
+        listing and search go through here, so neither can ship a flows row
+        without the counts the template needs.
+        """
+        if state == "waiting-children" and rows:
             prog = await q.flow_progress([r["id"] for r in rows])
             for r in rows:
                 r["children_done"], r["children_failed"] = prog.get(r["id"], (0, 0))
@@ -203,8 +211,10 @@ class Service:
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
     ) -> list[dict[str, Any]]:
-        jobs = await self._q(name).search(state, query, scan_limit)
-        return [{**self._summary(j), "queue": name} for j in jobs]
+        q = self._q(name)
+        jobs = await q.search(state, query, scan_limit)
+        rows = [{**self._summary(j), "queue": name} for j in jobs]
+        return await self._with_flow_progress(q, rows, state)
 
     async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
         q = self._q(name)

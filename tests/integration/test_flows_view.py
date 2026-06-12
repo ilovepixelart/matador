@@ -106,6 +106,7 @@ async def test_search_scopes_to_the_flows_tab(client, q):
     parent = await _flow(q)
     r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children&query=report", headers=hx())
     assert f"#{parent.id}" in r.text  # found by name within the parked parents
+    assert "0/2" in r.text  # search rows carry fan-in progress too (not just the listing)
     r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children&query=nosuch", headers=hx())
     assert f"#{parent.id}" not in r.text
 
@@ -258,3 +259,59 @@ async def test_flows_tab_row_shows_fanin_progress(client, q):
     r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children", headers=hx())
     assert r.status_code == 200
     assert "1/3" in r.text  # 1 of 3 children done, on the row itself
+
+
+async def test_live_refresher_self_stops_when_flow_is_terminal(client, q):
+    # parked flow (a delayed child keeps it in flight) -> detail carries the refresher
+    parked = await q.add_flow("parked", {}, children=[c("later", {}, delay=600_000)])
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parked.id}/detail")
+    assert 'hx-target="closest [data-job-detail]"' in r.text  # live refresher present
+
+    # a completed flow -> NO refresher (else it would poll the server forever)
+    done = await q.add_flow("done", {}, children=[c("leaf", {})])
+
+    async def proc(job):
+        return "ok" if job.name == "leaf" else (await job.children_results())
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        j = await q.get_job(done.id)
+        if j and j.state == "completed":
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    r = await client.get(f"/queues/{QUEUE}/jobs/{done.id}/detail")
+    assert "3/3" not in r.text  # (sanity: it's a 1-child flow)
+    assert 'hx-target="closest [data-job-detail]"' not in r.text  # refresher gone
+
+
+async def test_per_node_retry_button_only_on_failed_children_not_the_root(client, q):
+    parent = await q.add_flow("publish", {}, children=[c("good", {}), c("bad", {})])
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom")
+        return "ok"
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        j = await q.get_job(parent.id)
+        if j and j.state == "failed":
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    tree = await q.get_flow(parent.id)
+    good_id = tree["children"][0]["job"].id
+    bad_id = tree["children"][1]["job"].id
+
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
+    assert f"/jobs/{bad_id}/retry-node" in r.text  # failed child: per-node retry
+    assert f"/jobs/{good_id}/retry-node" not in r.text  # completed child: no retry
+    assert f"/jobs/{parent.id}/retry-node" not in r.text  # root: NO per-node retry ...
+    assert f"/jobs/{parent.id}/retry-flow" in r.text  # ... it has retry flow instead

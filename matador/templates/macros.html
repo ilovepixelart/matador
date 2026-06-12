@@ -134,9 +134,10 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
         </span>
         <span class="text-muted tabular-nums w-9 text-right">{{ j.progress }}%</span>
       </span>
-      {% elif state == 'waiting-children' and j.children_count %}
+      {% elif state == 'waiting-children' and j.children_count and j.children_done is defined %}
       {# flows tab: fan-in progress per parked parent (done green, failed red,
-         pending empty) - the same language as the detail's segmented bar #}
+         pending empty) - the same language as the detail's segmented bar.
+         `children_done is defined` guards any path that didn't enrich the row. #}
       {% set total = j.children_count %}
       <span class="w-28 hidden md:flex items-center gap-1.5"
             title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ total - j.children_done - j.children_failed }} pending">
