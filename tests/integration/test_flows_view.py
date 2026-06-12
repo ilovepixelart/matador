@@ -315,3 +315,47 @@ async def test_per_node_retry_button_only_on_failed_children_not_the_root(client
     assert f"/jobs/{good_id}/retry-node" not in r.text  # completed child: no retry
     assert f"/jobs/{parent.id}/retry-node" not in r.text  # root: NO per-node retry ...
     assert f"/jobs/{parent.id}/retry-flow" in r.text  # ... it has retry flow instead
+
+
+async def test_failed_flow_with_a_retried_child_stays_live_then_stops(client, q):
+    """The bug: a failed flow's detail had no live refresher, so a per-node retry
+    running under it didn't push the child's state flip - you had to reload. It
+    must be live while the retried child runs, then self-stop."""
+    parent = await q.add_flow("publish", {}, children=[c("good", {}), c("bad", {})])
+    fail = {"on": True}
+
+    async def proc(job):
+        if job.name == "bad" and fail["on"]:
+            raise RuntimeError("boom")
+        return "ok"
+
+    async def _run_until(pred):
+        worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+        task = asyncio.create_task(worker.run())
+        for _ in range(200):
+            if await pred():
+                break
+            await asyncio.sleep(0.02)
+        await worker.stop(grace_period=0)
+        task.cancel()
+
+    await _run_until(lambda: _is_state(q, parent.id, "failed"))
+
+    sel = 'hx-target="closest [data-job-detail]"'  # the live refresher
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
+    assert sel not in r.text  # a settled failed flow is NOT live
+
+    bad_id = (await q.get_flow(parent.id))["children"][1]["job"].id
+    fail["on"] = False
+    await q.retry_job(bad_id)  # per-node retry: the child is now in `wait`
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
+    assert sel in r.text  # in-flight again -> live, even though the parent is `failed`
+
+    await _run_until(lambda: _is_state(q, bad_id, "completed"))
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
+    assert sel not in r.text  # everything terminal again -> self-stopped
+
+
+async def _is_state(q, jid, state):
+    j = await q.get_job(jid)
+    return j is not None and j.state == state

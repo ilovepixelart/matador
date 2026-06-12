@@ -221,3 +221,35 @@ def test_flows_tab_row_shows_progress(page: Page, base_url, flows):
     page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
     row = page.locator("#jobs details", has_text="nightly-report")
     expect(row).to_contain_text("1/2")  # fan-in progress on the row, no need to open it
+
+
+def test_failed_flow_updates_live_during_per_node_retry(page: Page, base_url, flows, drive):
+    # the bug you hit: per-node retry on a FAILED flow didn't push the child's
+    # state flip - you had to reload. With flow_live, the failed flow's detail
+    # stays live while the retried child runs.
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")
+    panel = page.locator("#queue-panel")
+    expect(panel).to_contain_text("1/2 children done")  # transcode failed, thumbnail done
+    page.wait_for_timeout(2000)  # body SSE connect
+
+    # per-node retry the failed child (the only retry-node button in the tree)
+    page.locator('button[hx-post*="retry-node"]').first.click()
+    # the swapped-in detail is now live (the child is in `wait`); let its refresher
+    # wire its SSE listener before any worker event fires (no replay if missed)
+    page.wait_for_timeout(2000)
+
+    async def finish():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+
+        async def proc(job):
+            return {"ok": job.name}
+
+        async def done(qq):
+            return (await qq.flow_progress([flows["parent_b"]]))[flows["parent_b"]] == (2, 0)
+
+        await work_until(proc, done)
+        await q.close()
+
+    drive(finish())
+    # no reload: the open detail re-rendered itself to 2/2 as the retry completed
+    expect(panel).to_contain_text("2/2 children done", timeout=8000)

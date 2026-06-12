@@ -85,12 +85,13 @@
         </ul>
       </dd>
     </div>
-    {% if job.state == 'waiting-children' %}
-    {# Live render: while the flow is in flight, re-fetch + morph this detail on
-       each job event so the tree and progress tick as children settle. The
-       fresh detail only re-includes this element while still parked, so it
-       self-stops the moment the flow goes terminal. Morph keeps it flicker-free
-       and preserves scroll. #}
+    {% if job.flow_live %}
+    {# Live render: while ANY node in the tree is still moving, re-fetch + morph
+       this detail on each job event so the tree and progress tick as children
+       settle - whether the parent is parked OR a retry is running under a
+       still-failed parent. The fresh detail only re-includes this element while
+       work remains, so it self-stops once everything is terminal. Morph keeps
+       it flicker-free and preserves scroll. #}
     <div class="hidden"
          hx-get="{{ url_for('job_detail', name=job.queue or name, job_id=job.id).path }}"
          hx-trigger="sse:changed throttle:1s"

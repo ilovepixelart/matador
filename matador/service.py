@@ -36,6 +36,26 @@ def _human_bytes(n: float | None) -> str:
     return f"{n:.2f}P"
 
 
+# Job states that are still moving - a flow with any of these somewhere in its
+# tree has work in flight, so its open detail should keep live-refreshing.
+_NON_TERMINAL = {"active", "wait", "delayed", "waiting-children"}
+
+
+def _flow_in_flight(parent: Job, tree: dict[str, Any] | None) -> bool:
+    """Report whether the parent or any descendant is still non-terminal. Covers
+    both a parked parent filling in AND a retry running under a `failed` parent.
+    """
+    if parent.state in _NON_TERMINAL:
+        return True
+
+    def walk(node: dict[str, Any]) -> bool:
+        if node["job"].state in _NON_TERMINAL:
+            return True
+        return any(walk(ch) for ch in node["children"])
+
+    return walk(tree) if tree else False
+
+
 class UnknownQueueError(KeyError):
     """A request named a queue the dashboard isn't configured to watch.
 
@@ -243,6 +263,11 @@ class Service:
             "children_failed": sum(1 for n in kids if n["job"].state == "failed"),
             "children_results": await q.children_results(j.id),
             "children_failures": await q.failed_children(j.id),
+            # Live as long as ANY node in the tree is non-terminal - so the open
+            # detail keeps refreshing while a parked parent fills in OR while a
+            # per-node/flow retry on a failed flow is still running (the parent
+            # itself may be `failed`, not parked).
+            "flow_live": _flow_in_flight(j, tree),
         }
 
     async def schedulers(self, name: str) -> list[dict[str, Any]]:
