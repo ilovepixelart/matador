@@ -69,7 +69,8 @@
 
   {% include "partials/names.html" %}
 
-  <div id="schedulers">
+  {# same mt-8 rhythm as the by-name section above, with or without it present #}
+  <div id="schedulers" class="mt-8">
     {% with name = q.name, schedulers = q.schedulers %}{% include "partials/schedulers.html" %}{% endwith %}
   </div>
 </div>
