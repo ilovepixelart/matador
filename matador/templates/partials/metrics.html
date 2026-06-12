@@ -16,6 +16,10 @@
     <b class="text-danger tabular-nums">{{ m.failed|compact }}</b>
     <span class="text-danger">failed · {{ m.fail_pct }}%</span></span>
   {% endif %}
-  {% if m.avg_ms %}<span class="chip">avg <b class="text-fg tabular-nums">{{ m.avg_ms|dur }}</b></span>{% endif %}
+  {% if m.percentiles.p95 %}
+  <span class="chip tip" data-tip="Processing duration percentiles, successful jobs only. A mean would hide the tail.">
+    p50 <b class="text-fg tabular-nums">{{ m.percentiles.p50|dur }}</b>
+    · p95 <b class="text-fg tabular-nums">{{ m.percentiles.p95|dur }}</b></span>
+  {% endif %}
   <span class="chip text-muted">last {{ m.minutes }}m</span>
 </div>

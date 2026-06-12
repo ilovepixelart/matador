@@ -1,0 +1,36 @@
+{% from "macros.html" import icon %}
+{# Jobs by name over the last hour, failures first — the triage order: a red
+   row at the top answers "which job is responsible" before any digging.
+   Durations are p50/p95 from per-name histograms (successful runs only). #}
+{% if names %}
+<div id="names" class="mt-8">
+  <h2 class="text-xs uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5">
+    {{ icon('pulse', 'w-3.5 h-3.5') }} By name · last 60m
+  </h2>
+  <div class="rounded-xl border border-line overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+        <tr>
+          <th scope="col" class="th">Job</th>
+          <th scope="col" class="th text-right">Done</th>
+          <th scope="col" class="th text-right">Failed</th>
+          <th scope="col" class="th text-right">p50</th>
+          <th scope="col" class="th text-right">p95</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in names %}
+        <tr class="border-t border-line hover:bg-panel2/20">
+          <td class="td font-medium">{{ n.name }}</td>
+          <td class="td text-right tabular-nums">{{ n.completed|comma }}</td>
+          <td class="td text-right tabular-nums{{ ' text-danger' if n.failed }}">
+            {{ n.failed|comma if n.failed else '—' }}</td>
+          <td class="td text-right tabular-nums text-muted">{{ n.p50|dur if n.p50 else '—' }}</td>
+          <td class="td text-right tabular-nums">{{ n.p95|dur if n.p95 else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}

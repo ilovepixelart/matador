@@ -133,9 +133,13 @@ class Service:
             "completed": completed,
             "failed": failed,
             "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,
-            "avg_ms": int(sum(p["ms"] for p in points) / finished) if finished else 0,
+            "percentiles": await q.percentiles(minutes=minutes),
             "minutes": minutes,
         }
+
+    async def metrics_names(self, name: str, *, minutes: int = 60, limit: int = 8) -> list[Any]:
+        """Per-job-name totals + percentiles, failures first (toro's triage order)."""
+        return list(await self._q(name).metrics_by_name(minutes=minutes))[:limit]
 
     async def workers(self) -> list[dict[str, Any]]:
         """Every live worker across all queues (each record carries its `queue`)."""

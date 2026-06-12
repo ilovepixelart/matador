@@ -67,6 +67,8 @@
     {% endwith %}
   </div>
 
+  {% include "partials/names.html" %}
+
   <div id="schedulers">
     {% with name = q.name, schedulers = q.schedulers %}{% include "partials/schedulers.html" %}{% endwith %}
   </div>

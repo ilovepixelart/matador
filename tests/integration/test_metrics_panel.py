@@ -91,3 +91,17 @@ async def test_sidebar_sparkline_dims_the_in_progress_minute(client, seeded):
     # the current minute renders at reduced opacity so it never reads as a crash
     r = await client.get(f"/queues/{QUEUE}")
     assert "opacity-40" in r.text
+
+
+async def test_chips_show_percentiles_not_average(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}/metrics", headers=hx())
+    assert "p95" in r.text  # the tail, not a mean that hides it
+    assert "avg" not in r.text
+
+
+async def test_panel_lists_jobs_by_name_failures_first(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}")
+    assert 'id="names"' in r.text
+    # seeded ran okjob (completed) and badjob (failed) — badjob must lead
+    assert r.text.index("badjob") < r.text.index("okjob")
+    assert "p95" in r.text

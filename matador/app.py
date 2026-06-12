@@ -376,7 +376,15 @@ async def _panel_ctx(
     query = query.strip()
     # metrics render inline with the panel (a lazy load would pop in a beat late)
     m = await svc.metrics(name)
-    base = {"q": view, "m": m, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
+    names = await svc.metrics_names(name)
+    base = {
+        "q": view,
+        "m": m,
+        "names": names,
+        "states": STATES,
+        "state": state,
+        "scan_limit": SCAN_LIMIT,
+    }
     if query:  # a deep-link or a typed search → render the results, not the list
         jobs, exact = await _search_jobs(svc, name, state, query)
         return {
