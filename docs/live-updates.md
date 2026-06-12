@@ -8,9 +8,9 @@ be re-rendered.
 
 A single **broadcaster** per dashboard holds ONE pub/sub subscription across
 every watched queue's toro events channel and fans a wakeup out to each
-connected stream — so N open tabs cost one Redis connection, not N, and idle
+connected stream - so N open tabs cost one Redis connection, not N, and idle
 tabs can't starve the action routes' pool. `/stream` does **not** forward job
-events to the browser. Whatever arrives — one finish or a thousand — each
+events to the browser. Whatever arrives - one finish or a thousand - each
 stream emits the same coalesced signal:
 
 ```
@@ -28,9 +28,9 @@ The coalescing works like this (`Service.event_stream`):
 So under a storm of job events the browser sees at most ~5 `changed`/s, and the
 cost of a refresh is bounded by the HTML render, not by queue throughput. When
 the queues are quiet, the same `changed` signal is emitted after 8 seconds of
-silence anyway — a heartbeat that keeps the connection alive through proxies
+silence anyway - a heartbeat that keeps the connection alive through proxies
 (and is why idle regions still refresh occasionally). The stream advertises
-`retry: 3000`, so a dropped connection reconnects on its own — including when
+`retry: 3000`, so a dropped connection reconnects on its own - including when
 Redis itself goes away: the stream ends cleanly and the browser's reconnect
 loop picks things back up once the broadcaster can subscribe again.
 
@@ -44,7 +44,7 @@ The SSE connection lives on `<body>` (the htmx `sse` extension):
 ```
 
 Each live region listens for the signal with its own throttle, and re-fetches
-*its own* fragment — the server stays the single source of what HTML looks like:
+*its own* fragment - the server stays the single source of what HTML looks like:
 
 | Region | Trigger |
 |---|---|
@@ -55,7 +55,7 @@ Each live region listens for the signal with its own throttle, and re-fetches
 
 `throttle` caps each region's refresh rate; `hx-sync="this:drop"` drops a
 refresh that arrives while one is already in flight. Swaps use **morph**
-(idiomorph), which patches the DOM in place instead of replacing it — open
+(idiomorph), which patches the DOM in place instead of replacing it - open
 accordions, focus, and scroll positions survive a refresh.
 
 Tab counts ride along as out-of-band fragments (`tab_counts_oob.html`) on the
@@ -71,7 +71,7 @@ updates resume the moment you close the row.
 
 ## Why SSE and not WebSockets
 
-The data only flows one way — the browser never pushes over the stream
+The data only flows one way - the browser never pushes over the stream
 (actions are ordinary `hx-post`s). SSE is plain HTTP: it works through the same
 auth `dependencies`, proxies, and mounts as every other route
 ([Integration](integration.md)), reconnects natively, and needs no protocol

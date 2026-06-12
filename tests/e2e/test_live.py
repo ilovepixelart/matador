@@ -1,4 +1,4 @@
-"""E2E: SSE live updates — enqueue a job through the backend and the sidebar
+"""E2E: SSE live updates - enqueue a job through the backend and the sidebar
 count refreshes in the open page, no manual reload."""
 
 import asyncio
@@ -16,7 +16,7 @@ def test_sse_refreshes_sidebar_count_on_enqueue(page: Page, base_url, seeded, dr
     async def _enqueue():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
         await q.add("zeta", {"n": "zeta"})
-        # toro publishes on job lifecycle (complete/fail), not on enqueue — emit the
+        # toro publishes on job lifecycle (complete/fail), not on enqueue - emit the
         # same event a worker would. Publish a few times over ~1.5s to bridge the SSE
         # connection-establishment window: pub/sub has no replay, so the first event
         # can land before the client has subscribed; a later one always lands after.

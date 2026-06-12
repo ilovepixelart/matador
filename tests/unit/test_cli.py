@@ -1,4 +1,4 @@
-"""Unit: the `matador serve` CLI — arg parsing and wiring to uvicorn (no real server)."""
+"""Unit: the `matador serve` CLI - arg parsing and wiring to uvicorn (no real server)."""
 
 from unittest.mock import patch
 

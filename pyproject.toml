@@ -1,5 +1,5 @@
 [project]
-# PyPI distribution name — `matador` is taken; the import package stays `matador`.
+# PyPI distribution name - `matador` is taken; the import package stays `matador`.
 name = "matador-dashboard"
 version = "0.2.0"
 description = "An async dashboard for toro queues."
@@ -77,7 +77,7 @@ select = ["ALL"]
 ignore = [
     "COM812", "ISC001",            # conflict with the formatter (per Ruff docs)
     "EM101", "EM102", "TRY003",    # inline exception messages read fine in this codebase
-    "D203", "D213", "D205",        # docstring whitespace/placement niceties — not worth churn
+    "D203", "D213", "D205",        # docstring whitespace/placement niceties - not worth churn
     "D100", "D104", "D105", "D106", "D107",  # don't require docstrings on modules/nested/dunder
     "ANN401",                      # `Any` is intentional at the JSON / template boundary
     "PLR2004",                     # small internal magic-number comparisons are clear in context
@@ -103,7 +103,7 @@ convention = "pep257"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 # The matador test pyramid, by marker (auto-applied by folder in conftest):
-#   pytest          fast layer — unit + integration (default; excludes e2e)
+#   pytest          fast layer - unit + integration (default; excludes e2e)
 #   pytest -m e2e   Playwright browser tests, run as their own job (sync Playwright
 #                   and pytest-asyncio can't share one process, so e2e runs separately)
 addopts = "--strict-markers --import-mode=importlib -m 'not e2e'"

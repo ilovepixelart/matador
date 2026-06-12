@@ -1,4 +1,4 @@
-"""Unit: Service._summary / _detail — pure Job→dict shaping for the templates."""
+"""Unit: Service._summary / _detail - pure Job→dict shaping for the templates."""
 
 from toro.job import Job, JobOptions
 

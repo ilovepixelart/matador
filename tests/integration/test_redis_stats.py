@@ -21,7 +21,7 @@ async def test_redis_stats_degrades_on_error(q, monkeypatch):
         raise RuntimeError("redis down")
 
     monkeypatch.setattr(target, "info", boom)
-    stats = await svc.redis_stats()  # must NOT raise — the 8s-polled bar can't 500
+    stats = await svc.redis_stats()  # must NOT raise - the 8s-polled bar can't 500
     assert stats["ok"] is False
     assert stats["version"] == "?"
     assert stats["ops"] == 0

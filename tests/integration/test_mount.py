@@ -1,6 +1,6 @@
 """Integration: matador mounted under a sub-path emits correctly-prefixed URLs.
 
-This is the test that proves "easily integratable" — `host.mount("/admin/queues", …)`
+This is the test that proves "easily integratable" - `host.mount("/admin/queues", …)`
 must produce links/assets/SSE under that prefix, with no bare-root URLs left.
 """
 
@@ -76,8 +76,8 @@ async def test_dependencies_protect_every_route(seeded):
 
 async def test_dashboard_is_self_hosted(client, seeded):
     """Regression guard for two bugs manual browser-debugging surfaced (which the
-    HTML-only tests missed): the dashboard must be self-contained — no CDN scripts,
-    so it works offline — and its CSS must use a relative font url() so the font
+    HTML-only tests missed): the dashboard must be self-contained - no CDN scripts,
+    so it works offline - and its CSS must use a relative font url() so the font
     resolves under a sub-path mount. (Hardcoded-template-URL regressions are caught by
     the mounted-page test above, which checks for bare-root URLs under the prefix.)"""
     from pathlib import Path

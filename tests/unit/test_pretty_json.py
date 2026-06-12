@@ -1,4 +1,4 @@
-"""Unit: _pretty_json — server-side Pygments highlighting of job data/opts/result."""
+"""Unit: _pretty_json - server-side Pygments highlighting of job data/opts/result."""
 
 import datetime
 

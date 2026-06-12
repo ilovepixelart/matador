@@ -1,4 +1,4 @@
-"""matador — a modern, server-rendered dashboard for toro queues.
+"""matador - a modern, server-rendered dashboard for toro queues.
 
 HTMX architecture (HATEOAS, URL-driven):
   * The URL is the state: `/queues/<name>?state=<tab>&page=<n>`. Every queue/tab/
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
@@ -46,10 +47,10 @@ _MAX_JSON_CHARS = 20_000  # job data is user-controlled + unbounded; cap what we
 
 
 def _pretty_json(obj: object) -> Markup:
-    """Server-side pretty-print + syntax-highlight (Pygments) — no client JS."""
+    """Server-side pretty-print + syntax-highlight (Pygments) - no client JS."""
     text = json.dumps(obj, indent=2, default=str)
     if len(text) > _MAX_JSON_CHARS:
-        # lexing a multi-MB payload on every render is a DoS vector — truncate first
+        # lexing a multi-MB payload on every render is a DoS vector - truncate first
         text = text[:_MAX_JSON_CHARS] + f"\n… truncated ({len(text):,} chars total)"
     # Pygments emits escaped, safe HTML, so wrapping it in Markup is intentional.
     rendered = highlight(text, _JSON_LEXER, _JSON_FMT)
@@ -63,7 +64,7 @@ def _coerce_state(state: str) -> JobState:
 
 def _default_state(counts: dict[str, int]) -> JobState:
     """Pick the tab with the most signal when the URL doesn't say: running work
-    if any, else problems, else what's queued — never an empty `active` list on
+    if any, else problems, else what's queued - never an empty `active` list on
     a healthy idle queue.
     """
     for s in ("active", "failed", "wait", "delayed"):
@@ -93,7 +94,7 @@ def _page_window(page: int, pages: int, span: int = 2) -> list[int | None]:
 
 
 def wants_fragment(request: Request) -> bool:
-    """Return True for an HTMX swap that should get a fragment — but False for a
+    """Return True for an HTMX swap that should get a fragment - but False for a
     history-restore, which re-requests the pushed URL and needs the whole page.
     """
     return (
@@ -113,7 +114,7 @@ WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
 MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out unboundedly
 
-# OOB sidebar refresh fragment — re-rendered alongside a panel so the active-queue
+# OOB sidebar refresh fragment - re-rendered alongside a panel so the active-queue
 # highlight + badges update in the same response.
 _SIDEBAR_OOB = "partials/sidebar_oob.html"
 
@@ -126,18 +127,18 @@ def _schedule_label(s: dict[str, Any]) -> str:
 
 
 _TEMPLATES.env.filters["clock"] = lambda ms: (
-    # local time on purpose — the dashboard shows timestamps in the viewer's zone
-    datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S") if ms else "—"  # noqa: DTZ006
+    # local time on purpose - the dashboard shows timestamps in the viewer's zone
+    datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S") if ms else "-"  # noqa: DTZ006
 )
 _TEMPLATES.env.filters["clockms"] = (
     lambda ms: (  # millisecond precision (job timings)
-        datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S.%f")[:-3] if ms else "—"  # noqa: DTZ006
+        datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S.%f")[:-3] if ms else "-"  # noqa: DTZ006
     )
 )
 
 
 def _span(secs: int) -> str:
-    """ONE duration phrasing for every relative filter (uptime, ago, due) —
+    """ONE duration phrasing for every relative filter (uptime, ago, due) -
     keeping the unit thresholds in a single place so they can't drift apart.
     """
     if secs < 60:
@@ -150,29 +151,29 @@ def _span(secs: int) -> str:
     return f"{secs // 86400}d"
 
 
-# NB: these treat a 0/None timestamp as missing ("—"). A literal epoch-0 value
-# would be swallowed, but toro always stamps now-milliseconds — accepted.
+# NB: these treat a 0/None timestamp as missing ("-"). A literal epoch-0 value
+# would be swallowed, but toro always stamps now-milliseconds - accepted.
 def _uptime(started_ms: int) -> str:
     if not started_ms:
-        return "—"
+        return "-"
     return _span(max(0, int(time.time() - started_ms / 1000)))
 
 
 def _ago(ms: int | None) -> str:
-    # Relative past for job rows — same duration phrasing as the workers view.
-    return f"{_uptime(ms)} ago" if ms else "—"
+    # Relative past for job rows - same duration phrasing as the workers view.
+    return f"{_uptime(ms)} ago" if ms else "-"
 
 
 def _due(due_ms: int | None) -> str:
     # When a delayed job will run: "due in 3m", or "due now" once promotable.
     if not due_ms:
-        return "—"
+        return "-"
     secs = int(due_ms / 1000 - time.time())
     return "due now" if secs <= 0 else f"due in {_span(secs)}"
 
 
 def _at(ms: int | None) -> str:
-    # The absolute moment, for hover titles — relative times age, this doesn't.
+    # The absolute moment, for hover titles - relative times age, this doesn't.
     if not ms:
         return ""
     return datetime.fromtimestamp(ms / 1000).strftime("%d %b %Y %H:%M:%S")  # noqa: DTZ006
@@ -181,7 +182,7 @@ def _at(ms: int | None) -> str:
 def _compact(n: int) -> str:
     """Abbreviate big counts following the CLDR / ECMA-402 `compact` convention for
     en (K/M/B/T, ~2 significant digits) so fixed-width number boxes can't overflow.
-    Kept exact up to 9999 — a deliberate dashboard choice (operators want the precise
+    Kept exact up to 9999 - a deliberate dashboard choice (operators want the precise
     figure where it still fits); the exact value is exposed via the badge `title`.
     """
     n = int(n)
@@ -268,7 +269,7 @@ def _sparkbars(queues: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
 def _dur(ms: int | None) -> str:
     # Humanize a millisecond duration (e.g., job started→finished).
     if not ms or ms < 0:
-        return "—"
+        return "-"
     ms = int(ms)
     if ms < 1000:
         return f"{ms}ms"
@@ -294,7 +295,7 @@ _TEMPLATES.env.filters["at"] = _at
 
 def _asset_version() -> int:
     # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
-    # a dev rebuild) is always picked up — browsers otherwise serve stale assets.
+    # a dev rebuild) is always picked up - browsers otherwise serve stale assets.
     # Evaluated per full-page render (a handful of stats), NOT at import: a
     # long-running server with assets rebuilt underneath it must not keep
     # handing out the old version forever.
@@ -376,7 +377,15 @@ async def _panel_ctx(
     query = query.strip()
     # metrics render inline with the panel (a lazy load would pop in a beat late)
     m = await svc.metrics(name)
-    base = {"q": view, "m": m, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
+    names = await svc.metrics_names(name)
+    base = {
+        "q": view,
+        "m": m,
+        "names": names,
+        "states": STATES,
+        "state": state,
+        "scan_limit": SCAN_LIMIT,
+    }
     if query:  # a deep-link or a typed search → render the results, not the list
         jobs, exact = await _search_jobs(svc, name, state, query)
         return {
@@ -444,7 +453,7 @@ async def _security_headers(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     # Secure-by-default hardening on every matador response (only this mounted
-    # sub-app's routes). `setdefault` so a host can override. No CSP here — the
+    # sub-app's routes). `setdefault` so a host can override. No CSP here - the
     # inline theme script + htmx `js:` eval would need nonces; left to the host.
     response = await call_next(request)
     response.headers.setdefault("X-Frame-Options", "DENY")  # clickjacking
@@ -457,7 +466,7 @@ class _RevalidatedStatic(StaticFiles):
     """StaticFiles with ``Cache-Control: no-cache``: browsers revalidate every
     asset with ETag/If-Modified-Since (cheap 304s) instead of heuristically
     caching it. The entry points carry an ``?v=`` buster, but their module
-    imports (``behaviors/*.js``) don't — without this header a warm browser
+    imports (``behaviors/*.js``) don't - without this header a warm browser
     pins an old behavior module until its heuristic expiry.
     """
 
@@ -480,7 +489,7 @@ def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
 # ---- route groups ------------------------------------------------------------
 
 
-def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa: C901 — wires N read routes
+def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa: C901 - wires N read routes
     """Build the read routes: a full page on direct navigation, a fragment for swaps."""
     router = APIRouter()
 
@@ -584,7 +593,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             )
         # No query → the normal paginated list (this is the live-refresh path). Emit the
         # tab counts from the SAME snapshot as the table so the badges and the list can't
-        # disagree on a fast-churning state — this refresh is their single source.
+        # disagree on a fast-churning state - this refresh is their single source.
         ctx = await _panel_ctx(svc, name, state, page)
         html = _render_str(request, "partials/jobs.html", name=name, **ctx)
         html += _render_str(
@@ -605,7 +614,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def job_page(request: Request, name: str, job_id: str):
-        # A standalone, bookmarkable page for one job — the drill-down target for
+        # A standalone, bookmarkable page for one job - the drill-down target for
         # job-id chips. Shows "no longer here" cleanly if the job is already gone.
         job = await svc.job(name, job_id)
         if wants_fragment(request):
@@ -634,7 +643,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     return router
 
 
-def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write routes
+def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write routes
     """Build the write routes: each mutates state, then re-renders the panel."""
     router = APIRouter()
 
@@ -736,14 +745,14 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 — wires N write 
     return router
 
 
-def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configuration surface
+def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configuration surface
     names: list[str],
     *,
     url: str = "redis://localhost:6379",
     prefix: str = "toro",
     connection: Redis | None = None,
     dependencies: Sequence[params.Depends] | None = None,
-    require_same_origin: bool = False,
+    require_same_origin: bool | None = None,
     show_stacktraces: bool = True,
 ) -> FastAPI:
     """Build the matador FastAPI app watching the given queue `names`.
@@ -751,24 +760,37 @@ def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configura
     Pass `connection` (a ``redis.asyncio.Redis``) to share the host app's pool
     instead of opening a new one from `url`; matador never closes a connection it
     didn't create. (Note: a mounted sub-app's lifespan doesn't run, so sharing the
-    host's connection is the right way to embed — the host owns the lifecycle.)
+    host's connection is the right way to embed - the host owns the lifecycle.)
 
     Pass `dependencies` (e.g. ``[Depends(require_admin)]``) to protect a mounted
-    dashboard with the host app's own auth — they run before every route. (The
+    dashboard with the host app's own auth - they run before every route. (The
     ``/static`` mount is a sub-app and isn't covered; wrap the whole mount if the
     assets themselves need protecting.)
 
-    Set `require_same_origin=True` to reject state-changing requests (POST/DELETE…)
-    whose `Origin` doesn't match the request host — a stateless CSRF defense. The
-    dashboard ships no auth, so CSRF is moot by default; enable this when you add
-    *cookie*-based auth in front (a cross-site form would otherwise carry the cookie).
-    Behind a reverse proxy, ensure the forwarded Host is correct (uvicorn
-    `--proxy-headers`) so same-origin requests aren't falsely blocked.
+    `require_same_origin` rejects state-changing requests (POST/DELETE…) whose
+    `Origin` doesn't match the request host - a stateless CSRF defense. It
+    defaults to ON whenever `dependencies` are configured (auth usually means
+    cookies, and cookies are what make CSRF real) and OFF otherwise; pass an
+    explicit bool to override either way. Behind a reverse proxy, ensure the
+    forwarded Host is correct (uvicorn `--proxy-headers`) so same-origin
+    requests aren't falsely blocked.
 
-    Set `show_stacktraces=False` to omit job stack traces from the UI — they can
+    Set `show_stacktraces=False` to omit job stack traces from the UI - they can
     leak source paths, versions, and occasionally secrets from exception messages,
     which matters when the dashboard is reachable by people who shouldn't see them.
     """
+    if require_same_origin is None:
+        require_same_origin = bool(dependencies)
+    if not dependencies:
+        logging.getLogger("matador").warning(
+            "matador has no auth configured: every route is open to whoever can reach it. "
+            "Mount it behind your app's auth (dependencies=[Depends(...)]) or a reverse "
+            "proxy that authenticates.%s",
+            " Job stack traces are visible (show_stacktraces=False hides them)."
+            if show_stacktraces
+            else "",
+        )
+
     svc = Service(names, url=url, prefix=prefix, connection=connection)
 
     @contextlib.asynccontextmanager

@@ -1,6 +1,6 @@
 // Custom confirmation dialog for any element with hx-confirm (delete/clean/etc.).
 // We intercept htmx's confirm step, show our own <dialog>, and only issue the
-// request if the user confirms — so destructive actions never hit window.confirm.
+// request if the user confirms - so destructive actions never hit window.confirm.
 const dlg = document.getElementById("confirm-dialog");
 const text = document.getElementById("confirm-text");
 let pending = null;

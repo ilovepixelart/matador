@@ -1,4 +1,4 @@
-"""Unit: _selected_from_url — which sidebar entry the HX-Current-URL points at.
+"""Unit: _selected_from_url - which sidebar entry the HX-Current-URL points at.
 
 Parsed with rfind rather than a greedy regex, so a long client-controlled header
 can't trigger O(n^2) backtracking (ReDoS).

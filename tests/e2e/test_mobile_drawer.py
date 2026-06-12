@@ -1,5 +1,5 @@
 """E2E: on phone-sized viewports the sidebar collapses into an off-canvas
-drawer — opened by the header menu button, closed by the backdrop or by
+drawer - opened by the header menu button, closed by the backdrop or by
 picking a queue (you navigated; the drawer's job is done).
 """
 

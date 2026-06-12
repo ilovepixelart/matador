@@ -1,4 +1,4 @@
-"""E2E: the standalone job page — drill into one job, see its detail + metadata,
+"""E2E: the standalone job page - drill into one job, see its detail + metadata,
 go back, and a gone job shows a styled not-found."""
 
 import re

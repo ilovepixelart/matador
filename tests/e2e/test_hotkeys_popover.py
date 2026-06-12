@@ -1,4 +1,4 @@
-"""E2E: the hotkeys popover — native Popover API (button click + ? key),
+"""E2E: the hotkeys popover - native Popover API (button click + ? key),
 light-dismiss and Esc come from the platform, not our JS."""
 
 from playwright.sync_api import Page, expect

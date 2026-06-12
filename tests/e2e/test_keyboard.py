@@ -1,4 +1,4 @@
-"""E2E: keyboard affordances — "/" jumps to search, Escape closes what's open.
+"""E2E: keyboard affordances - "/" jumps to search, Escape closes what's open.
 Both stay out of the way while you're typing.
 """
 

@@ -8,15 +8,15 @@ straight from Redis through toro's async API. No JSON API, no SPA, no client sta
 
 ## Pages
 
-- **[Architecture](architecture.md)** — the HTMX hypermedia model: the URL as
+- **[Architecture](architecture.md)** - the HTMX hypermedia model: the URL as
   state, full-page vs fragment responses, and how a request becomes HTML.
-- **[Integration](integration.md)** — `create_app` and every option: mounting
+- **[Integration](integration.md)** - `create_app` and every option: mounting
   into an existing app, sharing a Redis pool, auth, CSRF, stack-trace control.
-- **[Live updates](live-updates.md)** — the SSE stream, change events, the
+- **[Live updates](live-updates.md)** - the SSE stream, change events, the
   live-updating tables, and out-of-band swaps.
-- **[Views](views.md)** — each screen explained: queues, job tabs, job detail,
+- **[Views](views.md)** - each screen explained: queues, job tabs, job detail,
   search, workers, the Redis health bar, schedulers.
-- **[Templates](templates.md)** — how the templates are organized
+- **[Templates](templates.md)** - how the templates are organized
   (layouts / pages / partials) and the macro hub.
-- **[Security](security.md)** — same-origin CSRF, the always-on security headers,
+- **[Security](security.md)** - same-origin CSRF, the always-on security headers,
   and the bounded JSON rendering.

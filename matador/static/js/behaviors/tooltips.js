@@ -1,7 +1,7 @@
 // Tooltips: one fixed element, positioned by JS so it never clips inside a scroll
 // container, flips below when there's no room above, and stays within the viewport.
 // Tooltip text comes from data-tip; the a11y name comes from the element's
-// own (sr-only) content — never aria-label, which would fight the visible label.
+// own (sr-only) content - never aria-label, which would fight the visible label.
 const tip = document.createElement("div");
 tip.id = "tip";
 document.body.appendChild(tip);

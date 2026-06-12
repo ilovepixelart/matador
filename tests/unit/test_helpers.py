@@ -1,4 +1,4 @@
-"""Unit: wants_fragment — the fragment-vs-full-page decision from request headers."""
+"""Unit: wants_fragment - the fragment-vs-full-page decision from request headers."""
 
 from matador.app import wants_fragment
 

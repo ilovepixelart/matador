@@ -62,11 +62,11 @@
      that existed before the change. Actions swap messages in via OOB. #}
   <div id="announce" aria-live="polite" class="sr-only"></div>
 
-  {# Toast zone — response-targets routes any 4xx/5xx action error here (hx-target-error
+  {# Toast zone - response-targets routes any 4xx/5xx action error here (hx-target-error
      on <body>), so a failed action surfaces instead of failing silently. #}
   <div id="toast" class="fixed bottom-4 right-4 z-50 max-w-sm"></div>
 
-  {# Hotkeys modal — a native popover (button wiring, Esc and light-dismiss all
+  {# Hotkeys modal - a native popover (button wiring, Esc and light-dismiss all
      come from the platform), styled as a centered modal like the dialog. #}
   <div id="hotkeys" popover
        class="m-auto w-80 max-w-full bg-panel text-fg border border-line rounded-xl shadow-xl p-5
@@ -96,7 +96,7 @@
     </dl>
   </div>
 
-  {# Confirmation dialog — replaces the native confirm() for every hx-confirm action. #}
+  {# Confirmation dialog - replaces the native confirm() for every hx-confirm action. #}
   {# m-auto: v4 preflight zeroes dialog margins, which kills the UA's centering #}
   <dialog id="confirm-dialog"
           class="m-auto bg-panel text-fg border border-line rounded-xl shadow-xl p-0 w-80 max-w-full

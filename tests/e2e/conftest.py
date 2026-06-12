@@ -1,5 +1,5 @@
 """E2E fixtures: a real (threaded) uvicorn server wired to a seeded toro queue on
-the dev Redis — isolated by prefix — driven by a real browser via pytest-playwright.
+the dev Redis - isolated by prefix - driven by a real browser via pytest-playwright.
 
 The server is session-scoped (booting it is the expensive part); the queue state is
 reset + reseeded per test so action tests stay isolated and deterministic.
@@ -33,7 +33,7 @@ class _ThreadedUvicorn(uvicorn.Server):
         thread = threading.Thread(target=self.run, daemon=True)
         thread.start()
         try:
-            while not self.started:  # readiness wait — no fixed sleep
+            while not self.started:  # readiness wait - no fixed sleep
                 time.sleep(1e-3)
             yield
         finally:
@@ -123,7 +123,7 @@ async def _seed_many(n: int) -> None:
 
 @pytest.fixture
 def seeded_many(run_async):
-    """Seed >1 page of waiting jobs (25) — for pagination + bulk-select tests."""
+    """Seed >1 page of waiting jobs (25) - for pagination + bulk-select tests."""
     run_async(_seed_many(25))
 
 

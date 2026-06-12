@@ -1,5 +1,5 @@
 """E2E: destructive actions go through the custom confirm <dialog>, and
-pause/resume toggles — the full browser→htmx→Redis round trip."""
+pause/resume toggles - the full browser→htmx→Redis round trip."""
 
 from playwright.sync_api import Page, expect
 

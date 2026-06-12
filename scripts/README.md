@@ -5,7 +5,7 @@ Local helpers for running and populating the dashboard against a Redis on
 
 | Script | What it does |
 |---|---|
-| [`seed.py`](seed.py) | Populates several queues with realistic, per-queue demo data — a different count in every state (enough to page through), with a handful of jobs processed for real so they carry progress, logs, and stack traces. |
+| [`seed.py`](seed.py) | Populates several queues with realistic, per-queue demo data - a different count in every state (enough to page through), with a handful of jobs processed for real so they carry progress, logs, and stack traces. |
 | [`run.py`](run.py) | Serves the dashboard standalone over those queues. |
 
 ```bash

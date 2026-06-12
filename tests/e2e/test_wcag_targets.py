@@ -1,4 +1,4 @@
-"""E2E: WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA — every pointer
+"""E2E: WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA - every pointer
 target is at least 24x24 CSS pixels (padding counts toward the target; the
 checkbox's clickable <label> is its target).
 """
@@ -43,7 +43,7 @@ def test_pagination_targets_meet_24px_minimum(page: Page, base_url, seeded_many)
 def test_keyboard_focus_is_never_fully_obscured(page: Page, base_url, seeded_many):
     # SC 2.4.11 Focus Not Obscured: panels scroll BELOW the fixed chrome (the
     # header sits outside the scroll container), so a focused control can never
-    # end up hidden under it — prove it for the bottom-most row action.
+    # end up hidden under it - prove it for the bottom-most row action.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     btn = page.locator("#jobs button").last
     btn.focus()

@@ -20,7 +20,7 @@
   </div>
 
   {# Health chips: rendered inline with the panel (no pop-in), then refreshed
-     on job events (throttled — the buckets are per-minute, sub-second repaints
+     on job events (throttled - the buckets are per-minute, sub-second repaints
      buy nothing) and a slow tick. hx-target="this" opts out of the panel's
      inherited #queue-panel target. #}
   <div class="mb-4 min-h-7" hx-get="{{ url_for('queue_metrics', name=q.name).path }}"
@@ -44,7 +44,7 @@
   <div class="relative max-w-sm mb-3">
     <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">{{ icon('search', 'w-4 h-4') }}</span>
     <input type="search" name="query" autocomplete="off" value="{{ query|default('') }}"
-           placeholder="search {{ state }} — name, data, or #id…"
+           placeholder="search {{ state }} - name, data, or #id…"
            class="input !pl-9"
            hx-get="{{ url_for('jobs_fragment', name=q.name).path }}?state={{ state }}"
            hx-trigger="input changed delay:300ms, search"
@@ -53,12 +53,12 @@
       {{ icon('retry', 'w-3.5 h-3.5 animate-spin') }}</span>
   </div>
 
-  {# Shown by CSS (:has) only while a job row is open — the live table is paused so it
+  {# Shown by CSS (:has) only while a job row is open - the live table is paused so it
      can't move under you. Tells the operator why updates stopped (and how to resume). #}
   <div class="jobs-paused items-center gap-2 mb-2 px-3 py-1.5 rounded-lg
               bg-warning/10 text-warning text-xs">
     {{ icon('pause', 'w-3.5 h-3.5') }}
-    <span>Live updates paused while you're viewing a job — close it to resume.</span>
+    <span>Live updates paused while you're viewing a job - close it to resume.</span>
   </div>
 
   <div id="jobs" class="card mb-6">
@@ -66,6 +66,8 @@
       {% if query %}{% include "partials/search_results.html" %}{% else %}{% include "partials/jobs.html" %}{% endif %}
     {% endwith %}
   </div>
+
+  {% include "partials/names.html" %}
 
   <div id="schedulers">
     {% with name = q.name, schedulers = q.schedulers %}{% include "partials/schedulers.html" %}{% endwith %}

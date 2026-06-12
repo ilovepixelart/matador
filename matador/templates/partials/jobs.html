@@ -1,7 +1,7 @@
 {% from "macros.html" import icon, bar_color, job_row, empty_state, pglink with context %}
 {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
 <div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
-  {# Bulk-action bar — shown by JS only when ≥1 row is selected (persists across pages). #}
+  {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
   <div id="bulk-bar" class="items-center gap-2" style="display: none">
     <span class="text-xs text-muted"><b id="bulk-count" class="text-fg tabular-nums">0</b> selected</span>
     <button type="button" class="btn btn-sm btn-ghost ring-1 ring-line"
@@ -25,7 +25,7 @@
 
 {% endif %}
 
-{# data-view sits ON the grid itself (bulk-select page identity) — no extra
+{# data-view sits ON the grid itself (bulk-select page identity) - no extra
    wrapper: idiomorph relocates id-keyed rows across intermediate divs. #}
 <div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
   {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
@@ -47,13 +47,13 @@
   {% endif %}
   {% for j in jobs %}{{ job_row(name, j, state, page) }}
   {% else %}
-  <div class="col-span-full">{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' — all clear' if state == 'failed' else '')) }}</div>
+  <div class="col-span-full">{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' - all clear' if state == 'failed' else '')) }}</div>
   {% endfor %}
 </div>
 
 {# Live-refresh the list (table + total count + pagination) on any job event, for every
    state. Paused while a row is open by jobs-live.js (progressive: if that JS fails to
-   load, the refresh still fires — just without the pause). Morph + stable row ids keep
+   load, the refresh still fires - just without the pause). Morph + stable row ids keep
    it flicker-free; throttle + drop rate-cap it. #}
 {# id keyed by view: idiomorph matches by id, so a morph can never recycle this
    node (and its init-time htmx closures) across different queue/state views #}

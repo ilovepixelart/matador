@@ -8,7 +8,7 @@ from .conftest import QUEUE, hx
 async def test_failed_rows_lead_with_the_reason(client, seeded):
     r = await client.get(f"/queues/{QUEUE}?state=failed", headers=hx())
     assert r.status_code == 200
-    # The seeded failure raises RuntimeError("boom") — the reason must be
+    # The seeded failure raises RuntimeError("boom") - the reason must be
     # visible in the LIST, not only after expanding the row.
     assert "boom" in r.text
 
@@ -35,7 +35,7 @@ async def test_job_names_expose_their_full_text_on_hover(client, seeded):
 
 
 async def test_queue_without_explicit_state_lands_on_the_signal_tab(client, seeded):
-    # Seeded queue: 0 active, 1 failed — a bare /queues/{name} should land on
+    # Seeded queue: 0 active, 1 failed - a bare /queues/{name} should land on
     # failed (the tab with signal), not an empty active list.
     r = await client.get(f"/queues/{QUEUE}", headers=hx())
     assert "badjob" in r.text
