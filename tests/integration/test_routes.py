@@ -1,4 +1,4 @@
-"""Integration: GET routes render the right HTML — full page vs htmx fragment."""
+"""Integration: GET routes render the right HTML - full page vs htmx fragment."""
 
 from .conftest import QUEUE, hx
 

@@ -1,4 +1,4 @@
-"""Unit: the Jinja filters + schedule label — pure formatting helpers."""
+"""Unit: the Jinja filters + schedule label - pure formatting helpers."""
 
 import re
 
@@ -22,8 +22,8 @@ def test_schedule_label_every_minutes():
 
 def test_clock_filter():
     clock = _TEMPLATES.env.filters["clock"]
-    assert clock(0) == "—"  # falsy → em dash, not "00:00:00"
-    assert clock(None) == "—"
+    assert clock(0) == "-"  # falsy → em dash, not "00:00:00"
+    assert clock(None) == "-"
     assert re.fullmatch(r"\d\d:\d\d:\d\d", clock(1700000000000))
 
 
@@ -36,7 +36,7 @@ def test_comma_filter():
 def test_uptime(monkeypatch):
     # Freeze the clock so the elapsed-since-start arithmetic is deterministic.
     monkeypatch.setattr(app.time, "time", lambda: 10_000.0)
-    assert _uptime(0) == "—"  # never started
+    assert _uptime(0) == "-"  # never started
     assert _uptime(10_000_000) == "0s"  # started this instant
     assert _uptime((10_000 - 45) * 1000) == "45s"
     assert _uptime((10_000 - 120) * 1000) == "2m"
@@ -63,9 +63,9 @@ def test_compact(n, expected):
 @pytest.mark.parametrize(
     ("ms", "expected"),
     [
-        (None, "—"),
-        (0, "—"),
-        (-5, "—"),  # nonsense input → dash
+        (None, "-"),
+        (0, "-"),
+        (-5, "-"),  # nonsense input → dash
         (500, "500ms"),
         (1500, "1.5s"),
         (65_000, "1m 5s"),
@@ -78,8 +78,8 @@ def test_dur(ms, expected):
 
 def test_ago(monkeypatch):
     monkeypatch.setattr(app.time, "time", lambda: 10_000.0)
-    assert _ago(None) == "—"
-    assert _ago(0) == "—"
+    assert _ago(None) == "-"
+    assert _ago(0) == "-"
     assert _ago((10_000 - 45) * 1000) == "45s ago"
     assert _ago((10_000 - 300) * 1000) == "5m ago"
     assert _ago((10_000 - 7200) * 1000) == "2h ago"
@@ -93,7 +93,7 @@ def test_uptime_days(monkeypatch):
 
 def test_due(monkeypatch):
     monkeypatch.setattr(app.time, "time", lambda: 10_000.0)
-    assert _due(None) == "—"
+    assert _due(None) == "-"
     assert _due((10_000 - 5) * 1000) == "due now"  # already past
     assert _due((10_000 + 30) * 1000) == "due in 30s"
     assert _due((10_000 + 300) * 1000) == "due in 5m"
@@ -104,13 +104,13 @@ def test_due(monkeypatch):
 def test_at():
     assert _at(None) == ""
     assert _at(0) == ""
-    # Absolute moment with the date — relative times age, hover titles must not.
+    # Absolute moment with the date - relative times age, hover titles must not.
     assert re.fullmatch(r"\d\d \w\w\w \d{4} \d\d:\d\d:\d\d", _at(1700000000000))
 
 
 def test_asset_version_is_evaluated_per_render():
     # A live server with assets rebuilt underneath it (tailwind --watch, deploys
-    # without restart) must hand out fresh ?v= values — an import-time int goes
+    # without restart) must hand out fresh ?v= values - an import-time int goes
     # stale and pins every browser to cached assets.
     assert callable(_TEMPLATES.env.globals["asset_v"])
     assert _TEMPLATES.env.globals["asset_v"]() > 0

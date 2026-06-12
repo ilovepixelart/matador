@@ -20,7 +20,7 @@ STATES: tuple[JobState, ...] = ("active", "wait", "delayed", "completed", "faile
 
 def _human_bytes(n: float | None) -> str:
     if not n or n < 0:
-        return "—"
+        return "-"
     for unit in ("B", "K", "M", "G", "T"):
         if n < 1024:
             return f"{n:.0f}{unit}" if unit == "B" else f"{n:.2f}{unit}"
@@ -42,7 +42,7 @@ class Service:
         self, names: list[str], *, url: str, prefix: str, connection: Redis | None = None
     ) -> None:
         # If the host hands us its own redis client, share it (and never close it);
-        # otherwise each queue opens — and owns — its own connection.
+        # otherwise each queue opens - and owns - its own connection.
         self._owns_connection = connection is None
         self.queues: dict[str, Queue] = {
             name: Queue(name, connection=connection, url=url, prefix=prefix) for name in names
@@ -50,7 +50,7 @@ class Service:
         # SSE plumbing: ONE pubsub subscription per Service, fanned out to every
         # connected stream via per-client events (the same shared-listener shape
         # as toro's result() dispatcher). N open dashboard tabs cost one Redis
-        # connection, not N — open tabs can't starve the action routes' pool.
+        # connection, not N - open tabs can't starve the action routes' pool.
         self._listeners: set[asyncio.Event] = set()
         self._broadcast_pubsub: PubSub | None = None
         self._broadcast_task: asyncio.Task[None] | None = None
@@ -112,7 +112,7 @@ class Service:
                     "name": name,
                     "counts": await q.counts(),
                     "paused": await q.is_paused(),
-                    # last hour of per-minute activity — the sidebar sparkline
+                    # last hour of per-minute activity - the sidebar sparkline
                     "spark": await q.metrics(minutes=60),
                 }
             )
@@ -213,7 +213,7 @@ class Service:
 
     async def remove_many(self, name: str, job_ids: list[str]) -> int:
         """Remove a specific set of jobs (multi-select bulk delete). Returns how
-        many were ACTUALLY removed — a job that vanished in a race doesn't count.
+        many were ACTUALLY removed - a job that vanished in a race doesn't count.
         """
         q = self._q(name)
         removed = 0
@@ -291,7 +291,7 @@ class Service:
         """SSE stream: emit a COALESCED `changed` signal whenever any queue publishes
         a job event. toro publishes one event per job (completed/failed/progress), so
         under load that's a firehose; we emit on the first event, then let whatever
-        lands in the next ~200ms ride the same repaint — a thousand finishes cost one
+        lands in the next ~200ms ride the same repaint - a thousand finishes cost one
         refresh (~5 `changed`/s ceiling). The same signal doubles as the heartbeat
         after 8 quiet seconds. All streams share ONE pubsub via the broadcaster.
         """
@@ -299,7 +299,7 @@ class Service:
             await self._ensure_broadcaster()
         except Exception:
             # Redis is unreachable right now: hand the client its reconnect cadence
-            # and end cleanly — it retries until the broadcaster can subscribe again.
+            # and end cleanly - it retries until the broadcaster can subscribe again.
             yield "retry: 3000\n\n"
             return
         ev = asyncio.Event()
@@ -308,7 +308,7 @@ class Service:
             yield "retry: 3000\n\n"
             while True:
                 # Exit promptly when the client goes away instead of waiting for the
-                # next yield to raise — drops our listener registration right away.
+                # next yield to raise - drops our listener registration right away.
                 if is_disconnected is not None and await is_disconnected():
                     break
                 if self._broadcast_task is None or self._broadcast_task.done():
@@ -349,7 +349,7 @@ class Service:
             "data": j.data,
             "failed_reason": j.failed_reason,
             "progress": j.progress,
-            # Triage times — which one matters depends on the state the row is
+            # Triage times - which one matters depends on the state the row is
             # in (queued / started / finished / due); the row template picks.
             "timestamp": j.timestamp,
             "processed_on": j.processed_on,

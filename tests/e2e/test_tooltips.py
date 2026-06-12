@@ -1,4 +1,4 @@
-"""E2E: tooltips — text comes from data-tip, the accessible name from the
+"""E2E: tooltips - text comes from data-tip, the accessible name from the
 element's own (sr-only) content, never aria-label (which would fight the
 visible label; Sonar S6853/S7927)."""
 
@@ -29,7 +29,7 @@ def test_theme_toggle_keeps_name_and_tooltip(page: Page, base_url, seeded):
 
 def test_icon_button_labels_are_for_screen_readers_only(page: Page, base_url, seeded):
     # The sr-only name must stay invisible to eyes: 1px and clipped. Guards the
-    # build too — a stale app.css without the .sr-only utility renders these as
+    # build too - a stale app.css without the .sr-only utility renders these as
     # plain text on every icon button.
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
     span = page.locator('#jobs button[data-tip="Retry this job"] .sr-only').first

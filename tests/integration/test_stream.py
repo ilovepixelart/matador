@@ -1,4 +1,4 @@
-"""Integration: the SSE event_stream contract — a reconnect directive, then a
+"""Integration: the SSE event_stream contract - a reconnect directive, then a
 `changed` signal whenever a queue publishes a job event. Bounded by the 8s
 heartbeat backstop so it can never hang (the HTTP stream itself is E2E territory).
 """
@@ -39,7 +39,7 @@ async def test_event_stream_stops_when_client_disconnects(q):
 
 
 async def test_concurrent_streams_share_one_subscription(q):
-    # N dashboard tabs must cost ONE pubsub connection, not N — otherwise open
+    # N dashboard tabs must cost ONE pubsub connection, not N - otherwise open
     # tabs exhaust the pool and starve the action routes.
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     a, b = svc.event_stream(), svc.event_stream()
@@ -62,7 +62,7 @@ async def test_concurrent_streams_share_one_subscription(q):
 
 async def test_stream_ends_cleanly_if_the_subscription_dies(q):
     # The events subscription dying mid-stream must END the stream (the browser
-    # reconnects on the retry hint), never raise out of the response — and the
+    # reconnects on the retry hint), never raise out of the response - and the
     # next stream must come back on a fresh subscription.
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     agen = svc.event_stream()

@@ -1,5 +1,5 @@
 """E2E: the live job table. A job enqueued into an idle, empty tab must appear on its own
-(no reload) — the end-to-end proof that enqueue now emits a `changed` signal the table
+(no reload) - the end-to-end proof that enqueue now emits a `changed` signal the table
 reacts to, across every state (not just active)."""
 
 from playwright.sync_api import Page, expect
@@ -27,14 +27,14 @@ def test_enqueued_job_appears_live_on_empty_tab(page: Page, base_url, drive):
         await q.close()
 
     drive(enqueue())
-    # no page.reload() — the table must refresh itself off the SSE `changed` signal.
+    # no page.reload() - the table must refresh itself off the SSE `changed` signal.
     # timeout < the 8s heartbeat, so this proves the ENQUEUE event drove it, not the backstop.
     expect(page.locator("#jobs")).to_contain_text("liveappear", timeout=6000)
 
 
 def test_live_refresh_keeps_rows_inside_the_grid(page: Page, base_url, seeded, drive):
     # idiomorph once relocated id-keyed rows OUTSIDE .jobs-table on refresh
-    # (an intermediate wrapper confused it) — the grid stopped applying and
+    # (an intermediate wrapper confused it) - the grid stopped applying and
     # every column collapsed. Assert the structure survives a live morph.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     page.wait_for_timeout(2000)  # let the SSE connection establish
@@ -52,7 +52,7 @@ def test_live_refresh_keeps_rows_inside_the_grid(page: Page, base_url, seeded, d
 
 def test_stale_jobs_fragment_cannot_eat_the_panel(page: Page, base_url, seeded):
     # Regression: a live-refresh response landing after the user switched views
-    # used to morph the wrong view into #jobs — and recycled htmx closures could
+    # used to morph the wrong view into #jobs - and recycled htmx closures could
     # then replace the ENTIRE #queue-panel with a bare jobs fragment. Inject a
     # stale fragment exactly the way a leftover listener would and assert both
     # defenses hold: the wrong view is dropped, the panel chrome survives.

@@ -20,7 +20,7 @@ Each partial corresponds to a swappable region, so the names read as a map of
 the UI: `queue.html` (the panel), `jobs.html` (the table + pager),
 `job_detail.html` (the accordion body), `job_page.html`, `search_results.html`,
 `workers.html` / `workers_list.html`, `schedulers.html`, `sidebar.html`,
-`redis.html`, `toast.html` — plus the out-of-band wrappers
+`redis.html`, `toast.html` - plus the out-of-band wrappers
 (`sidebar_oob.html`, `tab_counts_oob.html`) that let one response update
 several regions ([Live updates](live-updates.md)).
 
@@ -30,7 +30,7 @@ several regions ([Live updates](live-updates.md)).
 
 | Macro | Renders |
 |---|---|
-| `icon(name)` | An inline-SVG Heroicon (outline set, self-hosted — no icon font, no CDN). |
+| `icon(name)` | An inline-SVG Heroicon (outline set, self-hosted - no icon font, no CDN). |
 | `job_row(name, j, state)` | One job row: a native `<details>` accordion with checkbox, id chip, data preview, progress bar, attempts, and the state-appropriate action buttons. The body lazy-loads via `hx-get` on first open. |
 | `job_chip(queue, jid)` | A clickable job-id chip linking to the standalone job page. |
 | `state_token(s)` / `state_color(s)` | Map a job state to a semantic token (`info`/`success`/`danger`/`warning`/`muted`) and its badge classes. |
@@ -53,15 +53,15 @@ math:
 
 ## Styling: Tailwind, standalone
 
-The CSS is built by the **standalone Tailwind CLI** — no Node, no npm:
+The CSS is built by the **standalone Tailwind CLI** - no Node, no npm:
 
 ```bash
 ./tailwindcss -i styles/input.css -o matador/static/app.css --watch
 ```
 
-`styles/input.css` defines the design tokens as CSS custom properties — panel,
+`styles/input.css` defines the design tokens as CSS custom properties - panel,
 line, ink, and the status colors (`--info`, `--success`, `--warning`,
-`--danger`, `--accent`) — with a light and a dark set; dark mode is
+`--danger`, `--accent`) - with a light and a dark set; dark mode is
 `darkMode: 'class'`, toggled by a small behavior and remembered in
 localStorage. Component classes (`.btn*`, `.card`, `.chip`, `.input`, `.th`,
 `.td`, `.pg*`) live in `@layer components`, and the status utilities built from

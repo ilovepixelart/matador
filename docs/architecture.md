@@ -60,20 +60,20 @@ same round trip. Live updates over SSE use the same idea. See
    [Security](security.md).
 3. A **route** handler (in the views or actions router) calls the **`Service`**,
    which reads/writes Redis through toro's async API and returns plain dicts.
-4. The handler renders a **Jinja template** to HTML — a full page or a fragment,
+4. The handler renders a **Jinja template** to HTML - a full page or a fragment,
    per `wants_fragment`.
 5. HTMX swaps the returned HTML into the target (`hx-target` / `hx-swap`), plus
    any OOB pieces.
 
 ## Server-side shape
 
-- **Routers** — `create_app` includes a *views* router (read: pages and
+- **Routers** - `create_app` includes a *views* router (read: pages and
   fragments) and an *actions* router (mutations: pause/resume, retry, remove,
   promote, clean, schedulers, …). All rendering goes through a shared `Service`.
-- **Templates** — organized as `layouts/` (the page skeleton), `pages/` (full
+- **Templates** - organized as `layouts/` (the page skeleton), `pages/` (full
   documents that extend the layout), and `partials/` (the HTMX swap fragments),
   with reusable bits in `macros.html`. See [Templates](templates.md).
-- **Static** — htmx + extensions, the built Tailwind CSS, fonts, and small
+- **Static** - htmx + extensions, the built Tailwind CSS, fonts, and small
   behavior scripts are served from a mounted `/static`, self-hosted (no CDN).
 
 Because it's hypermedia, the **behavior lives on the elements** (`hx-*`

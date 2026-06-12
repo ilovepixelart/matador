@@ -1,4 +1,4 @@
-"""E2E: the build's contract — a class NAME in the markup proves nothing if
+"""E2E: the build's contract - a class NAME in the markup proves nothing if
 its CSS got dropped (a purged utility, a broken @source pin, a dead dark
 variant: each happened or nearly happened today). These assert computed
 styles, not class lists.
@@ -23,7 +23,7 @@ def test_theme_toggle_actually_restyles(page: Page, base_url, seeded):
 
 
 def test_jinja_built_badge_classes_are_styled(page: Page, base_url, seeded):
-    # state badges build their classes in Jinja (bg-{{token}}/10) — the scanner
+    # state badges build their classes in Jinja (bg-{{token}}/10) - the scanner
     # can't see them; @source inline() pins them into the build. Verify the
     # pin holds: the badge background actually resolves to a colour.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
@@ -35,7 +35,7 @@ def test_jinja_built_badge_classes_are_styled(page: Page, base_url, seeded):
 
 def test_confirm_dialog_opens_centered(page: Page, base_url, seeded):
     # v4 preflight zeroes margins on EVERYTHING including <dialog>, which
-    # silently kills the UA's margin:auto centering — it happened.
+    # silently kills the UA's margin:auto centering - it happened.
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
     page.locator('#jobs button[data-tip="Remove this job"]').first.click()
     box = page.locator("#confirm-dialog").bounding_box()

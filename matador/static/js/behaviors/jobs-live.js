@@ -1,4 +1,4 @@
-// Pause the live #jobs refresh while you have a job row open — you're reading a detail,
+// Pause the live #jobs refresh while you have a job row open - you're reading a detail,
 // so the table shouldn't move/refresh under you. The refresh trigger always fires; this
 // just cancels the request while a row is open, so it's a progressive enhancement: if
 // this script fails to load, the table still refreshes (it simply won't pause).
@@ -27,7 +27,7 @@ document.body.addEventListener("htmx:beforeRequest", (e) => {
 // (user switched queue/tab while it was in flight) morphing a DIFFERENT view
 // into #jobs is how the panel got eaten: idiomorph pairs unrelated nodes
 // positionally, htmx's init-time closures stay glued to the recycled nodes,
-// and a later SSE tick fires the transplanted listener with no hx-target —
+// and a later SSE tick fires the transplanted listener with no hx-target -
 // inheriting #queue-panel. Compare the view identity both fragments already
 // carry (data-view="queue:state") and drop mismatched swaps.
 document.body.addEventListener("htmx:beforeSwap", (e) => {

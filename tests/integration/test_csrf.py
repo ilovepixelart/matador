@@ -42,7 +42,7 @@ async def test_cross_origin_get_is_not_blocked(guarded_client):
 
 
 async def test_guard_off_by_default(client):
-    # the default app ships no guard — a cross-origin POST is not 403'd by matador
+    # the default app ships no guard - a cross-origin POST is not 403'd by matador
     r = await client.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
     assert r.status_code != 403
 

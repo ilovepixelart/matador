@@ -1,12 +1,12 @@
-{# ---- Heroicons (outline, MIT) as inline SVG — no build step needed ---- #}
-{# The sidebar's class list — ONE definition shared by the page shell and the
+{# ---- Heroicons (outline, MIT) as inline SVG - no build step needed ---- #}
+{# The sidebar's class list - ONE definition shared by the page shell and the
    OOB refresh, so a live update can't morph the drawer styling out from under
    an open drawer. Off-canvas below md; the open state lives on <body>. #}
 {% macro sidebar_classes() -%}
 w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:bg-ink max-md:-translate-x-full max-md:transition-transform max-md:duration-200 [.sidebar-open_&]:max-md:translate-x-0
 {%- endmacro %}
 
-{# One badge style everywhere (paused, draining, state chips, counts) — the
+{# One badge style everywhere (paused, draining, state chips, counts) - the
    hand-rolled copies had drifted between px-1.5 and px-2. #}
 {% macro badge(tone, extra='') -%}
 text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
@@ -56,7 +56,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 <details id="jrow-{{ state }}-{{ j.id }}" class="jobs-row acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
          hx-target="find .acc-body" hx-trigger="toggle[this.open]">
-  {# One cell per grid track — check · chevron · id · name · data · progress ·
+  {# One cell per grid track - check · chevron · id · name · data · progress ·
      time · attempts · actions, in exactly this order; the subgrid does the
      aligning (.jobs-table in input.css). #}
   <summary class="jobs-cells hover:bg-panel2/30 transition-colors cursor-pointer
@@ -80,7 +80,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {% endif %}
     </span>
     {% if state == 'failed' and j.failed_reason %}
-    {# Failed rows lead with WHY — the payload is one expand away, the reason
+    {# Failed rows lead with WHY - the payload is one expand away, the reason
        is what an operator scans for. #}
     <span class="text-danger"><span class="truncate" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span></span>
     {% else %}

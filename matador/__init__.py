@@ -1,4 +1,4 @@
-"""matador — an async dashboard for toro queues."""
+"""matador - an async dashboard for toro queues."""
 
 from .app import create_app
 

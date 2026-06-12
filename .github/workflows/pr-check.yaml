@@ -9,7 +9,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-# Read-only by default — nothing here writes to the repo. SonarCloud PR
+# Read-only by default - nothing here writes to the repo. SonarCloud PR
 # decoration comes from the SonarCloud GitHub App, not GITHUB_TOKEN write scopes.
 permissions:
   contents: read
@@ -98,7 +98,7 @@ jobs:
         run: uv run pytest -m "unit or integration" --cov=matador --cov-report=xml
 
       # The committed app.css must match a fresh build of styles/input.css over
-      # the current templates — a stale build ships broken styling (e.g. dropped
+      # the current templates - a stale build ships broken styling (e.g. dropped
       # utilities rendering sr-only labels as visible text). Run once per matrix.
       - name: CSS build is fresh
         if: matrix.python-version == '3.13'
@@ -109,10 +109,10 @@ jobs:
           chmod +x /tmp/tailwindcss
           /tmp/tailwindcss -i styles/input.css -o matador/static/app.css
           git diff --exit-code matador/static/app.css || {
-            echo "::error::matador/static/app.css is stale — rebuild with ./tailwindcss -i styles/input.css -o matador/static/app.css"; exit 1; }
+            echo "::error::matador/static/app.css is stale - rebuild with ./tailwindcss -i styles/input.css -o matador/static/app.css"; exit 1; }
 
       # Runs only when SONAR_TOKEN is set (skipped on forks / before setup, so the
-      # check stays green), and only once per matrix — one coverage upload.
+      # check stays green), and only once per matrix - one coverage upload.
       # Config is inline; projectBaseDir targets the matador checkout because
       # this job uses a sibling layout (matador/ + toro/).
       - name: SonarCloud scan
@@ -124,7 +124,7 @@ jobs:
         with:
           projectBaseDir: matador
           # coverage.exclusions keeps the browser JS in analysis (issues) but out of the
-          # coverage metric — it's exercised by the Playwright e2e suite, not line-instrumented.
+          # coverage metric - it's exercised by the Playwright e2e suite, not line-instrumented.
           # exclusions drops the two vendored htmx extensions from analysis entirely.
           args: >
             -Dsonar.organization=ilovepixelart
@@ -137,7 +137,7 @@ jobs:
             -Dsonar.coverage.exclusions=tests/**,matador/static/js/**
             -Dsonar.exclusions=matador/static/js/response-targets.js,matador/static/js/loading-states.js,matador/static/app.css
 
-      # Browser behavior doesn't vary by Python — run the e2e layer once.
+      # Browser behavior doesn't vary by Python - run the e2e layer once.
       - name: Install Playwright browser
         if: matrix.python-version == '3.13'
         run: uv run playwright install --with-deps chromium

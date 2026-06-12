@@ -10,7 +10,7 @@ document.addEventListener("click", (e) => {
     document.body.classList.remove("sidebar-open");
     return;
   }
-  // Picking a queue (or Workers) navigated — the drawer's job is done.
+  // Picking a queue (or Workers) navigated - the drawer's job is done.
   if (e.target.closest("#sidebar a")) {
     document.body.classList.remove("sidebar-open");
   }

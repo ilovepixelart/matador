@@ -1,4 +1,4 @@
-"""E2E: prefers-reduced-motion is honored — animations and transitions are
+"""E2E: prefers-reduced-motion is honored - animations and transitions are
 effectively disabled when the OS asks for less motion."""
 
 from playwright.sync_api import Page

@@ -67,7 +67,7 @@ function onSwap() {
 // afterSettle fires once the DOM (incl. OOB swaps) is final, so the bar state set
 // here sticks; rAF guards against any late style application.
 document.body.addEventListener("htmx:afterSettle", () => requestAnimationFrame(onSwap));
-// Clear once a bulk-remove has been issued — centralised here so it doesn't depend
+// Clear once a bulk-remove has been issued - centralised here so it doesn't depend
 // on the triggering button surviving its own swap.
 document.body.addEventListener("htmx:afterRequest", (e) => {
   const p =

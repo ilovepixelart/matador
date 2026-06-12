@@ -1,4 +1,4 @@
-"""Integration: in-state search — by name/data substring and by exact job id."""
+"""Integration: in-state search - by name/data substring and by exact job id."""
 
 from .conftest import QUEUE, hx
 

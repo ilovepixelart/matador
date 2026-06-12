@@ -1,4 +1,4 @@
-"""Unit: _page_window — the windowed paginator (first, last, current ± span, ellipsis)."""
+"""Unit: _page_window - the windowed paginator (first, last, current ± span, ellipsis)."""
 
 import pytest
 

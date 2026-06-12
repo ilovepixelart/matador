@@ -20,7 +20,7 @@ def test_accordion_lazy_loads_detail_on_open(page: Page, base_url, seeded):
 
 def test_accordion_expands_scheduled_occurrence(page: Page, base_url, seeded, drive):
     """A repeatable job materializes a real delayed occurrence whose id contains
-    colons (`repeat:<sid>:<when>`). Its row must still lazy-load detail on expand —
+    colons (`repeat:<sid>:<when>`). Its row must still lazy-load detail on expand -
     colons in the id must not break the htmx target (they're a CSS pseudo-class)."""
 
     async def _add_scheduler():
@@ -40,7 +40,7 @@ def test_accordion_expands_scheduled_occurrence(page: Page, base_url, seeded, dr
 
 def test_reopen_after_live_refresh_still_loads_the_detail(page: Page, base_url, seeded, drive):
     # `toggle once` + a live morph lost the reference: the morph emptied the
-    # closed row's body but the preserved node remembered it already fetched —
+    # closed row's body but the preserved node remembered it already fetched -
     # reopening expanded nothing, forever.
     from toro import Queue
 
@@ -61,13 +61,13 @@ def test_reopen_after_live_refresh_still_loads_the_detail(page: Page, base_url, 
     drive(background_noise())  # changed event → the list morphs while closed
     expect(page.locator("#jobs")).to_contain_text("background-noise", timeout=6000)
 
-    row.locator("summary").click()  # reopen — the detail must come back
+    row.locator("summary").click()  # reopen - the detail must come back
     expect(row).to_contain_text("opts")
 
 
 def test_paused_banner_shows_while_a_row_is_open(page: Page, base_url, seeded):
     # Regression: Tailwind 4 layers utilities after components, so a `hidden`
-    # utility on the banner silently beat the :has() reveal rule — the banner
+    # utility on the banner silently beat the :has() reveal rule - the banner
     # never showed again and no test noticed.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     banner = page.locator(".jobs-paused")

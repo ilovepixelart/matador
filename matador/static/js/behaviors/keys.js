@@ -1,5 +1,5 @@
 // Keyboard affordances: "/" jumps to the search box, Escape closes whatever is
-// open — the search box's focus, the phone drawer, then any expanded job rows.
+// open - the search box's focus, the phone drawer, then any expanded job rows.
 // Stays out of the way while typing; the confirm <dialog> handles its own Esc.
 // Delegated on document so it survives htmx swaps.
 function typing(el) {
@@ -18,7 +18,7 @@ document.addEventListener("keydown", (e) => {
   }
   // Gmail-style row cursor: j/k move (real focus, so the focus outline and
   // assistive tech come along), o opens, x selects into the bulk bar. Nothing
-  // destructive lives on a key — Gmail pairs those with undo; we don't have one.
+  // destructive lives on a key - Gmail pairs those with undo; we don't have one.
   if (["j", "k", "o", "x"].includes(e.key) && !typing(e.target) && !e.metaKey && !e.ctrlKey && !e.altKey) {
     const rows = [...document.querySelectorAll("#jobs details > summary")];
     if (!rows.length) return;

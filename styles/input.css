@@ -1,10 +1,10 @@
 /* Tailwind v4, CSS-first: tokens, dark variant, dynamic-class pins and
-   keyframes all live here — there is no tailwind.config.js. Templates are the
+   keyframes all live here - there is no tailwind.config.js. Templates are the
    only scan source (source() restricts the auto-detector). */
 @import "tailwindcss" source("../matador/templates");
 
 /* The badge/state macros build class names in Jinja (`bg-{{token}}/10`), which
-   the scanner can't see — pin exactly those utilities (was: safelist). */
+   the scanner can't see - pin exactly those utilities (was: safelist). */
 @source inline("{text,bg}-{info,success,warning,danger,muted}");
 @source inline("bg-{info,success,warning,danger,muted}/10");
 @source inline("ring-{info,success,warning,danger,muted}/30");
@@ -13,7 +13,7 @@
    (saved choice first, else prefers-color-scheme). */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Inter — self-hosted variable font (offline, like our Tailwind build). */
+/* Inter - self-hosted variable font (offline, like our Tailwind build). */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
@@ -67,10 +67,10 @@
     --warning: rgb(251 191 36); --danger: rgb(251 113 133);
   }
   body { font-feature-settings: 'tnum'; }
-  /* v4 preflight makes buttons cursor:default — interactive means pointer here. */
+  /* v4 preflight makes buttons cursor:default - interactive means pointer here. */
   button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
   /* Nav links (tabs, sidebar, pagination) and summaries get the same keyboard
-     focus treatment buttons have — preflight-level, so no element misses it. */
+     focus treatment buttons have - preflight-level, so no element misses it. */
   a:focus-visible,
   summary:focus-visible {
     outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent);
@@ -80,7 +80,7 @@
 }
 
 @layer components {
-  /* focus: the same outline language as links/summaries/checkboxes — outlines
+  /* focus: the same outline language as links/summaries/checkboxes - outlines
      are surface-independent (ring-offset assumed an ink background and painted
      a black halo on dialog/panel surfaces). */
   .btn { @apply inline-flex items-center gap-1.5 rounded-lg text-sm font-medium transition-colors
@@ -115,7 +115,7 @@
   .htmx-request .htmx-indicator,
   .htmx-request.htmx-indicator { @apply opacity-100; }
 
-  /* Accordion: native <details> — chevron rotates on open, body fades in. */
+  /* Accordion: native <details> - chevron rotates on open, body fades in. */
   .acc-item { @apply last:border-b-0; }
   .chevron { @apply transition-transform duration-200; }
   details[open] > summary .chevron { @apply rotate-180; }
@@ -143,7 +143,7 @@
   .q-active .q-name { @apply text-fg font-semibold; }
 
   /* Themed checkboxes (job rows + select-all), with check + indeterminate states.
-     The two glyphs are inline SVG data URIs — kept as plain declarations below. */
+     The two glyphs are inline SVG data URIs - kept as plain declarations below. */
   .chk { @apply appearance-none shrink-0 w-4 h-4 border-[1.5px] border-line rounded-sm
                 bg-panel2 cursor-pointer transition-colors duration-[120ms]
                 hover:border-accent/60
@@ -160,7 +160,7 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M4 8h8'/%3E%3C/svg%3E");
   }
 
-  /* Pretty JSON — Pygments token classes (server-rendered), themed for light + dark. */
+  /* Pretty JSON - Pygments token classes (server-rendered), themed for light + dark. */
   .jsonv { @apply font-mono text-xs leading-[1.55] whitespace-pre-wrap break-words m-0 text-fg; }
   .jsonv .nt { @apply text-info; }                          /* object keys */
   .jsonv .s2, .jsonv .s1, .jsonv .s { @apply text-success; }  /* strings */
@@ -170,13 +170,13 @@
 
   /* Hover-for-more on non-interactive informational titles (redis chips, detail
      fields, departed timestamps). Clickable ancestors (rows, tabs, sidebar
-     links) keep their pointer — help would lie about the click. */
+     links) keep their pointer - help would lie about the click. */
   #redis-bar .chip[title],
   dl dd[title],
   td[title] { @apply cursor-help; }
 
   /* The job list IS a table: one grid; the header and every row are subgrids
-     of it, so columns align by construction — no hand-maintained width math.
+     of it, so columns align by construction - no hand-maintained width math.
      Tracks: check · chevron · id · name · data · progress · time · attempts ·
      actions. max-content tracks size to the widest cell in the whole list
      (even mixed-state search results stay aligned). */
@@ -195,15 +195,15 @@
   /* The open body must span the full row WITHOUT feeding the shared
      max-content tracks (contain:inline-size = measures as empty for track
      sizing). Chromium wraps details content in an internal ::details-content
-     box — THAT is the real grid item there; the .acc-body rule covers engines
+     box - THAT is the real grid item there; the .acc-body rule covers engines
      without the wrapper. */
   .jobs-row { @apply [&::details-content]:col-span-full [&::details-content]:[contain:inline-size]; }
   .jobs-row > .acc-body { @apply col-span-full [contain:inline-size]; }
 }
 
-/* ════ No Tailwind vocabulary below this line — each rule says why. ════ */
+/* ════ No Tailwind vocabulary below this line - each rule says why. ════ */
 
-/* Sidebar sparklines: geometry transitions ride the live morph — idiomorph
+/* Sidebar sparklines: geometry transitions ride the live morph - idiomorph
    updates y/height attributes on existing rects, so changed bars slide
    instead of flashing. Gated on reduced-motion. */
 @media (prefers-reduced-motion: no-preference) {
@@ -215,7 +215,7 @@
 ::-webkit-scrollbar-thumb { @apply bg-line rounded-md; }
 
 /* Own the search ✕ outright (vendor pseudo-element + masked glyph): theme
-   tokens, not the UA's widget set — it rendered macOS-accent blue on a dark
+   tokens, not the UA's widget set - it rendered macOS-accent blue on a dark
    page. The mask data URI can't be a utility. */
 input[type="search"]::-webkit-search-cancel-button {
   @apply appearance-none h-[0.85rem] w-[0.85rem] cursor-pointer bg-muted hover:bg-fg;
@@ -224,7 +224,7 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 /* Less motion when the OS asks for it: animations collapse to a single instant
-   frame, transitions snap, view transitions don't animate. A global * guard —
+   frame, transitions snap, view transitions don't animate. A global * guard -
    per-element motion-reduce: utilities would have to chase every animated
    class forever. (0.01ms instead of none so JS animation-end hooks still fire.) */
 @media (prefers-reduced-motion: reduce) {

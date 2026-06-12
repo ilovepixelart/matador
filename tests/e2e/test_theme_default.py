@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 
 from .conftest import QUEUE
 
-DARK = re.compile(r"(^|\s)dark(\s|$)")  # the bare token — html carries utility classes too
+DARK = re.compile(r"(^|\s)dark(\s|$)")  # the bare token - html carries utility classes too
 
 
 def test_first_visit_follows_the_os_scheme(page: Page, base_url, seeded):

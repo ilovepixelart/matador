@@ -1,4 +1,4 @@
-"""E2E: multi-select bulk delete — the browser-only behaviours. The hard part is
+"""E2E: multi-select bulk delete - the browser-only behaviours. The hard part is
 the selection surviving pagination (ids live in a JS Set across htmx swaps)."""
 
 import re
@@ -21,7 +21,7 @@ def test_selecting_rows_reveals_the_bulk_bar(page: Page, base_url, seeded_many):
 
 def test_checking_a_row_does_not_open_it(page: Page, base_url, seeded_many):
     # The checkbox sits inside the <details> summary. Checking it must not toggle the
-    # row open — the <label> forwards the click to the checkbox, which consumes the
+    # row open - the <label> forwards the click to the checkbox, which consumes the
     # activation, so the summary never toggles.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     expect(page.locator("#jobs details[open]")).to_have_count(0)

@@ -1,4 +1,4 @@
-"""Browsers parse leniently — one mismatched closing tag silently eats DOM
+"""Browsers parse leniently - one mismatched closing tag silently eats DOM
 (it happened: a </div> closing a <span> cell collapsed 20 rows to 2, and the
 suite only caught it three layers up). Assert tag balance server-side for the
 element types the views are built of.

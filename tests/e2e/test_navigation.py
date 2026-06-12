@@ -32,7 +32,7 @@ def test_back_button_restores_previous_tab(page: Page, base_url, seeded):
 
 
 def test_job_list_columns_align_with_the_header(page: Page, base_url, seeded):
-    # The header and rows consume one column contract (job_cols) — measure the
+    # The header and rows consume one column contract (job_cols) - measure the
     # rendered left edges so width drift between them can't come back.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     for col in ("id", "name", "time"):
@@ -56,7 +56,7 @@ def test_cursor_semantics(page: Page, base_url, seeded):
 
 
 def test_open_row_does_not_deform_the_columns(page: Page, base_url, seeded):
-    # The detail body spans every track of the shared subgrid — without a zero
+    # The detail body spans every track of the shared subgrid - without a zero
     # intrinsic width it feeds the max-content tracks and deforms ALL rows.
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
     label = page.locator("#jobs details summary label").first

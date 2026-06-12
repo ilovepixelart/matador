@@ -1,6 +1,6 @@
 {% from "macros.html" import icon %}
 {# Queue health chips. The bar chart lives in the sidebar (one sparkline per
-   queue, shared scale) — in here it's just the headline numbers. Latency
+   queue, shared scale) - in here it's just the headline numbers. Latency
    leads: depth says how much is queued, latency says how far behind we are.
    Failed renders only when nonzero, so color always means a problem. #}
 <div id="metrics-strip" class="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -17,7 +17,7 @@
     <span class="text-danger">failed · {{ m.fail_pct }}%</span></span>
   {% endif %}
   {% if m.percentiles.p95 %}
-  <span class="chip tip" data-tip="Duration percentiles, successful jobs only — estimates from log-scale buckets (within ~22%). A mean would hide the tail.">
+  <span class="chip tip" data-tip="Duration percentiles, successful jobs only - estimates from log-scale buckets (within ~22%). A mean would hide the tail.">
     p50 <b class="text-fg tabular-nums">{{ m.percentiles.p50|dur }}</b>
     · p95 <b class="text-fg tabular-nums">{{ m.percentiles.p95|dur }}</b></span>
   {% endif %}

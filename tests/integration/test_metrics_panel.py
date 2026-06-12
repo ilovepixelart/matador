@@ -45,7 +45,7 @@ async def test_queue_panel_renders_metrics_inline(client, seeded):
 
 
 async def test_sidebar_shows_a_sparkline_for_every_queue(client, seeded):
-    # the sidebar sparkline is THE chart for a queue — selected or not
+    # the sidebar sparkline is THE chart for a queue - selected or not
     r = await client.get(f"/queues/{QUEUE}")
     assert r.status_code == 200
     assert 'class="q-spark' in r.text
@@ -102,13 +102,13 @@ async def test_chips_show_percentiles_not_average(client, seeded):
 async def test_panel_lists_jobs_by_name_failures_first(client, seeded):
     r = await client.get(f"/queues/{QUEUE}")
     assert 'id="names"' in r.text
-    # seeded ran okjob (completed) and badjob (failed) — badjob must lead
+    # seeded ran okjob (completed) and badjob (failed) - badjob must lead
     assert r.text.index("badjob") < r.text.index("okjob")
     assert "p95" in r.text
 
 
 async def test_sparse_percentiles_are_dimmed(client, seeded):
-    # seeded completes ONE job — p95 of n=1 is just the slowest job's bucket,
+    # seeded completes ONE job - p95 of n=1 is just the slowest job's bucket,
     # so the cell renders dimmed with the sample-size explanation
     r = await client.get(f"/queues/{QUEUE}")
     assert 'data-sparse="p95"' in r.text

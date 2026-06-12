@@ -1,4 +1,4 @@
-"""Unit: _human_bytes — Redis memory sizing shown in the top bar."""
+"""Unit: _human_bytes - Redis memory sizing shown in the top bar."""
 
 import pytest
 
@@ -8,9 +8,9 @@ from matador.service import _human_bytes
 @pytest.mark.parametrize(
     "n, expected",
     [
-        (None, "—"),
-        (0, "—"),
-        (-5, "—"),  # nonsense input → dash, not "-5B"
+        (None, "-"),
+        (0, "-"),
+        (-5, "-"),  # nonsense input → dash, not "-5B"
         (512, "512B"),  # bytes: no decimals
         (1536, "1.50K"),
         (5 * 1024**2, "5.00M"),

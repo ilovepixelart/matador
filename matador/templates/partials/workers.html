@@ -5,7 +5,7 @@
       <span class="text-accent">{{ icon('server', 'w-5 h-5') }}</span> Workers
     </h1>
   </div>
-  {# Self-refreshing list — workers heartbeat every ~5s; poll a little faster so
+  {# Self-refreshing list - workers heartbeat every ~5s; poll a little faster so
      "running" and the live counts stay fresh. Polling stops when you navigate
      away (htmx tears down the interval with the removed element). #}
   {# hx-target="this" is REQUIRED: the panel's #queue-panel target is inherited, so
