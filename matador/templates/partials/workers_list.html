@@ -14,7 +14,7 @@
 </div>
 <div class="rounded-xl border border-line overflow-hidden">
   <table class="w-full text-sm">
-    <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+    <thead class="bg-panel2/40 label text-left">
       <tr>
         <th scope="col" class="th">Worker</th>
         {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
@@ -63,7 +63,7 @@
 
 {% if departed %}
 <div class="flex items-center justify-between mt-8 mb-3">
-  <div class="text-xs uppercase tracking-wider text-muted">Recently stopped</div>
+  <div class="label">Recently stopped</div>
   <button class="btn btn-sm btn-ghost tip" data-tip="Clear stopped-worker history"
           hx-post="{{ url_for('clear_departed').path }}"
           hx-target="#workers-list" hx-swap="morph:innerHTML"
@@ -72,7 +72,7 @@
 </div>
 <div class="rounded-xl border border-line overflow-hidden">
   <table class="w-full text-sm">
-    <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+    <thead class="bg-panel2/40 label text-left">
       <tr>
         <th scope="col" class="th">Worker</th>
         {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}

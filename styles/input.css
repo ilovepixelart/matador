@@ -80,6 +80,14 @@
 }
 
 @layer components {
+  /* Type scale - four steps, mapped by ROLE; keep new UI on these:
+       text-lg    page titles (h1)
+       text-base  dialog/empty-state headings (h3) + the header brand lockup
+       text-sm    body: rows, tables, forms, sidebar entries, trees
+       text-xs    meta: labels (.label below), badges, chips, counts, tooltips
+     No arbitrary px sizes; nothing inherits the browser's 16px by accident. */
+  .label { @apply text-xs uppercase tracking-wider text-muted; }
+
   /* focus: the same outline language as links/summaries/checkboxes - outlines
      are surface-independent (ring-offset assumed an ink background and painted
      a black halo on dialog/panel surfaces). */
@@ -133,7 +141,7 @@
     content: '';
     @apply absolute left-0 top-[1.05rem] w-2.5 border-t border-line;
   }
-  .ftree-row { @apply flex items-center gap-2 py-1 min-w-0 rounded-md; }
+  .ftree-row { @apply flex items-center gap-3 py-1 min-w-0 rounded-md; }
   /* "you are here" - lifted surface + hairline ring, no colour spent */
   .ftree-here { @apply bg-panel2/60 px-1.5 -mx-1.5 ring-1 ring-line; }
 
@@ -151,7 +159,7 @@
 
   /* Tooltip (fixed, positioned by JS so it escapes overflow + stays in viewport). */
   #tip { @apply fixed z-[1000] pointer-events-none bg-fg text-ink
-                text-[11px] font-medium leading-[1.35] max-w-[260px] break-words
+                text-xs font-medium leading-[1.35] max-w-[260px] break-words
                 px-[7px] py-[5px] rounded-md shadow-[0_6px_16px_rgb(0_0_0/.28)]
                 opacity-0 translate-y-[3px] transition-all duration-[120ms] ease-out; }
   #tip.show { @apply opacity-100 translate-y-0; }

@@ -35,7 +35,7 @@
 <div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
   {% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
   {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
-  <div class="jobs-head border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
+  <div class="jobs-head border-b border-line bg-panel2/30 label select-none">
     <label class="cursor-pointer">
       <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
     </label>

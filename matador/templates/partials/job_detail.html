@@ -3,22 +3,22 @@
 <div class="px-5 py-4 border-t border-line bg-ink/40">
   <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
     {% if job.queue %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">queue</dt><dd class="font-mono">{{ job.queue }}</dd></div>
+    <div><dt class="label">queue</dt><dd class="font-mono">{{ job.queue }}</dd></div>
     {% endif %}
     {% if job.processed_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">processed</dt><dd class="font-mono" title="{{ job.processed_on|at }}">{{ job.processed_on|clockms }}</dd></div>
+    <div><dt class="label">processed</dt><dd class="font-mono" title="{{ job.processed_on|at }}">{{ job.processed_on|clockms }}</dd></div>
     {% endif %}
     {% if job.processed_on and job.finished_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">duration</dt>
+    <div><dt class="label">duration</dt>
       <dd class="font-mono">{{ (job.finished_on - job.processed_on)|dur }}</dd></div>
     {% endif %}
     {% if job.finished_on %}
-    <div><dt class="text-muted text-xs uppercase tracking-wider">finished</dt><dd class="font-mono" title="{{ job.finished_on|at }}">{{ job.finished_on|clockms }}</dd></div>
+    <div><dt class="label">finished</dt><dd class="font-mono" title="{{ job.finished_on|at }}">{{ job.finished_on|clockms }}</dd></div>
     {% endif %}
 
     {% if job.progress is not none %}
     <div class="col-span-2">
-      <dt class="text-muted text-xs uppercase tracking-wider mb-1">progress</dt>
+      <dt class="label mb-1">progress</dt>
       <dd>
         {% if job.progress is number %}
         <div class="flex items-center gap-2">
@@ -37,7 +37,7 @@
     {% if job.parent_id %}
     {# A flow child: one hop up to the parent that's waiting on it. #}
     <div class="col-span-2 flex items-center gap-2">
-      <dt class="text-muted text-xs uppercase tracking-wider flex items-center gap-1">
+      <dt class="label flex items-center gap-1">
         {{ icon('flow', 'w-3.5 h-3.5') }} flow</dt>
       <dd class="text-sm flex items-center gap-1.5">part of {{ job_chip(job.queue or name, job.parent_id) }}</dd>
     </div>
@@ -46,7 +46,7 @@
     {% if job.flow %}
     {# A flow parent: fan-in progress + the whole tree, states at a glance. #}
     <div class="col-span-2">
-      <dt class="text-muted text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
+      <dt class="label mb-1 flex items-center gap-1">
         {{ icon('flow', 'w-3.5 h-3.5') }} flow
         <span class="normal-case tracking-normal">· {{ job.children_done }}/{{ job.children_total }} children done</span>
         {% if job.children_failed %}
@@ -72,11 +72,11 @@
       </dd>
     </div>
     {% if job.children_results %}
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">children results</dt>
+    <div class="col-span-2"><dt class="label mb-1">children results</dt>
       <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto max-h-56">{{ job.children_results|pretty }}</pre></dd></div>
     {% endif %}
     {% if job.children_failures %}
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">child failures</dt>
+    <div class="col-span-2"><dt class="label mb-1">child failures</dt>
       <dd class="bg-ink rounded-lg border border-line p-2.5 space-y-1 overflow-auto max-h-56">
         {% for cid, reason in job.children_failures.items() %}
         <div class="flex items-baseline gap-2 text-sm min-w-0">
@@ -88,18 +88,18 @@
     {% endif %}
     {% endif %}
 
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">data</dt>
+    <div class="col-span-2"><dt class="label mb-1">data</dt>
       <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.data|pretty }}</pre></dd></div>
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">opts</dt>
+    <div class="col-span-2"><dt class="label mb-1">opts</dt>
       <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.opts|pretty }}</pre></dd></div>
     {% if job.returnvalue is not none %}
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">result</dt>
+    <div class="col-span-2"><dt class="label mb-1">result</dt>
       <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.returnvalue|pretty }}</pre></dd></div>
     {% endif %}
 
     {% if job.logs %}
     <div class="col-span-2">
-      <dt class="text-muted text-xs uppercase tracking-wider mb-1">logs</dt>
+      <dt class="label mb-1">logs</dt>
       <dd class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-40 overflow-auto space-y-0.5">
         {% for line in job.logs %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
       </dd>
@@ -107,13 +107,13 @@
     {% endif %}
 
     {% if job.failed_reason %}
-    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider">error</dt>
+    <div class="col-span-2"><dt class="label">error</dt>
       <dd class="font-mono text-danger break-all">{{ job.failed_reason }}</dd></div>
     {% endif %}
 
     {% if job.stacktrace and show_stacktraces|default(true) %}
     <div class="col-span-2">
-      <dt class="text-muted text-xs uppercase tracking-wider mb-1">stack trace</dt>
+      <dt class="label mb-1">stack trace</dt>
       <dd><pre class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-56 overflow-auto text-danger whitespace-pre-wrap">{{ job.stacktrace }}</pre></dd>
     </div>
     {% endif %}

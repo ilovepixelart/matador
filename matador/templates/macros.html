@@ -179,28 +179,27 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
    class="px-1.5 py-0.5 rounded-md bg-info/10 text-info text-xs font-mono hover:bg-info/20">#{{ jid }}</a>
 {%- endmacro %}
 
-{# One node of a flow tree (recursive): id chip · name · reason · status pill.
-   Statuses are spelled out as the same state pills the rest of the UI uses
-   (no color-decoding); an active pill pulses (same alive-cue as a draining
-   worker), finished nodes show their duration beside the pill.
-   The current job's row is gently lifted so "you are here" needs no legend.
-   Import `with context` (job_chip needs url_for). #}
+{# One node of a flow tree (recursive): id chip · status pill · name · duration
+   · failure reason. The status sits in a fixed-width column so names stay
+   flush within a level - the same state pills the rest of the UI uses,
+   spelled out (no color-decoding); the active pill pulses like a draining
+   worker. The current job's row is gently lifted so "you are here" needs no
+   legend. Import `with context` (job_chip needs url_for). #}
 {% macro flow_node(queue, node, current_id) -%}
 <li>
   <div class="ftree-row{{ ' ftree-here' if node.job.id == current_id }}">
     {{ job_chip(queue, node.job.id) }}
-    <span class="min-w-0 truncate{{ ' font-medium' if node.job.id == current_id }}">{{ node.job.name }}</span>
+    <span class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(node.job.state) }}{{ ' animate-pulse' if node.job.state == 'active' }}">
+      {{- 'waiting' if node.job.state == 'waiting-children' else node.job.state -}}
+    </span>
+    <span class="shrink-0 truncate max-w-48{{ ' font-medium' if node.job.id == current_id }}">{{ node.job.name }}</span>
+    {% if node.job.processed_on and node.job.finished_on
+          and node.job.finished_on - node.job.processed_on > 0 %}
+    <span class="text-xs text-muted tabular-nums shrink-0">{{ (node.job.finished_on - node.job.processed_on)|dur }}</span>
+    {% endif %}
     {% if node.job.state == 'failed' and node.job.failed_reason %}
     <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
     {% endif %}
-    <span class="ml-auto flex items-center gap-1.5 shrink-0">
-      {% if node.job.processed_on and node.job.finished_on %}
-      <span class="text-xs text-muted tabular-nums">{{ (node.job.finished_on - node.job.processed_on)|dur }}</span>
-      {% endif %}
-      <span class="text-xs px-1.5 py-0.5 rounded-md {{ state_color(node.job.state) }}{{ ' animate-pulse' if node.job.state == 'active' }}">
-        {{- 'waiting' if node.job.state == 'waiting-children' else node.job.state -}}
-      </span>
-    </span>
   </div>
   {% if node.children %}
   <ul>
