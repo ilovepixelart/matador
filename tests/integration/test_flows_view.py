@@ -114,3 +114,46 @@ async def test_tab_counts_oob_includes_the_flows_tab(client, q):
     await _flow(q)
     r = await client.get(f"/queues/{QUEUE}/jobs?state=wait", headers=hx())
     assert 'id="tabcount-waiting-children"' in r.text  # the badge refreshes too
+
+
+async def test_service_flow_detail_counts_by_child_state(q):
+    """The service's fan-in numbers: done counts completions only, failed counts
+    failures, pending children count toward neither."""
+    from matador.service import Service
+
+    parent = await q.add_flow(
+        "report",
+        {},
+        children=[
+            c("done", {}),
+            c("bad", {}, on_fail="continue"),
+            c("pending", {}, delay=600_000),  # parked in delayed: settles nothing
+        ],
+    )
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom")
+        return 1
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        cts = await q.counts()
+        if cts["completed"] >= 1 and cts["failed"] >= 1:
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    try:
+        detail = await svc.job(QUEUE, parent.id)
+    finally:
+        await svc.close()
+
+    assert detail["children_total"] == 3
+    assert detail["children_done"] == 1
+    assert detail["children_failed"] == 1  # the tolerated failure
+    assert detail["children_results"] and detail["children_failures"]
+    assert len(detail["flow"]["children"]) == 3  # the tree carries all three
