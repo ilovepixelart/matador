@@ -103,11 +103,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under
          Schedulers and names the schedule it came from. #}
-      {# icon-only muted glyph, like the flow badges: metadata stays a quiet
-         symbol, the tooltip names the scheduler it came from #}
-      <span class="tip inline-flex items-center shrink-0 p-1 rounded-md bg-muted/10 text-muted"
-            data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
-        {{ icon('clock', 'w-3 h-3') }}<span class="sr-only">Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
+      {{ glyph('clock', "Scheduled occurrence from scheduler '" ~ j.id.split(':')[1] ~ "'") }}
       {% endif %}
       {% if j.children_count %}
       {# A flow parent: quiet branch glyph + how wide the fan-out is. #}
@@ -118,9 +114,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {# A flow child: its own turn-arrow glyph (belongs under a parent), so
          parents and children read differently at a glance. The parent link
          lives in the detail; the row just hints. #}
-      <span class="tip inline-flex items-center shrink-0 p-1 rounded-md bg-muted/10 text-muted"
-            data-tip="Part of flow #{{ j.parent_id }}">
-        {{ icon('flow-child', 'w-3 h-3') }}<span class="sr-only">Part of flow #{{ j.parent_id }}</span></span>
+      {{ glyph('flow-child', 'Part of flow #' ~ j.parent_id) }}
       {% endif %}
     </span>
     {% if state == 'failed' and j.failed_reason %}
@@ -169,7 +163,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
               hx-delete="{{ url_for('remove', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
               hx-target="#queue-panel"
               {% if j.children_count %}
-              hx-confirm="Remove flow #{{ j.id }} AND its {{ j.children_count }} child job{{ 's' if j.children_count != 1 }}?"
+              hx-confirm="Remove flow #{{ j.id }} and its whole subtree ({{ j.children_count }} direct child{{ 'ren' if j.children_count != 1 }}, grandchildren included, even running ones)?"
               {% else %}
               hx-confirm="Remove job #{{ j.id }}?"
               {% endif %}
@@ -179,6 +173,14 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
   </summary>
   <div class="acc-body"></div>
 </details>
+{%- endmacro %}
+
+{# An icon-only metadata glyph: a muted pill, words live in the tooltip.
+   Gap rules for badges are documented on badge() above. #}
+{% macro glyph(icon_name, tip) -%}
+<span class="tip inline-flex items-center shrink-0 p-1 rounded-md bg-muted/10 text-muted"
+      data-tip="{{ tip }}">
+  {{ icon(icon_name, 'w-3 h-3') }}<span class="sr-only">{{ tip }}</span></span>
 {%- endmacro %}
 
 {# state -> what the tab is called. `waiting-children` reads as "flows": one

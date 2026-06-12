@@ -526,14 +526,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .overflow-auto {
-    overflow: auto;
-  }
   .overflow-hidden {
     overflow: hidden;
   }
   .overflow-y-auto {
     overflow-y: auto;
+  }
+  .rounded {
+    border-radius: 0.25rem;
   }
   .rounded-full {
     border-radius: calc(infinity * 1px);
@@ -676,9 +676,6 @@
   }
   .p-1 {
     padding: calc(var(--spacing) * 1);
-  }
-  .p-2\.5 {
-    padding: calc(var(--spacing) * 2.5);
   }
   .p-3 {
     padding: calc(var(--spacing) * 3);
@@ -1168,6 +1165,15 @@
     color: var(--muted);
     text-transform: uppercase;
   }
+  .well {
+    overflow: auto;
+    border-radius: var(--radius-lg);
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+    border-color: var(--line);
+    background-color: var(--ink);
+    padding: calc(var(--spacing) * 2.5);
+  }
   .btn {
     display: inline-flex;
     align-items: center;
@@ -1436,6 +1442,7 @@
   .ftree {
     font-size: var(--text-sm);
     line-height: var(--tw-leading, var(--text-sm--line-height));
+    --elbow: 1.05rem;
   }
   .ftree ul {
     margin-top: calc(var(--spacing) * 0.5);
@@ -1457,12 +1464,12 @@
   }
   .ftree ul > li:last-child::before {
     bottom: auto;
-    height: 1.05rem;
+    height: var(--elbow);
   }
   .ftree ul > li::after {
     content: '';
+    top: var(--elbow);
     position: absolute;
-    top: 1.05rem;
     left: calc(var(--spacing) * 0);
     width: calc(var(--spacing) * 2.5);
     border-top-style: var(--tw-border-style);

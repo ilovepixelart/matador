@@ -1,5 +1,6 @@
 {% from "macros.html" import icon, bar_color, job_row, jobs_head, empty_state, pglink, state_label with context %}
-{% set bulk = state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] %}
+{# every state except active is bulk-actionable (a worker holds active jobs) #}
+{% set bulk = state != 'active' %}
 {% if bulk and jobs %}
 <div class="flex items-center gap-2 px-4 py-2.5 bg-panel2/40 border-b border-line">
   {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
@@ -10,7 +11,12 @@
     <button id="bulk-delete" class="btn btn-sm btn-danger"
             hx-post="{{ url_for('bulk_remove', name=name).path }}?state={{ state }}&page={{ page }}"
             hx-vals="js:{ids: Matador.bulk.ids()}" hx-target="#queue-panel"
-            hx-confirm="Delete selected jobs?" data-loading-disable data-loading-aria-busy>
+            {% if state == 'waiting-children' %}
+            hx-confirm="Delete the selected flows? Each parent is removed WITH its whole subtree - children included, even running ones."
+            {% else %}
+            hx-confirm="Delete selected jobs?"
+            {% endif %}
+            data-loading-disable data-loading-aria-busy>
       {{ icon('trash', 'w-3.5 h-3.5') }} delete</button>
   </div>
   <div class="flex-1"></div>
@@ -59,7 +65,7 @@
 
 {% if pages > 1 %}
 <div class="flex items-center justify-between px-4 py-2.5 border-t border-line text-xs">
-  <span class="text-muted">{{ total|comma }} {{ state }} · page {{ page }} of {{ pages }}</span>
+  <span class="text-muted">{{ total|comma }} {{ state_label(state) }} · page {{ page }} of {{ pages }}</span>
   <nav class="flex items-center gap-1" aria-label="pagination">
     {{ pglink(page - 1, icon('chevron', 'w-3.5 h-3.5 rotate-90'), disabled=(page <= 1)) }}
     {% for p in nav %}

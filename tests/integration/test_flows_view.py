@@ -99,7 +99,7 @@ async def test_child_detail_links_to_parent(client, q):
 async def test_flow_parent_row_warns_remove_takes_subtree(client, q):
     await _flow(q)
     r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children", headers=hx())
-    assert "AND its 2 child jobs" in r.text  # the destructive confirm is honest
+    assert "whole subtree (2 direct children" in r.text  # the destructive confirm is honest
 
 
 async def test_search_scopes_to_the_flows_tab(client, q):

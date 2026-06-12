@@ -82,11 +82,14 @@
 @layer components {
   /* Type scale - four steps, mapped by ROLE; keep new UI on these:
        text-lg    page titles (h1)
-       text-base  dialog/empty-state headings (h3) + the header brand lockup
+       text-base  dialog headings (h3) + the header brand lockup
        text-sm    body: rows, tables, forms, sidebar entries, trees
        text-xs    meta: labels (.label below), badges, chips, counts, tooltips
      No arbitrary px sizes; nothing inherits the browser's 16px by accident. */
   .label { @apply text-xs uppercase tracking-wider text-muted; }
+  /* The inset content well used by every job-detail section (data, opts,
+     result, logs, stacktrace, flow tree, children results/failures). */
+  .well { @apply bg-ink rounded-lg border border-line p-2.5 overflow-auto; }
 
   /* focus: the same outline language as links/summaries/checkboxes - outlines
      are surface-independent (ring-offset assumed an ink background and painted
@@ -129,17 +132,18 @@
      child's trunk stops at its elbow, so branches visibly terminate. Geometry:
      trunk x sits just inside the parent's id chip,
      elbows meet the child row at first-line height. */
-  .ftree { @apply text-sm; }
+  .ftree { @apply text-sm; --elbow: 1.05rem; /* one knob: trunk stop + tick height */ }
   .ftree ul { @apply ml-[2.5px] mt-0.5; }
   .ftree ul > li { @apply relative pl-4; }
   .ftree ul > li::before {
     content: '';
     @apply absolute left-0 top-0 bottom-0 border-l border-line;
   }
-  .ftree ul > li:last-child::before { @apply bottom-auto h-[1.05rem]; }
+  .ftree ul > li:last-child::before { bottom: auto; height: var(--elbow); }
   .ftree ul > li::after {
     content: '';
-    @apply absolute left-0 top-[1.05rem] w-2.5 border-t border-line;
+    top: var(--elbow);
+    @apply absolute left-0 w-2.5 border-t border-line;
   }
   .ftree-row { @apply flex items-center gap-3 py-1 min-w-0 rounded-md; }
   /* "you are here" - lifted surface + hairline ring, no colour spent */

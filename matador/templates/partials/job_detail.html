@@ -57,8 +57,10 @@
         {# Segmented fan-in bar: done · failed · pending each own their share,
            so "2 done, 1 failed, 2 pending" reads at a glance and a failed
            flow can never paint itself fully green. #}
-        {% set done_pct = (job.children_done * 100 / job.children_total)|round|int %}
-        {% set failed_pct = (job.children_failed * 100 / job.children_total)|round|int %}
+        {# floored, not rounded: 199/200-with-1-failed must read 99%, and the
+           two segments may never sum past 100 #}
+        {% set done_pct = job.children_done * 100 // job.children_total %}
+        {% set failed_pct = job.children_failed * 100 // job.children_total %}
         <div class="flex items-center gap-2 mb-2">
           <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden flex">
             <div class="h-full bg-success transition-all" style="width: {{ done_pct }}%"></div>
@@ -66,18 +68,18 @@
           </div>
           <span class="text-xs text-muted tabular-nums">{{ done_pct }}%</span>
         </div>
-        <ul class="ftree bg-ink rounded-lg border border-line px-3 py-2 overflow-auto max-h-72">
+        <ul class="ftree well px-3 py-2 max-h-72">
           {{ flow_node(job.queue or name, job.flow, job.id) }}
         </ul>
       </dd>
     </div>
     {% if job.children_results %}
     <div class="col-span-2"><dt class="label mb-1">children results</dt>
-      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto max-h-56">{{ job.children_results|pretty }}</pre></dd></div>
+      <dd><pre class="jsonv well max-h-56">{{ job.children_results|pretty }}</pre></dd></div>
     {% endif %}
     {% if job.children_failures %}
     <div class="col-span-2"><dt class="label mb-1">child failures</dt>
-      <dd class="bg-ink rounded-lg border border-line p-2.5 space-y-1 overflow-auto max-h-56">
+      <dd class="well space-y-1 max-h-56">
         {% for cid, reason in job.children_failures.items() %}
         <div class="flex items-baseline gap-2 text-sm min-w-0">
           {{ job_chip(job.queue or name, cid) }}
@@ -89,18 +91,18 @@
     {% endif %}
 
     <div class="col-span-2"><dt class="label mb-1">data</dt>
-      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.data|pretty }}</pre></dd></div>
+      <dd><pre class="jsonv well">{{ job.data|pretty }}</pre></dd></div>
     <div class="col-span-2"><dt class="label mb-1">opts</dt>
-      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.opts|pretty }}</pre></dd></div>
+      <dd><pre class="jsonv well">{{ job.opts|pretty }}</pre></dd></div>
     {% if job.returnvalue is not none %}
     <div class="col-span-2"><dt class="label mb-1">result</dt>
-      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto">{{ job.returnvalue|pretty }}</pre></dd></div>
+      <dd><pre class="jsonv well">{{ job.returnvalue|pretty }}</pre></dd></div>
     {% endif %}
 
     {% if job.logs %}
     <div class="col-span-2">
       <dt class="label mb-1">logs</dt>
-      <dd class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-40 overflow-auto space-y-0.5">
+      <dd class="font-mono text-xs well max-h-40 space-y-0.5">
         {% for line in job.logs %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
       </dd>
     </div>
@@ -114,7 +116,7 @@
     {% if job.stacktrace and show_stacktraces|default(true) %}
     <div class="col-span-2">
       <dt class="label mb-1">stack trace</dt>
-      <dd><pre class="font-mono text-xs bg-ink rounded-lg border border-line p-2.5 max-h-56 overflow-auto text-danger whitespace-pre-wrap">{{ job.stacktrace }}</pre></dd>
+      <dd><pre class="font-mono text-xs well max-h-56 text-danger whitespace-pre-wrap">{{ job.stacktrace }}</pre></dd>
     </div>
     {% endif %}
   </dl>

@@ -207,19 +207,25 @@ class Service:
         detail["logs"] = await q.get_logs(job_id)
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         if j.children_ids:
-            # A flow parent: the tree, the fan-in progress, and what the
-            # children left behind (results + tolerated failures).
-            tree = await q.get_flow(job_id)
-            detail["flow"] = self._flow_node(tree) if tree else None
-            kids = tree["children"] if tree else []
+            detail |= await self._flow_detail(q, j)
+        return detail
+
+    async def _flow_detail(self, q: Queue, j: Job) -> dict[str, Any]:
+        """Collect a flow parent's extras: the tree, the fan-in progress, and
+        what the children left behind (results + tolerated failures).
+        """
+        tree = await q.get_flow(j.id)
+        kids = tree["children"] if tree else []
+        return {
+            "flow": self._flow_node(tree) if tree else None,
             # Progress counts COMPLETIONS only - a failed child must never read
             # as progress toward done (a failed flow at "100%" looks like success).
-            detail["children_total"] = len(j.children_ids)
-            detail["children_done"] = sum(1 for n in kids if n["job"].state == "completed")
-            detail["children_failed"] = sum(1 for n in kids if n["job"].state == "failed")
-            detail["children_results"] = await q.children_results(job_id)
-            detail["children_failures"] = await q.failed_children(job_id)
-        return detail
+            "children_total": len(j.children_ids or []),
+            "children_done": sum(1 for n in kids if n["job"].state == "completed"),
+            "children_failed": sum(1 for n in kids if n["job"].state == "failed"),
+            "children_results": await q.children_results(j.id),
+            "children_failures": await q.failed_children(j.id),
+        }
 
     async def schedulers(self, name: str) -> list[dict[str, Any]]:
         return await self._q(name).schedulers()

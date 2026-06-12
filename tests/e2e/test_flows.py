@@ -2,24 +2,19 @@
 progress, parent/child navigation, flow-aware retry/remove/clean, live unpark.
 """
 
-import asyncio
-
 import pytest
 from playwright.sync_api import Page, expect
 from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees readable
-from toro import Queue, Worker
+from toro import Queue
 
-from .conftest import PREFIX, QUEUE, URL
+from .conftest import PREFIX, QUEUE, URL, reset_queue, work_until
 
 
 async def _seed_flows() -> dict:
     """Two flows: A in flight (1/2 done, one child delayed so it stays pending),
     B failed (transcode raises under the fail_parent default, thumbnail completes).
     """
-    q = Queue(QUEUE, url=URL, prefix=PREFIX)
-    keys = await q.redis.keys(q.keys.base + "*")
-    if keys:
-        await q.redis.delete(*keys)
+    q = await reset_queue()
 
     flow_a = await q.add_flow(
         "nightly-report",
@@ -37,15 +32,11 @@ async def _seed_flows() -> dict:
             raise RuntimeError("ffmpeg exited 137")
         return {"ok": job.name}
 
-    worker = Worker(QUEUE, proc, url=URL, prefix=PREFIX, stalled_interval=0)
-    task = asyncio.create_task(worker.run())
-    for _ in range(200):
+    async def settled(q):
         b = await q.get_job(flow_b.id)
-        if (await q.counts())["completed"] >= 2 and b and b.state == "failed":
-            break
-        await asyncio.sleep(0.02)
-    await worker.stop()
-    task.cancel()
+        return (await q.counts())["completed"] >= 2 and b is not None and b.state == "failed"
+
+    await work_until(proc, settled)
 
     a_kids = [n["job"].id for n in (await q.get_flow(flow_a.id))["children"]]
     await q.close()
@@ -120,7 +111,7 @@ def test_remove_parent_confirm_names_the_subtree(page: Page, base_url, flows):
     page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
     page.get_by_role("button", name="Remove this job").first.click()
     dialog = page.locator("dialog[open]")
-    expect(dialog).to_contain_text("AND its 2 child jobs")  # honest destructive copy
+    expect(dialog).to_contain_text("whole subtree")  # honest destructive copy
     dialog.locator("#confirm-ok").click()
     expect(page.locator("#jobs details")).to_have_count(0)
     expect(page.locator("#jobs")).to_contain_text("No flows in flight")  # empty state
@@ -148,25 +139,21 @@ def test_keyboard_cursor_works_on_the_flows_tab(page: Page, base_url, flows):
 def test_live_refresh_unparks_a_completed_flow(page: Page, base_url, flows, drive):
     page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
     expect(page.locator("#jobs details")).to_have_count(1)
-    page.wait_for_timeout(1500)  # SSE connect
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
 
     async def finish_the_flow():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
         await q.promote_job(flows["a_children"][1])  # the delayed shard runs now
+        await q.close()
 
         async def proc(job):
             return {"ok": job.name}
 
-        worker = Worker(QUEUE, proc, url=URL, prefix=PREFIX, stalled_interval=0)
-        task = asyncio.create_task(worker.run())
-        for _ in range(200):
+        async def done(q):
             j = await q.get_job(flows["parent_a"])
-            if j and j.state == "completed":
-                break
-            await asyncio.sleep(0.02)
-        await worker.stop()
-        task.cancel()
-        await q.close()
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
 
     drive(finish_the_flow())
     # the SSE-driven refresh empties the flows tab without any user action

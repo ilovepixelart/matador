@@ -726,7 +726,9 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write ro
         cleaned = _coerce_state(state)  # announce what was ACTUALLY cleaned
         count = await svc.clean(name, cleaned)
         panel = await _panel(svc, request, name, cleaned, 1)
-        return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
+        # the announcement speaks the display vocabulary, not the raw state
+        noun = "flows" if cleaned == "waiting-children" else f"{cleaned} jobs"
+        return _with_announcement(request, panel, f"{count} {noun} removed")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):

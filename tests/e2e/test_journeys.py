@@ -10,33 +10,9 @@ import asyncio
 import pytest
 from playwright.sync_api import Page, expect
 from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees readable
-from toro import Queue, Worker
+from toro import Worker
 
-from .conftest import PREFIX, QUEUE, URL
-
-
-async def _reset() -> Queue:
-    q = Queue(QUEUE, url=URL, prefix=PREFIX)
-    keys = await q.redis.keys(q.keys.base + "*")
-    if keys:
-        await q.redis.delete(*keys)
-    return q
-
-
-async def _work(proc, until, *, concurrency: int = 4, timeout: float = 8.0) -> None:
-    """Run a worker until `until(q)` holds (or timeout), then stop it."""
-    q = Queue(QUEUE, url=URL, prefix=PREFIX)
-    worker = Worker(
-        QUEUE, proc, url=URL, prefix=PREFIX, concurrency=concurrency, stalled_interval=0
-    )
-    task = asyncio.create_task(worker.run())
-    for _ in range(int(timeout / 0.02)):
-        if await until(q):
-            break
-        await asyncio.sleep(0.02)
-    await worker.stop(grace_period=0)
-    task.cancel()
-    await q.close()
+from .conftest import PREFIX, QUEUE, URL, reset_queue, work_until
 
 
 def _confirm(page: Page) -> None:
@@ -48,14 +24,14 @@ def _confirm(page: Page) -> None:
 
 def test_journey_incident_recovery_to_green(page: Page, base_url, drive):
     async def seed():
-        q = await _reset()
+        q = await reset_queue()
         for i in range(3):
             await q.add("render-report", {"doc": i}, attempts=1)
 
         async def broken(job):
             raise RuntimeError("template not found: quarterly.tex")
 
-        await _work(broken, lambda q: _failed_is(q, 3))
+        await work_until(broken, lambda q: _failed_is(q, 3))
         await q.close()
 
     async def _failed_is(q, n):
@@ -74,17 +50,19 @@ def test_journey_incident_recovery_to_green(page: Page, base_url, drive):
     expect(row).to_contain_text("RuntimeError")
     # 4. the fix is deployed; retry everything
     row.locator("summary").click()  # close the row so the live table isn't paused
-    page.wait_for_timeout(1500)  # SSE connect before the background worker fires
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
     page.locator('button:has-text("retry all")').click()
     _confirm(page)
     expect(page.locator("#tabcount-failed")).to_have_text("0")  # retry emptied failed
-    page.wait_for_timeout(1500)  # the re-rendered panel reconnects SSE before work fires
+    # the swap replaced the live-refresh element; it re-wires its sse:changed
+    # listener on init - give it a beat before background events start firing
+    page.wait_for_timeout(1500)
 
     async def fixed():
         async def healthy(job):
             return {"rendered": job.data["doc"]}
 
-        await _work(healthy, lambda q: _completed_is(q, 3))
+        await work_until(healthy, lambda q: _completed_is(q, 3))
 
     async def _completed_is(q, n):
         return (await q.counts())["completed"] >= n
@@ -102,7 +80,7 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
     ids = {}
 
     async def seed():
-        q = await _reset()
+        q = await reset_queue()
         parent = await q.add_flow(
             "invoice-batch", {"month": "june"}, children=[c("collect", {"i": i}) for i in range(3)]
         )
@@ -117,7 +95,7 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
     expect(row).to_contain_text("invoice-batch")
     row.locator("summary").click()
     expect(row).to_contain_text("0/3 children done")
-    page.wait_for_timeout(1200)  # SSE connect before the work lands
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
     row.locator("summary").click()  # close - live refresh resumes
 
     # 2. workers chew through it; the flows tab empties on its own
@@ -131,7 +109,7 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
             j = await q.get_job(ids["parent"])
             return j is not None and j.state == "completed"
 
-        await _work(proc, done)
+        await work_until(proc, done)
 
     drive(run())
     expect(page.locator("#jobs details")).to_have_count(0, timeout=8000)
@@ -152,7 +130,7 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
     ids = {}
 
     async def seed():
-        q = await _reset()
+        q = await reset_queue()
         parent = await q.add_flow("deploy-site", {}, children=[c("build", {}), c("upload", {})])
         ids["parent"] = parent.id
 
@@ -165,7 +143,7 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
             j = await q.get_job(ids["parent"])
             return j is not None and j.state == "failed"
 
-        await _work(proc, parent_failed)
+        await work_until(proc, parent_failed)
         await q.close()
 
     drive(seed())
@@ -197,7 +175,7 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
             j = await q.get_job(ids["parent"])
             return j is not None and j.state == "completed"
 
-        await _work(proc, done)
+        await work_until(proc, done)
 
     drive(recover())
     # 4. the whole flow completed; nothing left failed
@@ -211,7 +189,7 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
 
 def test_journey_promote_an_overdue_delayed_job(page: Page, base_url, drive):
     async def seed():
-        q = await _reset()
+        q = await reset_queue()
         await q.add("warm-cache", {"region": "eu"}, delay=600_000)
         await q.close()
 
@@ -233,7 +211,7 @@ def test_journey_promote_an_overdue_delayed_job(page: Page, base_url, drive):
         async def done(q):
             return (await q.counts())["completed"] >= 1
 
-        await _work(proc, done)
+        await work_until(proc, done)
 
     drive(drain())
     expect(page.locator("#tabcount-completed")).to_have_text("1", timeout=8000)
@@ -244,7 +222,7 @@ def test_journey_promote_an_overdue_delayed_job(page: Page, base_url, drive):
 
 def test_journey_find_one_job_and_read_its_logs(page: Page, base_url, drive):
     async def seed():
-        q = await _reset()
+        q = await reset_queue()
         await q.add("charge-card", {"order": "order-4711", "amount": 49})
         for i in range(4):
             await q.add("charge-card", {"order": f"order-{i}", "amount": 10})
@@ -256,7 +234,7 @@ def test_journey_find_one_job_and_read_its_logs(page: Page, base_url, drive):
         async def done(q):
             return (await q.counts())["completed"] >= 5
 
-        await _work(proc, done)
+        await work_until(proc, done)
         await q.close()
 
     drive(seed())
@@ -277,7 +255,7 @@ def test_journey_find_one_job_and_read_its_logs(page: Page, base_url, drive):
 
 def test_journey_prune_completed_history(page: Page, base_url, drive):
     async def seed():
-        q = await _reset()
+        q = await reset_queue()
         for i in range(5):
             await q.add("rollup", {"i": i})
 
@@ -287,7 +265,7 @@ def test_journey_prune_completed_history(page: Page, base_url, drive):
         async def done(q):
             return (await q.counts())["completed"] >= 5
 
-        await _work(proc, done)
+        await work_until(proc, done)
         await q.close()
 
     drive(seed())
@@ -319,7 +297,7 @@ def fleet(run_async):
     """Start a real worker the test can stop mid-journey; always cleaned up."""
 
     async def start():
-        await _reset()
+        await reset_queue()
         worker = Worker(
             QUEUE, lambda j: None, url=URL, prefix=PREFIX, concurrency=2, stalled_interval=0
         )
