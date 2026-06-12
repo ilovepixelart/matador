@@ -85,6 +85,18 @@
         </ul>
       </dd>
     </div>
+    {% if job.state == 'waiting-children' %}
+    {# Live render: while the flow is in flight, re-fetch + morph this detail on
+       each job event so the tree and progress tick as children settle. The
+       fresh detail only re-includes this element while still parked, so it
+       self-stops the moment the flow goes terminal. Morph keeps it flicker-free
+       and preserves scroll. #}
+    <div class="hidden"
+         hx-get="{{ url_for('job_detail', name=job.queue or name, job_id=job.id).path }}"
+         hx-trigger="sse:changed throttle:1s"
+         hx-target="closest [data-job-detail]" hx-swap="morph:innerHTML"
+         hx-sync="this:drop"></div>
+    {% endif %}
     {% if job.children_results %}
     <div class="col-span-2"><dt class="label mb-1">children results</dt>
       <dd><pre class="jsonv well max-h-56">{{ job.children_results|pretty }}</pre></dd></div>

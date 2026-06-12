@@ -188,3 +188,29 @@ def test_retry_flow_button_recovers_the_flow(page: Page, base_url, flows, drive)
     drive(finish())
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")
     expect(page.locator("#queue-panel")).to_contain_text("2/2 children done")
+
+
+def test_flow_tree_updates_live_while_in_flight(page: Page, base_url, flows, drive):
+    # parent_a is parked at 1/2 (one shard done, one delayed-pending)
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_a']}")
+    panel = page.locator("#queue-panel")
+    expect(panel).to_contain_text("1/2 children done")
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+
+    async def finish():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+        await q.promote_job(flows["a_children"][1])  # the delayed shard runs now
+        await q.close()
+
+        async def proc(job):
+            return {"ok": job.name}
+
+        async def done(qq):
+            j = await qq.get_job(flows["parent_a"])
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+
+    drive(finish())
+    # the OPEN detail re-rendered itself - no reopen, no manual refresh
+    expect(panel).to_contain_text("2/2 children done", timeout=8000)
