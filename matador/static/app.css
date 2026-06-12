@@ -352,6 +352,9 @@
   .min-h-0 {
     min-height: calc(var(--spacing) * 0);
   }
+  .min-h-7 {
+    min-height: calc(var(--spacing) * 7);
+  }
   .w-2 {
     width: calc(var(--spacing) * 2);
   }
@@ -501,6 +504,9 @@
   }
   .gap-y-1 {
     row-gap: calc(var(--spacing) * 1);
+  }
+  .gap-y-2 {
+    row-gap: calc(var(--spacing) * 2);
   }
   .gap-y-3 {
     row-gap: calc(var(--spacing) * 3);
@@ -654,6 +660,18 @@
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--warning) 10%, transparent);
     }
+  }
+  .fill-danger {
+    fill: var(--danger);
+  }
+  .fill-muted\/40 {
+    fill: var(--muted);
+    @supports (color: color-mix(in lab, red, red)) {
+      fill: color-mix(in oklab, var(--muted) 40%, transparent);
+    }
+  }
+  .stroke-line {
+    stroke: var(--line);
   }
   .p-0 {
     padding: calc(var(--spacing) * 0);
@@ -820,6 +838,9 @@
   }
   .\[color-scheme\:light\] {
     color-scheme: light;
+  }
+  .opacity-40 {
+    opacity: 40%;
   }
   .opacity-50 {
     opacity: 50%;
@@ -1434,6 +1455,9 @@
   details[open] > .acc-body {
     animation: accIn 0.18s ease;
   }
+  .jobs-paused {
+    display: none;
+  }
   #queue-panel:has(#jobs details[open]) .jobs-paused {
     display: flex;
   }
@@ -1678,6 +1702,11 @@
   .jobs-row > .acc-body {
     grid-column: 1 / -1;
     contain: inline-size;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .q-spark rect {
+    transition: y 0.25s ease-out, height 0.25s ease-out;
   }
 }
 ::-webkit-scrollbar {

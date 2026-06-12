@@ -121,7 +121,11 @@
   details[open] > summary .chevron { @apply rotate-180; }
   details[open] > .acc-body { @apply animate-acc-in; }
   /* The live job table freezes while a row is open (so it can't move under you);
-     reveal a banner so a paused table never reads as "stuck" (jobs-live.js). */
+     reveal a banner so a paused table never reads as "stuck" (jobs-live.js).
+     The hidden default lives HERE, not as a `hidden` utility on the element:
+     Tailwind 4 layers utilities AFTER components, so a utility would beat the
+     reveal rule no matter the specificity. */
+  .jobs-paused { @apply hidden; }
   #queue-panel:has(#jobs details[open]) .jobs-paused { @apply flex; }
 
   /* Tooltip (fixed, positioned by JS so it escapes overflow + stays in viewport). */
@@ -198,6 +202,13 @@
 }
 
 /* ════ No Tailwind vocabulary below this line — each rule says why. ════ */
+
+/* Sidebar sparklines: geometry transitions ride the live morph — idiomorph
+   updates y/height attributes on existing rects, so changed bars slide
+   instead of flashing. Gated on reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .q-spark rect { transition: y 0.25s ease-out, height 0.25s ease-out; }
+}
 
 /* Scrollbar pseudo-elements have no Tailwind variant (declarations still @apply). */
 ::-webkit-scrollbar { @apply w-2.5 h-2.5; }

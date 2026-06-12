@@ -200,6 +200,71 @@ def _compact(n: int) -> str:
     return str(n)  # unreachable (n >= 10_000 always hits the K branch)
 
 
+# The metrics strip chart: one stacked bar per minute, completed below,
+# failed on top. Geometry is computed here (not in the template) so the
+# scaling rules are unit-testable.
+CHART_H = 36  # SVG user units
+CHART_STEP = 4  # 3-unit bar + 1-unit gap
+
+
+def _chart_bars(
+    points: list[dict[str, Any]], *, height: int = CHART_H, peak: int | None = None
+) -> list[dict[str, Any]]:
+    """Scale per-minute counts to bar rects. Nonzero counts always paint a
+    visible sliver (min 1 unit), and the stack is re-clamped so two slivers
+    can't overflow the peak-normalized height. Pass `peak` to put several
+    charts on one shared scale (small-multiples honesty).
+    """
+    if peak is None:
+        peak = max((p["completed"] + p["failed"] for p in points), default=0)
+    bars: list[dict[str, Any]] = []
+    for i, p in enumerate(points):
+        dh = max(1.0, p["completed"] * height / peak) if p["completed"] else 0.0
+        fh = max(1.0, p["failed"] * height / peak) if p["failed"] else 0.0
+        if dh + fh > height:
+            scale = height / (dh + fh)
+            dh, fh = dh * scale, fh * scale
+        dh, fh = round(dh, 2), round(fh, 2)
+        bars.append(
+            {
+                **p,
+                "x": i * CHART_STEP,
+                "dh": dh,
+                "fh": fh,
+                "y_done": round(height - dh, 2),
+                "y_fail": round(height - dh - fh, 2),
+            }
+        )
+    return bars
+
+
+# Sidebar small multiples: one tiny sparkline per queue, every cell on ONE
+# shared scale so bar heights are comparable across queues.
+SPARK_H = 20
+SPARK_BUCKETS = 30  # 60 minutes squashed into 2-minute buckets
+
+
+def _squash(points: list[dict[str, Any]], into: int) -> list[dict[str, Any]]:
+    """Merge consecutive minute points into `into` coarser buckets (sums)."""
+    k = max(1, len(points) // into)
+    return [
+        {
+            "timestamp": chunk[0]["timestamp"],
+            "completed": sum(p["completed"] for p in chunk),
+            "failed": sum(p["failed"] for p in chunk),
+            "ms": sum(p["ms"] for p in chunk),
+        }
+        for chunk in (points[i : i + k] for i in range(0, len(points), k))
+    ]
+
+
+def _sparkbars(queues: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Bar geometry for every queue's sidebar sparkline, on one shared peak."""
+    sparks = {q["name"]: _squash(q["spark"], SPARK_BUCKETS) for q in queues if q.get("spark")}
+    peak = max((p["completed"] + p["failed"] for pts in sparks.values() for p in pts), default=0)
+    return {name: _chart_bars(pts, height=SPARK_H, peak=peak) for name, pts in sparks.items()}
+
+
 def _dur(ms: int | None) -> str:
     # Humanize a millisecond duration (e.g., job started→finished).
     if not ms or ms < 0:
@@ -214,6 +279,8 @@ def _dur(ms: int | None) -> str:
     return f"{mins}m {secs}s"
 
 
+# cast: ty narrows env.globals' value type from jinja's own entries
+_TEMPLATES.env.globals["sparkbars"] = cast("Any", _sparkbars)
 _TEMPLATES.env.filters["schedule"] = _schedule_label
 _TEMPLATES.env.filters["comma"] = lambda n: f"{n:,}"
 _TEMPLATES.env.filters["compact"] = _compact
@@ -307,7 +374,9 @@ async def _panel_ctx(
     # No state in the URL → the tab with signal; an explicit one is respected.
     state = _coerce_state(state) if state else _default_state(view["counts"])
     query = query.strip()
-    base = {"q": view, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
+    # metrics render inline with the panel (a lazy load would pop in a beat late)
+    m = await svc.metrics(name)
+    base = {"q": view, "m": m, "states": STATES, "state": state, "scan_limit": SCAN_LIMIT}
     if query:  # a deep-link or a typed search → render the results, not the list
         jobs, exact = await _search_jobs(svc, name, state, query)
         return {
@@ -435,6 +504,10 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @router.get("/queues/{name}/metrics", response_class=HTMLResponse)
+    async def queue_metrics(request: Request, name: str):
+        return _render(request, "partials/metrics.html", m=await svc.metrics(name), name=name)
 
     @router.get("/queues/{name}", response_class=HTMLResponse)
     async def queue_view(

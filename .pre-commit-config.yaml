@@ -1,18 +1,35 @@
-# Astral toolchain on every commit: ruff (lint + format) and ty (type check).
+# All hooks run through `uv run`, so versions come from the lockfile — one
+# source of truth shared by pre-commit, CI and dev, nothing to drift. Plus
+# the CSS build contract: app.css must match a fresh tailwind build (the
+# same gate CI enforces, so a stale bundle never reaches a PR).
 # Install once with:  uvx pre-commit install
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.16
-    hooks:
-      - id: ruff-check
-        args: [--fix]
-      - id: ruff-format
-
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
       - id: ty
-        name: ty (type check)
+        name: ty type check
         entry: uv run ty check
         language: system
+        pass_filenames: false
         types: [python]
+
+      - id: css-fresh
+        name: css build is fresh
+        entry: bash -c './tailwindcss -i styles/input.css -o matador/static/app.css && git diff --quiet matador/static/app.css || { echo "app.css was stale — rebuilt, git add it and retry"; exit 1; }'
+        language: system
+        files: ^(styles/|matador/templates/|matador/static/app\.css)
         pass_filenames: false

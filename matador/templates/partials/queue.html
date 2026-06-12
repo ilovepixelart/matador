@@ -19,6 +19,14 @@
     </div>
   </div>
 
+  {# Health chips: rendered inline with the panel (no pop-in), then refreshed
+     on job events (throttled — the buckets are per-minute, sub-second repaints
+     buy nothing) and a slow tick. hx-target="this" opts out of the panel's
+     inherited #queue-panel target. #}
+  <div class="mb-4 min-h-7" hx-get="{{ url_for('queue_metrics', name=q.name).path }}"
+       hx-trigger="sse:changed throttle:5s, every 30s"
+       hx-target="this" hx-swap="innerHTML">{% include "partials/metrics.html" %}</div>
+
   <div class="flex gap-1 border-b border-line mb-4">
     {% for s in states %}
     <a href="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}"
@@ -47,7 +55,7 @@
 
   {# Shown by CSS (:has) only while a job row is open — the live table is paused so it
      can't move under you. Tells the operator why updates stopped (and how to resume). #}
-  <div class="jobs-paused hidden items-center gap-2 mb-2 px-3 py-1.5 rounded-lg
+  <div class="jobs-paused items-center gap-2 mb-2 px-3 py-1.5 rounded-lg
               bg-warning/10 text-warning text-xs">
     {{ icon('pause', 'w-3.5 h-3.5') }}
     <span>Live updates paused while you're viewing a job — close it to resume.</span>

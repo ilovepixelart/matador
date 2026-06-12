@@ -63,3 +63,17 @@ def test_reopen_after_live_refresh_still_loads_the_detail(page: Page, base_url, 
 
     row.locator("summary").click()  # reopen — the detail must come back
     expect(row).to_contain_text("opts")
+
+
+def test_paused_banner_shows_while_a_row_is_open(page: Page, base_url, seeded):
+    # Regression: Tailwind 4 layers utilities after components, so a `hidden`
+    # utility on the banner silently beat the :has() reveal rule — the banner
+    # never showed again and no test noticed.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    banner = page.locator(".jobs-paused")
+    expect(banner).to_be_hidden()
+    page.locator("#jobs details.jobs-row summary").first.click()
+    expect(banner).to_be_visible()
+    expect(banner).to_contain_text("paused")
+    page.keyboard.press("Escape")  # close the row
+    expect(banner).to_be_hidden()

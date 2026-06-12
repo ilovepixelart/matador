@@ -27,7 +27,7 @@
 
 {# data-view sits ON the grid itself (bulk-select page identity) — no extra
    wrapper: idiomorph relocates id-keyed rows across intermediate divs. #}
-<div class="jobs-table" data-view="{{ name }}:{{ state }}">
+<div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
   {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
   {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
   <div class="jobs-head border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
@@ -55,7 +55,9 @@
    state. Paused while a row is open by jobs-live.js (progressive: if that JS fails to
    load, the refresh still fires — just without the pause). Morph + stable row ids keep
    it flicker-free; throttle + drop rate-cap it. #}
-<div data-jobs-live class="hidden"
+{# id keyed by view: idiomorph matches by id, so a morph can never recycle this
+   node (and its init-time htmx closures) across different queue/state views #}
+<div data-jobs-live id="jl-{{ name }}-{{ state }}" class="hidden"
      hx-get="{{ url_for('jobs_fragment', name=name).path }}?state={{ state }}&page={{ page }}"
      hx-trigger="sse:changed throttle:1s" hx-target="#jobs"
      hx-swap="morph:innerHTML" hx-sync="this:drop"></div>

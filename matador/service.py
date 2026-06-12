@@ -112,9 +112,30 @@ class Service:
                     "name": name,
                     "counts": await q.counts(),
                     "paused": await q.is_paused(),
+                    # last hour of per-minute activity — the sidebar sparkline
+                    "spark": await q.metrics(minutes=60),
                 }
             )
         return out
+
+    async def metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
+        """Feed the charts: per-minute points plus the headline numbers the strip
+        shows (window totals, failure share, mean duration, live queue latency).
+        """
+        q = self._q(name)
+        points = await q.metrics(minutes=minutes)
+        completed = sum(p["completed"] for p in points)
+        failed = sum(p["failed"] for p in points)
+        finished = completed + failed
+        return {
+            "points": points,
+            "latency": await q.latency(),
+            "completed": completed,
+            "failed": failed,
+            "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,
+            "avg_ms": int(sum(p["ms"] for p in points) / finished) if finished else 0,
+            "minutes": minutes,
+        }
 
     async def workers(self) -> list[dict[str, Any]]:
         """Every live worker across all queues (each record carries its `queue`)."""
