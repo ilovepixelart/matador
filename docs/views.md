@@ -11,7 +11,7 @@ fragment mechanics behind these routes are covered in
 | `/` | The hub: redirects you into the first queue, or an empty state when no queues are configured. |
 | `/queues/{name}?state=<tab>&page=<n>&query=<q>` | The queue panel: state tabs with counts, the job list (paginated), schedulers, pause/resume. The canonical URL - tabs and pagination push it into history. |
 | `/queues/{name}/jobs` | Just the job table + tab-count OOB pieces; what the [SSE refresh](live-updates.md) re-fetches. |
-| `/queues/{name}/jobs/{job_id}/detail` | The lazy accordion body for one row: data, options, result, logs, stack trace. Loaded only when a row is opened. |
+| `/queues/{name}/jobs/{job_id}/detail` | The lazy accordion body for one row: data, options, result, logs, stack trace - and, for flow jobs, the flow tree, fan-in progress and children results/failures. Loaded only when a row is opened. |
 | `/queues/{name}/jobs/{job_id}` | A standalone, bookmarkable page for one job (where a job-id chip links). |
 | `/workers` | Live workers (from their heartbeats) and the departed-workers history. |
 | `/workers/list` | Just the worker table, for the periodic refresh. |
@@ -19,8 +19,10 @@ fragment mechanics behind these routes are covered in
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
 
-Job tabs cover toro's five states: `active`, `wait`, `delayed`, `completed`,
-`failed`. A bad `state` query value is coerced to `active`, never an error.
+Job tabs cover toro's six states: `active`, `wait`, `delayed`,
+`waiting-children` (labeled **flows** - one row per parked flow parent),
+`completed`, `failed`. A bad `state` query value is coerced to `active`,
+never an error.
 
 ## Search
 
@@ -51,10 +53,10 @@ silently.
 | `POST /queues/{name}/pause` · `/resume` | Pause / resume the queue (in-flight jobs finish). |
 | `POST /queues/{name}/jobs/{job_id}/retry` | Retry one failed job. |
 | `POST /queues/{name}/jobs/{job_id}/promote` | Run a delayed job now. |
-| `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. |
+| `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. Flow-aware: removing a flow parent removes its whole subtree (the confirm dialog says so). |
 | `POST /queues/{name}/jobs/bulk-remove` | Remove the checkbox-selected jobs - capped at 1000 per request so one click can't fan out unboundedly. |
 | `POST /queues/{name}/retry-all` | Re-queue every failed job. |
-| `POST /queues/{name}/clean` | Remove every job in the current state. |
+| `POST /queues/{name}/clean` | Remove every job in the current state; on the flows tab this cancels every parked flow, subtrees included. |
 | `POST /queues/{name}/schedulers/{id}/trigger` | Run one occurrence of a schedule now. |
 | `DELETE /queues/{name}/schedulers/{id}` | Remove a schedule. |
 

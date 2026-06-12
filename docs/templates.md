@@ -31,7 +31,8 @@ several regions ([Live updates](live-updates.md)).
 | Macro | Renders |
 |---|---|
 | `icon(name)` | An inline-SVG Heroicon (outline set, self-hosted - no icon font, no CDN). |
-| `job_row(name, j, state)` | One job row: a native `<details>` accordion with checkbox, id chip, data preview, progress bar, attempts, and the state-appropriate action buttons. The body lazy-loads via `hx-get` on first open. |
+| `job_row(name, j, state, page, bulk)` | One job row: a native `<details>` accordion with checkbox (bulk states only), id chip, flow glyphs (branch + child count on parents, turn-arrow on children), data preview, progress bar (active jobs), attempts, and the state-appropriate action buttons. The body lazy-loads via `hx-get` on first open. |
+| `flow_node(queue, node, current_id)` | One node of a flow tree (recursive): id chip, status pill, name, duration, failure reason; the current job's row is lifted. |
 | `job_chip(queue, jid)` | A clickable job-id chip linking to the standalone job page. |
 | `state_token(s)` / `state_color(s)` | Map a job state to a semantic token (`info`/`success`/`danger`/`warning`/`muted`) and its badge classes. |
 | `empty_state(icon, message, ...)` | The centered "nothing here" block for empty lists. |
