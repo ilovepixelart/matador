@@ -1,5 +1,6 @@
-{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink, state_label with context %}
-{% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
+{% from "macros.html" import icon, bar_color, job_row, jobs_head, empty_state, pglink, state_label with context %}
+{% set bulk = state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] %}
+{% if bulk and jobs %}
 <div class="flex items-center gap-2 px-4 py-2.5 bg-panel2/40 border-b border-line">
   {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
   <div id="bulk-bar" class="items-center gap-2" style="display: none">
@@ -33,24 +34,8 @@
 {# data-view sits ON the grid itself (bulk-select page identity) - no extra
    wrapper: idiomorph relocates id-keyed rows across intermediate divs. #}
 <div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
-  {% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
-  {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
-  <div class="jobs-head border-b border-line bg-panel2/40 label font-medium select-none">
-    <label class="cursor-pointer">
-      <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
-    </label>
-    <span></span>
-    <span data-col="id">id</span>
-    <span data-col="name">job</span>
-    <span>data</span>
-    <span></span>
-    {# right-aligned like the numeric values they head #}
-    <span class="justify-end" data-col="time">when</span>
-    <span class="justify-end" title="attempts">×</span>
-    <span></span>
-  </div>
-  {% endif %}
-  {% for j in jobs %}{{ job_row(name, j, state, page) }}
+  {% if jobs %}{{ jobs_head(bulk) }}{% endif %}
+  {% for j in jobs %}{{ job_row(name, j, state, page, bulk) }}
   {% else %}
   <div class="col-span-full">{% if state == 'waiting-children' %}{{ empty_state('inbox', 'No flows in flight', 'Parents enqueued with add_flow() park here while their children run.') }}{% else %}{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' - all clear' if state == 'failed' else '')) }}{% endif %}</div>
   {% endfor %}

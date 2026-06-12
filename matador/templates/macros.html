@@ -51,9 +51,32 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 </div>
 {%- endmacro %}
 
+{# The jobs-table header row: one cell per grid track, aligned by the subgrid.
+   Rendered for EVERY state that lists rows; only the select-all checkbox is
+   conditional (it needs the bulk bar to act on). #}
+{% macro jobs_head(bulk=true) -%}
+<div class="jobs-head border-b border-line bg-panel2/40 label font-medium select-none">
+  {% if bulk %}
+  <label class="cursor-pointer">
+    <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
+  </label>
+  {% else %}<span></span>{% endif %}
+  <span></span>
+  <span data-col="id">id</span>
+  <span data-col="name">job</span>
+  <span>data</span>
+  <span></span>
+  {# right-aligned like the numeric values they head #}
+  <span class="justify-end" data-col="time">when</span>
+  <span class="justify-end" title="attempts">×</span>
+  <span></span>
+</div>
+{%- endmacro %}
+
 {# One job as a native <details> accordion row. `state` keys the per-row actions
-   (use the job's own state for search results that span states). #}
-{% macro job_row(name, j, state, page=1) -%}
+   (use the job's own state for search results that span states); `bulk` says
+   whether a bulk bar exists to act on the row checkbox. #}
+{% macro job_row(name, j, state, page=1, bulk=true) -%}
 <details id="jrow-{{ state }}-{{ j.id }}" class="jobs-row acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
          hx-target="find .acc-body" hx-trigger="toggle[this.open]">
@@ -62,10 +85,12 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
      aligning (.jobs-table in input.css). #}
   <summary class="jobs-cells hover:bg-panel2/30 transition-colors cursor-pointer
                   list-none [&::-webkit-details-marker]:hidden">
+    {% if bulk %}
     <label class="cursor-pointer">
       <input type="checkbox" class="jcheck chk" value="{{ j.id }}"
              aria-label="Select job {{ j.id }}" />
     </label>
+    {% else %}<span></span>{% endif %}
     <span class="chevron text-muted">{{ icon('chevron', 'w-4 h-4') }}</span>
     <span class="text-muted font-mono truncate" data-col="id" title="#{{ j.id }}">#{{ j.id }}</span>
     <span class="gap-1" data-col="name">
