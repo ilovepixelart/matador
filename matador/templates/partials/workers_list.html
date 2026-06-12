@@ -12,16 +12,16 @@
   {% set tfail = workers|sum(attribute='failed') %}
   {% if tfail %}<span class="text-muted">·</span><span class="text-danger tabular-nums">{{ tfail|compact }} failed</span>{% endif %}
 </div>
-<div class="rounded-xl border border-line overflow-hidden">
+<div class="card">
   <table class="w-full text-sm">
     <thead class="bg-panel2/40">
       <tr>
         <th scope="col" class="th">Worker</th>
         {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
         <th scope="col" class="th">Running</th>
-        <th scope="col" class="th text-right">Done</th>
-        <th scope="col" class="th text-right">Failed</th>
-        <th scope="col" class="th text-right">Uptime</th>
+        <th scope="col" class="th text-right w-28">Done</th>
+        <th scope="col" class="th text-right w-28">Failed</th>
+        <th scope="col" class="th text-right w-28">Uptime</th>
       </tr>
     </thead>
     <tbody>
@@ -70,16 +70,16 @@
           hx-confirm="Clear the stopped-worker history?"
           data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} clear<span class="sr-only"> stopped-worker history</span></button>
 </div>
-<div class="rounded-xl border border-line overflow-hidden">
+<div class="card">
   <table class="w-full text-sm">
     <thead class="bg-panel2/40">
       <tr>
         <th scope="col" class="th">Worker</th>
         {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
         <th scope="col" class="th">Status</th>
-        <th scope="col" class="th text-right">Done</th>
-        <th scope="col" class="th text-right">Failed</th>
-        <th scope="col" class="th text-right">Stopped</th>
+        <th scope="col" class="th text-right w-28">Done</th>
+        <th scope="col" class="th text-right w-28">Failed</th>
+        <th scope="col" class="th text-right w-28">Stopped</th>
       </tr>
     </thead>
     <tbody>

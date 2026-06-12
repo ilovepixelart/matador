@@ -7,21 +7,21 @@
   <h2 class="label mb-3 flex items-center gap-1.5">
     {{ icon('pulse', 'w-3.5 h-3.5') }} By name · last 60m
   </h2>
-  <div class="rounded-xl border border-line overflow-hidden">
-    <table class="w-full text-sm">
+  <div class="card">
+    <table class="w-full text-sm table-fixed">
       <thead class="bg-panel2/40">
         <tr>
           <th scope="col" class="th">Job</th>
-          <th scope="col" class="th text-right">Done</th>
-          <th scope="col" class="th text-right">Failed</th>
-          <th scope="col" class="th text-right">p50</th>
-          <th scope="col" class="th text-right">p95</th>
+          <th scope="col" class="th text-right w-28">Done</th>
+          <th scope="col" class="th text-right w-28">Failed</th>
+          <th scope="col" class="th text-right w-28">p50</th>
+          <th scope="col" class="th text-right w-28">p95</th>
         </tr>
       </thead>
       <tbody>
         {% for n in names %}
         <tr class="border-t border-line hover:bg-panel2/20">
-          <td class="td font-medium">{{ n.name }}</td>
+          <td class="td font-medium truncate">{{ n.name }}</td>
           <td class="td text-right tabular-nums">{{ n.completed|comma }}</td>
           <td class="td text-right tabular-nums{{ ' text-danger' if n.failed }}">
             {{ n.failed|comma if n.failed else '-' }}</td>
