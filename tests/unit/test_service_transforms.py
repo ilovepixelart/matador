@@ -39,7 +39,17 @@ def test_summary_has_exactly_the_list_fields():
         "processed_on": 1700000000100,
         "finished_on": 1700000000500,
         "delay": 0,
+        # flow membership: a parent shows its child count, a child its parent link
+        "parent_id": None,
+        "children_count": 0,
     }
+
+
+def test_summary_carries_flow_membership():
+    parent = Service._summary(_job(state="waiting-children", children_ids=["6", "7"]))
+    assert parent["children_count"] == 2
+    child = Service._summary(_job(id="6", parent_id="5"))
+    assert child["parent_id"] == "5"
 
 
 def test_detail_extends_summary_with_full_metadata():

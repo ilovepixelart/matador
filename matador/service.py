@@ -15,7 +15,15 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
-STATES: tuple[JobState, ...] = ("active", "wait", "delayed", "completed", "failed")
+# `waiting-children` is rendered as the "flows" tab: one row per parked flow parent.
+STATES: tuple[JobState, ...] = (
+    "active",
+    "wait",
+    "delayed",
+    "waiting-children",
+    "completed",
+    "failed",
+)
 
 
 def _human_bytes(n: float | None) -> str:
@@ -198,6 +206,19 @@ class Service:
         detail = self._detail(j)
         detail["logs"] = await q.get_logs(job_id)
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
+        if j.children_ids:
+            # A flow parent: the tree, the fan-in progress, and what the
+            # children left behind (results + tolerated failures).
+            tree = await q.get_flow(job_id)
+            detail["flow"] = self._flow_node(tree) if tree else None
+            kids = tree["children"] if tree else []
+            # Progress counts COMPLETIONS only - a failed child must never read
+            # as progress toward done (a failed flow at "100%" looks like success).
+            detail["children_total"] = len(j.children_ids)
+            detail["children_done"] = sum(1 for n in kids if n["job"].state == "completed")
+            detail["children_failed"] = sum(1 for n in kids if n["job"].state == "failed")
+            detail["children_results"] = await q.children_results(job_id)
+            detail["children_failures"] = await q.failed_children(job_id)
         return detail
 
     async def schedulers(self, name: str) -> list[dict[str, Any]]:
@@ -355,6 +376,17 @@ class Service:
             "processed_on": j.processed_on,
             "finished_on": j.finished_on,
             "delay": j.opts.delay,
+            # Flow membership: parents show a child count, children a parent link.
+            "parent_id": j.parent_id,
+            "children_count": len(j.children_ids) if j.children_ids else 0,
+        }
+
+    @classmethod
+    def _flow_node(cls, node: dict[str, Any]) -> dict[str, Any]:
+        """Shape a toro get_flow() tree for templates (Job -> summary dicts)."""
+        return {
+            "job": cls._summary(node["job"]),
+            "children": [cls._flow_node(child) for child in node["children"]],
         }
 
     @classmethod

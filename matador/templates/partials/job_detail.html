@@ -1,4 +1,4 @@
-{% from "macros.html" import bar_color, icon %}
+{% from "macros.html" import bar_color, icon, job_chip, flow_node with context %}
 {% if job %}
 <div class="px-5 py-4 border-t border-line bg-ink/40">
   <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -32,6 +32,55 @@
         {% endif %}
       </dd>
     </div>
+    {% endif %}
+
+    {% if job.parent_id %}
+    {# A flow child: one hop up to the parent that's waiting on it. #}
+    <div class="col-span-2 flex items-center gap-2">
+      <dt class="text-muted text-xs uppercase tracking-wider flex items-center gap-1">
+        {{ icon('flow', 'w-3.5 h-3.5') }} flow</dt>
+      <dd class="text-sm flex items-center gap-1.5">part of {{ job_chip(job.queue or name, job.parent_id) }}</dd>
+    </div>
+    {% endif %}
+
+    {% if job.flow %}
+    {# A flow parent: fan-in progress + the whole tree, states at a glance. #}
+    <div class="col-span-2">
+      <dt class="text-muted text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
+        {{ icon('flow', 'w-3.5 h-3.5') }} flow
+        <span class="normal-case tracking-normal">· {{ job.children_done }}/{{ job.children_total }} children done</span>
+        {% if job.children_failed %}
+        <span class="normal-case tracking-normal text-danger">· {{ job.children_failed }} failed</span>
+        {% endif %}
+      </dt>
+      <dd>
+        <div class="flex items-center gap-2 mb-2">
+          <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden">
+            <div class="h-full {{ bar_color(job.state) }} rounded-full transition-all"
+                 style="width: {{ (job.children_done * 100 / job.children_total)|round|int }}%"></div>
+          </div>
+          <span class="text-xs text-muted tabular-nums">{{ (job.children_done * 100 / job.children_total)|round|int }}%</span>
+        </div>
+        <ul class="bg-ink rounded-lg border border-line px-3 py-2 overflow-auto max-h-72">
+          {{ flow_node(job.queue or name, job.flow, job.id) }}
+        </ul>
+      </dd>
+    </div>
+    {% if job.children_results %}
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">children results</dt>
+      <dd><pre class="jsonv bg-ink rounded-lg border border-line p-2.5 overflow-auto max-h-56">{{ job.children_results|pretty }}</pre></dd></div>
+    {% endif %}
+    {% if job.children_failures %}
+    <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">child failures</dt>
+      <dd class="space-y-1">
+        {% for cid, reason in job.children_failures.items() %}
+        <div class="flex items-baseline gap-2 text-sm">
+          {{ job_chip(job.queue or name, cid) }}
+          <span class="font-mono text-danger break-all">{{ reason }}</span>
+        </div>
+        {% endfor %}
+      </dd></div>
+    {% endif %}
     {% endif %}
 
     <div class="col-span-2"><dt class="text-muted text-xs uppercase tracking-wider mb-1">data</dt>

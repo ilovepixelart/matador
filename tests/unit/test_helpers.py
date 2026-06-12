@@ -32,3 +32,7 @@ def test_default_state_picks_the_most_signal():
     assert _default_state({"active": 0, "failed": 0, "wait": 5}) == "wait"
     assert _default_state({"active": 0, "failed": 0, "wait": 0, "delayed": 3}) == "delayed"
     assert _default_state({"active": 0, "failed": 0, "wait": 0, "delayed": 0}) == "completed"
+    # a queue whose only signal is parked flows lands on the flows tab, not history
+    assert _default_state({"active": 0, "failed": 0, "wait": 0, "waiting-children": 2}) == (
+        "waiting-children"
+    )

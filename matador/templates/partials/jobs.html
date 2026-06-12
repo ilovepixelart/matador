@@ -1,5 +1,5 @@
-{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink with context %}
-{% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
+{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink, state_label with context %}
+{% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
 <div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
   {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
   <div id="bulk-bar" class="items-center gap-2" style="display: none">
@@ -19,8 +19,13 @@
     {{ icon('retry', 'w-3.5 h-3.5') }} retry all</button>
   {% endif %}
   <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean', name=name).path }}?state={{ state }}"
-          hx-confirm="Clean ALL {{ state }} jobs?" data-loading-disable data-loading-aria-busy>
-    {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state }}</button>
+          {% if state == 'waiting-children' %}
+          hx-confirm="Cancel ALL parked flows? Each parent is removed WITH its whole subtree - children included, even running ones."
+          {% else %}
+          hx-confirm="Clean ALL {{ state_label(state) }} jobs?"
+          {% endif %}
+          data-loading-disable data-loading-aria-busy>
+    {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state_label(state) }}</button>
 </div>
 
 {% endif %}
@@ -28,7 +33,7 @@
 {# data-view sits ON the grid itself (bulk-select page identity) - no extra
    wrapper: idiomorph relocates id-keyed rows across intermediate divs. #}
 <div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
-  {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
+  {% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
   {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
   <div class="jobs-head border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
     <label class="cursor-pointer">
@@ -47,7 +52,7 @@
   {% endif %}
   {% for j in jobs %}{{ job_row(name, j, state, page) }}
   {% else %}
-  <div class="col-span-full">{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' - all clear' if state == 'failed' else '')) }}</div>
+  <div class="col-span-full">{% if state == 'waiting-children' %}{{ empty_state('inbox', 'No flows in flight', 'Parents enqueued with add_flow() park here while their children run.') }}{% else %}{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' - all clear' if state == 'failed' else '')) }}{% endif %}</div>
   {% endfor %}
 </div>
 

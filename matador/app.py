@@ -67,7 +67,7 @@ def _default_state(counts: dict[str, int]) -> JobState:
     if any, else problems, else what's queued - never an empty `active` list on
     a healthy idle queue.
     """
-    for s in ("active", "failed", "wait", "delayed"):
+    for s in ("active", "failed", "wait", "delayed", "waiting-children"):
         if counts.get(s):
             return cast("JobState", s)
     return "completed"
