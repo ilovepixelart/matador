@@ -31,7 +31,7 @@
   {% endif %}
   {# Always render all three so they never appear/disappear (the main source of jumping);
      tabular-nums keeps the digits aligned as the numbers change. #}
-  <div class="mt-1.5 flex gap-1 text-xs tabular-nums">
+  <div class="mt-1.5 flex gap-1.5 text-xs tabular-nums">
     <span class="{{ badge('info') }}" title="{{ qq.counts.active|comma }}">{{ qq.counts.active|compact }} active</span>
     <span class="{{ badge('muted') }}" title="{{ qq.counts.wait|comma }}">{{ qq.counts.wait|compact }} wait</span>
     <span class="{{ badge('danger') }}" title="{{ qq.counts.failed|comma }}">{{ qq.counts.failed|compact }} failed</span>
