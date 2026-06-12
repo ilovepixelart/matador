@@ -157,3 +157,43 @@ async def test_service_flow_detail_counts_by_child_state(q):
     assert detail["children_failed"] == 1  # the tolerated failure
     assert detail["children_results"] and detail["children_failures"]
     assert len(detail["flow"]["children"]) == 3  # the tree carries all three
+
+
+async def test_retry_flow_route_redrives_a_failed_flow(client, q):
+    fail = {"on": True}
+    parent = await q.add_flow("publish", {}, children=[c("a", {}), c("bad", {})])
+
+    async def proc(job):
+        if job.name == "bad" and fail["on"]:
+            raise RuntimeError("boom")
+        return "ok"
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        j = await q.get_job(parent.id)
+        if j and j.state == "failed":
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    # the button is offered on a failed flow's detail
+    detail = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
+    assert "retry flow" in detail.text
+
+    fail["on"] = False
+    r = await client.post(f"/queues/{QUEUE}/jobs/{parent.id}/retry-flow?state=failed", headers=hx())
+    assert r.status_code == 200
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        j = await q.get_job(parent.id)
+        if j and j.state == "completed":
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    assert (await q.get_job(parent.id)).state == "completed"  # the whole flow recovered

@@ -46,11 +46,23 @@
     {% if job.flow %}
     {# A flow parent: fan-in progress + the whole tree, states at a glance. #}
     <div class="col-span-2">
-      <dt class="label mb-1 flex items-center gap-1">
-        {{ icon('flow', 'w-3.5 h-3.5') }} flow
-        <span class="normal-case tracking-normal">· {{ job.children_done }}/{{ job.children_total }} children done</span>
-        {% if job.children_failed %}
-        <span class="normal-case tracking-normal text-danger">· {{ job.children_failed }} failed</span>
+      <dt class="label mb-1 flex items-center gap-2">
+        <span class="flex items-center gap-1">
+          {{ icon('flow', 'w-3.5 h-3.5') }} flow
+          <span class="normal-case tracking-normal">· {{ job.children_done }}/{{ job.children_total }} children done</span>
+          {% if job.children_failed %}
+          <span class="normal-case tracking-normal text-danger">· {{ job.children_failed }} failed</span>
+          {% endif %}
+        </span>
+        {% if job.state == 'failed' %}
+        {# one click re-drives the whole subtree: failed parent re-parks, failed
+           children re-join its barrier - completed children keep their results #}
+        <button class="btn btn-sm btn-info ml-auto normal-case tracking-normal"
+                hx-post="{{ url_for('retry_flow', name=job.queue or name, job_id=job.id).path }}"
+                hx-target="#queue-panel"
+                hx-confirm="Re-drive flow #{{ job.id }}? Every failed job in the subtree is retried; completed children keep their results."
+                data-loading-disable data-loading-aria-busy>
+          {{ icon('retry', 'w-3.5 h-3.5') }} retry flow</button>
         {% endif %}
       </dt>
       <dd>

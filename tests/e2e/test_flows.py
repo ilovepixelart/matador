@@ -158,3 +158,33 @@ def test_live_refresh_unparks_a_completed_flow(page: Page, base_url, flows, driv
     drive(finish_the_flow())
     # the SSE-driven refresh empties the flows tab without any user action
     expect(page.locator("#jobs details")).to_have_count(0, timeout=8000)
+
+
+def test_retry_flow_button_recovers_the_flow(page: Page, base_url, flows, drive):
+    # flows fixture: publish-video failed (transcode raised). Open the failed
+    # parent's detail and use the one-click "retry flow".
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")
+    panel = page.locator("#queue-panel")
+    expect(panel).to_contain_text("1 failed")
+    page.get_by_role("button", name="retry flow").click()
+    page.locator("dialog[open] #confirm-ok").click()
+    # the flow re-parks: the parent leaves failed for waiting-children
+    expect(page.locator("#tabcount-waiting-children")).to_have_text("2", timeout=5000)
+
+    # let a worker drive the recovered flow to completion (transcode succeeds now)
+    async def finish():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+
+        async def proc(job):
+            return {"ok": job.name} if job.name != "publish-video" else "done"
+
+        async def done(qq):
+            j = await qq.get_job(flows["parent_b"])
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+        await q.close()
+
+    drive(finish())
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")
+    expect(page.locator("#queue-panel")).to_contain_text("2/2 children done")

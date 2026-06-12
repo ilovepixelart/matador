@@ -235,6 +235,10 @@ class Service:
     async def retry(self, name: str, job_id: str) -> bool:
         return await self._q(name).retry_job(job_id)
 
+    async def retry_flow(self, name: str, parent_id: str) -> int:
+        """Re-drive a whole failed flow; returns how many jobs were retried."""
+        return await self._q(name).retry_flow(parent_id)
+
     async def remove(self, name: str, job_id: str) -> bool:
         return await self._q(name).remove_job(job_id)
 

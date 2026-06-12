@@ -679,6 +679,14 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write ro
             return _toast(request, "Couldn't retry", f"Job #{job_id} is no longer here.")
         return await _panel(svc, request, name, state, page)
 
+    @router.post("/queues/{name}/jobs/{job_id}/retry-flow", response_class=HTMLResponse)
+    async def retry_flow(
+        request: Request, name: str, job_id: str, state: str = "failed", page: int = 1
+    ):
+        count = await svc.retry_flow(name, job_id)
+        panel = await _panel(svc, request, name, state, page)
+        return _with_announcement(request, panel, f"{count} jobs re-queued for the flow")
+
     @router.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def remove(
         request: Request, name: str, job_id: str, state: str = "active", page: int = 1
