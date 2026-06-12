@@ -11,7 +11,7 @@
     </thead>
     <tbody>
     {% for s in schedulers %}
-      <tr class="border-t border-line hover:bg-panel2/20">
+      <tr class="border-t border-line hover:bg-panel2/20 transition-colors">
         <td class="td font-medium">{{ s.name }}</td>
         <td class="td font-mono text-muted">{{ s|schedule }}</td>
         <td class="td font-mono text-muted">{{ s.next|clock }}</td>

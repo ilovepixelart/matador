@@ -20,7 +20,7 @@
       </thead>
       <tbody>
         {% for n in names %}
-        <tr class="border-t border-line hover:bg-panel2/20">
+        <tr class="border-t border-line hover:bg-panel2/20 transition-colors">
           <td class="td font-medium truncate">{{ n.name }}</td>
           {# zero convention, everywhere: counts always show digits - zeros
              muted, failures in danger only when there are any #}

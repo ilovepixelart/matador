@@ -26,7 +26,7 @@
     </thead>
     <tbody>
       {% for w in workers %}
-      <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20">
+      <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20 transition-colors">
         <td class="td">
           <div class="flex items-center gap-2 min-w-0">
             {% if w.state == 'stopping' %}
@@ -84,7 +84,7 @@
     </thead>
     <tbody>
       {% for d in departed %}
-      <tr id="d-{{ d.host }}-{{ d.pid }}" class="border-t border-line hover:bg-panel2/20 text-muted">
+      <tr id="d-{{ d.host }}-{{ d.pid }}" class="border-t border-line hover:bg-panel2/20 transition-colors text-muted">
         <td class="td">
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full shrink-0 {{ 'bg-danger' if d.reason == 'lost' else 'bg-muted/50' }}"></span>
