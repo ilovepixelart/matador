@@ -31,7 +31,7 @@ document.body.addEventListener("htmx:beforeRequest", (e) => {
 // inheriting #queue-panel. Compare the view identity both fragments already
 // carry (data-view="queue:state") and drop mismatched swaps.
 document.body.addEventListener("htmx:beforeSwap", (e) => {
-  if (!e.detail.target || e.detail.target.id !== "jobs") return;
+  if (e.detail.target?.id !== "jobs") return;
   const current = e.detail.target.querySelector("[data-view]")?.dataset.view;
   const incoming = /data-view="([^"]+)"/.exec(e.detail.serverResponse || "")?.[1];
   if (current && incoming && current !== incoming) {
