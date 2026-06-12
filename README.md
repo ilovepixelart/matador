@@ -90,6 +90,23 @@ app.mount(
   themselves need auth.)
 - Other stacks (Django, Flask, non-Python): run matador standalone and reverse-proxy.
 
+## Security
+
+matador ships no auth of its own — it inherits the host app's via
+`dependencies=`, or sits behind an authenticating reverse proxy. An app built
+without `dependencies` logs a warning at startup, because every route
+(including delete/retry/pause) is open to whoever can reach it.
+
+- **CSRF**: the same-origin guard turns on automatically when `dependencies`
+  are configured (auth usually means cookies, and cookies are what make CSRF
+  real). Pass `require_same_origin=` explicitly to override.
+- **Stack traces** are shown in job detail by default and can leak source
+  paths or secrets from exception messages — `show_stacktraces=False` hides
+  them when the audience shouldn't see internals.
+- The dashboard can do whatever its Redis connection can do; scope that Redis
+  user/network accordingly. See toro's `docs/security.md` for the queue-side
+  model.
+
 Standalone is just the no-extras case:
 
 ```python

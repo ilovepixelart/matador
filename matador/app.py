@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
@@ -751,7 +752,7 @@ def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configura
     prefix: str = "toro",
     connection: Redis | None = None,
     dependencies: Sequence[params.Depends] | None = None,
-    require_same_origin: bool = False,
+    require_same_origin: bool | None = None,
     show_stacktraces: bool = True,
 ) -> FastAPI:
     """Build the matador FastAPI app watching the given queue `names`.
@@ -766,17 +767,30 @@ def create_app(  # noqa: PLR0913 — keyword-only knobs are the public configura
     ``/static`` mount is a sub-app and isn't covered; wrap the whole mount if the
     assets themselves need protecting.)
 
-    Set `require_same_origin=True` to reject state-changing requests (POST/DELETE…)
-    whose `Origin` doesn't match the request host — a stateless CSRF defense. The
-    dashboard ships no auth, so CSRF is moot by default; enable this when you add
-    *cookie*-based auth in front (a cross-site form would otherwise carry the cookie).
-    Behind a reverse proxy, ensure the forwarded Host is correct (uvicorn
-    `--proxy-headers`) so same-origin requests aren't falsely blocked.
+    `require_same_origin` rejects state-changing requests (POST/DELETE…) whose
+    `Origin` doesn't match the request host — a stateless CSRF defense. It
+    defaults to ON whenever `dependencies` are configured (auth usually means
+    cookies, and cookies are what make CSRF real) and OFF otherwise; pass an
+    explicit bool to override either way. Behind a reverse proxy, ensure the
+    forwarded Host is correct (uvicorn `--proxy-headers`) so same-origin
+    requests aren't falsely blocked.
 
     Set `show_stacktraces=False` to omit job stack traces from the UI — they can
     leak source paths, versions, and occasionally secrets from exception messages,
     which matters when the dashboard is reachable by people who shouldn't see them.
     """
+    if require_same_origin is None:
+        require_same_origin = bool(dependencies)
+    if not dependencies:
+        logging.getLogger("matador").warning(
+            "matador has no auth configured: every route is open to whoever can reach it. "
+            "Mount it behind your app's auth (dependencies=[Depends(...)]) or a reverse "
+            "proxy that authenticates.%s",
+            " Job stack traces are visible (show_stacktraces=False hides them)."
+            if show_stacktraces
+            else "",
+        )
+
     svc = Service(names, url=url, prefix=prefix, connection=connection)
 
     @contextlib.asynccontextmanager
