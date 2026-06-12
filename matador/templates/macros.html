@@ -236,6 +236,14 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     {% if node.job.state == 'failed' and node.job.failed_reason %}
     <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
     {% endif %}
+    {% if node.job.state == 'failed' and node.job.id != current_id %}
+    {# retry just this node, in place. The root parent has its own "retry flow"
+       button (whole-flow recovery), so it's excluded here. #}
+    <button class="btn btn-sm btn-info tip ml-auto shrink-0" data-tip="Retry this job"
+            hx-post="{{ url_for('retry_node', name=queue, job_id=node.job.id).path }}?parent={{ current_id }}"
+            hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
+      {{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry job #{{ node.job.id }}</span></button>
+    {% endif %}
   </div>
   {% if node.children %}
   <ul>

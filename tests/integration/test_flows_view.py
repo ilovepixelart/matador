@@ -197,3 +197,38 @@ async def test_retry_flow_route_redrives_a_failed_flow(client, q):
     task.cancel()
 
     assert (await q.get_job(parent.id)).state == "completed"  # the whole flow recovered
+
+
+async def test_retry_node_route_retries_one_child_in_place(client, q):
+    parent = await q.add_flow(
+        "report", {}, children=[c("ok", {}), c("bad", {}, on_fail="continue")]
+    )
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom")
+        if job.name == "ok":
+            return 1
+        return await job.children_results()
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        j = await q.get_job(parent.id)
+        if j and j.state == "completed":  # tolerated failure, parent still ran
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    bad_id = (await q.get_flow(parent.id))["children"][1]["job"].id
+    assert (await q.get_job(bad_id)).state == "failed"
+
+    # retry just that node; the response re-renders the parent's flow page
+    r = await client.post(
+        f"/queues/{QUEUE}/jobs/{bad_id}/retry-node?parent={parent.id}", headers=hx()
+    )
+    assert r.status_code == 200
+    assert "report" in r.text  # stayed on the parent's flow, not the list
+    assert "Retried job" in r.text  # the announcement
+    assert (await q.get_job(bad_id)).state != "failed"  # the node left failed

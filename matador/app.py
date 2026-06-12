@@ -643,7 +643,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     return router
 
 
-def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write routes
+def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa: C901 - wires N write routes
     """Build the write routes: each mutates state, then re-renders the panel."""
     router = APIRouter()
 
@@ -686,6 +686,26 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write ro
         count = await svc.retry_flow(name, job_id)
         panel = await _panel(svc, request, name, state, page)
         return _with_announcement(request, panel, f"{count} jobs re-queued for the flow")
+
+    @router.post("/queues/{name}/jobs/{job_id}/retry-node", response_class=HTMLResponse)
+    async def retry_node(request: Request, name: str, job_id: str, parent: str):
+        # Retry one node from inside a flow tree, then re-render the flow it
+        # belongs to (the `parent` page) so the node flips in place instead of
+        # bouncing to the list. A failed parent does not auto-recover from a
+        # single child retry (v1) - "retry flow" is the whole-flow recovery.
+        if not await svc.retry(name, job_id):
+            return _toast(request, "Couldn't retry", f"Job #{job_id} is no longer here.")
+        flow = await svc.job(name, parent)
+        panel = _render_str(
+            request,
+            "partials/job_page.html",
+            name=name,
+            job=flow,
+            job_id=parent,
+            show_stacktraces=show_stacktraces,
+        )
+        side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
+        return _with_announcement(request, HTMLResponse(panel + side), f"Retried job #{job_id}")
 
     @router.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def remove(
@@ -819,5 +839,5 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     app.exception_handler(UnknownQueueError)(_unknown_queue)
 
     app.include_router(_views_router(svc, show_stacktraces=show_stacktraces))
-    app.include_router(_actions_router(svc))
+    app.include_router(_actions_router(svc, show_stacktraces=show_stacktraces))
     return app
