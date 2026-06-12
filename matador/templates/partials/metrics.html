@@ -17,7 +17,7 @@
     <span class="text-danger">failed · {{ m.fail_pct }}%</span></span>
   {% endif %}
   {% if m.percentiles.p95 %}
-  <span class="chip tip" data-tip="Processing duration percentiles, successful jobs only. A mean would hide the tail.">
+  <span class="chip tip" data-tip="Duration percentiles, successful jobs only — estimates from log-scale buckets (within ~22%). A mean would hide the tail.">
     p50 <b class="text-fg tabular-nums">{{ m.percentiles.p50|dur }}</b>
     · p95 <b class="text-fg tabular-nums">{{ m.percentiles.p95|dur }}</b></span>
   {% endif %}

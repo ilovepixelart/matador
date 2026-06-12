@@ -105,3 +105,15 @@ async def test_panel_lists_jobs_by_name_failures_first(client, seeded):
     # seeded ran okjob (completed) and badjob (failed) — badjob must lead
     assert r.text.index("badjob") < r.text.index("okjob")
     assert "p95" in r.text
+
+
+async def test_sparse_percentiles_are_dimmed(client, seeded):
+    # seeded completes ONE job — p95 of n=1 is just the slowest job's bucket,
+    # so the cell renders dimmed with the sample-size explanation
+    r = await client.get(f"/queues/{QUEUE}")
+    assert 'data-sparse="p95"' in r.text
+
+
+async def test_percentile_chip_discloses_estimation(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}/metrics", headers=hx())
+    assert "estimate" in r.text.lower()  # we say it's bucketed, like the big tools do

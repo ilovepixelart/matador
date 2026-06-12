@@ -25,8 +25,15 @@
           <td class="td text-right tabular-nums">{{ n.completed|comma }}</td>
           <td class="td text-right tabular-nums{{ ' text-danger' if n.failed }}">
             {{ n.failed|comma if n.failed else '—' }}</td>
-          <td class="td text-right tabular-nums text-muted">{{ n.p50|dur if n.p50 else '—' }}</td>
-          <td class="td text-right tabular-nums">{{ n.p95|dur if n.p95 else '—' }}</td>
+          {# below ~10/20 samples a percentile is just the slowest job's bucket
+             (CloudWatch's 10/(1-p) significance rule, scaled down) — keep the
+             number scannable but dim it and say why #}
+          <td class="td text-right tabular-nums text-muted{{ ' opacity-50 tip' if 0 < n.completed < 10 }}"
+              {% if 0 < n.completed < 10 %}data-sparse="p50" data-tip="only {{ n.completed }} runs — not statistically meaningful"{% endif %}>
+            {{ n.p50|dur if n.p50 else '—' }}</td>
+          <td class="td text-right tabular-nums{{ ' opacity-50 tip' if 0 < n.completed < 20 }}"
+              {% if 0 < n.completed < 20 %}data-sparse="p95" data-tip="only {{ n.completed }} runs — p95 is just the slowest job"{% endif %}>
+            {{ n.p95|dur if n.p95 else '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
