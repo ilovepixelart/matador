@@ -134,6 +134,18 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
         </span>
         <span class="text-muted tabular-nums w-9 text-right">{{ j.progress }}%</span>
       </span>
+      {% elif state == 'waiting-children' and j.children_count %}
+      {# flows tab: fan-in progress per parked parent (done green, failed red,
+         pending empty) - the same language as the detail's segmented bar #}
+      {% set total = j.children_count %}
+      <span class="w-28 hidden md:flex items-center gap-1.5"
+            title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ total - j.children_done - j.children_failed }} pending">
+        <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden flex">
+          <span class="block h-full bg-success transition-[width] duration-300" style="width: {{ j.children_done * 100 // total }}%"></span>
+          <span class="block h-full bg-danger transition-[width] duration-300" style="width: {{ j.children_failed * 100 // total }}%"></span>
+        </span>
+        <span class="text-muted tabular-nums w-9 text-right">{{ j.children_done }}/{{ total }}</span>
+      </span>
       {% endif %}
     </span>
     {# The state-relevant moment: finished / started / due / queued. Relative

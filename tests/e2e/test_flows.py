@@ -214,3 +214,10 @@ def test_flow_tree_updates_live_while_in_flight(page: Page, base_url, flows, dri
     drive(finish())
     # the OPEN detail re-rendered itself - no reopen, no manual refresh
     expect(panel).to_contain_text("2/2 children done", timeout=8000)
+
+
+def test_flows_tab_row_shows_progress(page: Page, base_url, flows):
+    # flows fixture: nightly-report is parked at 1/2 (one shard done, one pending)
+    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    row = page.locator("#jobs details", has_text="nightly-report")
+    expect(row).to_contain_text("1/2")  # fan-in progress on the row, no need to open it

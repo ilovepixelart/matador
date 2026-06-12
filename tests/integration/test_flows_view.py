@@ -232,3 +232,29 @@ async def test_retry_node_route_retries_one_child_in_place(client, q):
     assert "report" in r.text  # stayed on the parent's flow, not the list
     assert "Retried job" in r.text  # the announcement
     assert (await q.get_job(bad_id)).state != "failed"  # the node left failed
+
+
+async def test_flows_tab_row_shows_fanin_progress(client, q):
+    parent = await q.add_flow(
+        "report",
+        {},
+        children=[c("good", {}), c("bad", {}, on_fail="continue"), c("later", {}, delay=600_000)],
+    )
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom")
+        return 1
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        if (await q.flow_progress([parent.id]))[parent.id] == (1, 1):
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children", headers=hx())
+    assert r.status_code == 200
+    assert "1/3" in r.text  # 1 of 3 children done, on the row itself

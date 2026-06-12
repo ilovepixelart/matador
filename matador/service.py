@@ -189,8 +189,16 @@ class Service:
         self, name: str, state: JobState, page: int = 1, per_page: int = 20
     ) -> list[dict[str, Any]]:
         start = (page - 1) * per_page
-        jobs = await self._q(name).get_jobs(state, start, start + per_page - 1)
-        return [{**self._summary(j), "queue": name} for j in jobs]
+        q = self._q(name)
+        jobs = await q.get_jobs(state, start, start + per_page - 1)
+        rows = [{**self._summary(j), "queue": name} for j in jobs]
+        if state == "waiting-children":
+            # fan-in progress per parked parent, one pipelined HLEN batch - so the
+            # flows tab triages without opening each row.
+            prog = await q.flow_progress([r["id"] for r in rows])
+            for r in rows:
+                r["children_done"], r["children_failed"] = prog.get(r["id"], (0, 0))
+        return rows
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
