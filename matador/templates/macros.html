@@ -99,11 +99,11 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under
          Schedulers and names the schedule it came from. #}
-      {# muted, not accent: metadata badges stay neutral - red accent on a
-         healthy occurrence reads as a failure #}
-      <span class="tip inline-flex items-center gap-1 {{ badge('muted', 'shrink-0') }}"
+      {# icon-only muted glyph, like the flow badges: metadata stays a quiet
+         symbol, the tooltip names the scheduler it came from #}
+      <span class="tip inline-flex items-center shrink-0 p-1 rounded-md bg-muted/10 text-muted"
             data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
-        {{ icon('clock', 'w-3 h-3') }} scheduled<span class="sr-only"> occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
+        {{ icon('clock', 'w-3 h-3') }}<span class="sr-only">Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
       {% endif %}
       {% if j.children_count %}
       {# A flow parent: quiet branch glyph + how wide the fan-out is. #}
@@ -112,7 +112,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
         {{ icon('flow', 'w-3 h-3') }} {{ j.children_count }}<span class="sr-only"> children in this flow</span></span>
       {% elif j.parent_id %}
       {# A flow child: the parent link lives in the detail; the row just hints. #}
-      <span class="tip inline-flex items-center {{ badge('muted', 'shrink-0') }}"
+      <span class="tip inline-flex items-center shrink-0 p-1 rounded-md bg-muted/10 text-muted"
             data-tip="Part of flow #{{ j.parent_id }}">
         {{ icon('flow', 'w-3 h-3') }}<span class="sr-only">Part of flow #{{ j.parent_id }}</span></span>
       {% endif %}
