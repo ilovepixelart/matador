@@ -72,3 +72,11 @@ def test_sparkbars_share_one_peak():
     sb = _sparkbars(queues)
     assert sb["big"][0]["dh"] == SPARK_H  # the busiest queue fills its cell
     assert sb["small"][0]["dh"] < SPARK_H / 2  # the quiet one stays visibly smaller
+
+
+def test_sliver_overflow_is_clamped_back_into_the_chart():
+    # a near-full bar plus a minimum-height sliver overflows the height; the
+    # stack must scale back down instead of poking out of the chart
+    (b,) = _chart_bars([_pt(completed=99, failed=1)])
+    assert b["dh"] + b["fh"] <= CHART_H
+    assert b["fh"] > 0  # the sliver survives the clamp
