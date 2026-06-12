@@ -3,12 +3,12 @@
   {{ icon('clock', 'w-3.5 h-3.5') }} Schedulers</h2>
 <div class="card">
   <table class="w-full text-sm">
-    <thead class="bg-panel2/60">
+    <thead class="bg-panel2/40">
       <tr><th scope="col" class="th">name</th><th scope="col" class="th">schedule</th><th scope="col" class="th">next run</th><th scope="col" class="th"><span class="sr-only">actions</span></th></tr>
     </thead>
     <tbody>
     {% for s in schedulers %}
-      <tr class="border-t border-line">
+      <tr class="border-t border-line hover:bg-panel2/20">
         <td class="td font-medium">{{ s.name }}</td>
         <td class="td font-mono text-muted">{{ s|schedule }}</td>
         <td class="td font-mono text-muted">{{ s.next|clock }}</td>

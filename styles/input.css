@@ -214,12 +214,14 @@
   .jobs-table { @apply grid gap-x-3 text-sm
     grid-cols-[max-content_1rem_4rem_7rem_minmax(0,1fr)_max-content_max-content_2.25rem_max-content]
     md:grid-cols-[max-content_1rem_4rem_11rem_minmax(0,1fr)_max-content_max-content_2.25rem_max-content]; }
-  /* every cell: flex centering + vertical rhythm + edge padding, in ONE place */
+  /* every cell: flex centering + vertical rhythm + edge padding, in ONE place.
+     Rhythm matches .th/.td (py-2.5, px-4 at the edges) so the jobs grid and
+     the real <table>s read as the same table family. Row hover: passive
+     tables use bg-panel2/20, interactive (expandable) rows bg-panel2/30. */
   .jobs-head, .jobs-cells { @apply col-span-full grid grid-cols-subgrid
     [&>*]:flex [&>*]:items-center [&>*]:min-w-0
-    [&>:first-child]:pl-3 [&>:last-child]:pr-3; }
-  .jobs-head { @apply [&>*]:py-2; }
-  .jobs-cells { @apply [&>*]:py-2.5; }
+    [&>:first-child]:pl-4 [&>:last-child]:pr-4; }
+  .jobs-head, .jobs-cells { @apply [&>*]:py-2.5; }
   .jobs-row { @apply col-span-full grid grid-cols-subgrid; }
   /* The open body must span the full row WITHOUT feeding the shared
      max-content tracks (contain:inline-size = measures as empty for track

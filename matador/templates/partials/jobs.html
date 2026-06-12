@@ -1,6 +1,6 @@
 {% from "macros.html" import icon, bar_color, job_row, empty_state, pglink, state_label with context %}
 {% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
-<div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
+<div class="flex items-center gap-2 px-4 py-2.5 bg-panel2/40 border-b border-line">
   {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
   <div id="bulk-bar" class="items-center gap-2" style="display: none">
     <span class="text-xs text-muted"><b id="bulk-count" class="text-fg tabular-nums">0</b> selected</span>
@@ -35,7 +35,7 @@
 <div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
   {% if state in ['failed', 'completed', 'delayed', 'wait', 'waiting-children'] and jobs %}
   {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
-  <div class="jobs-head border-b border-line bg-panel2/30 label select-none">
+  <div class="jobs-head border-b border-line bg-panel2/40 label font-medium select-none">
     <label class="cursor-pointer">
       <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
     </label>
