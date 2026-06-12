@@ -37,7 +37,12 @@
   {% if jobs %}{{ jobs_head(bulk) }}{% endif %}
   {% for j in jobs %}{{ job_row(name, j, state, page, bulk) }}
   {% else %}
-  <div class="col-span-full">{% if state == 'waiting-children' %}{{ empty_state('inbox', 'No flows in flight', 'Parents enqueued with add_flow() park here while their children run.') }}{% else %}{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' - all clear' if state == 'failed' else '')) }}{% endif %}</div>
+  <div class="col-span-full">
+    {%- if state == 'waiting-children' -%}{{ empty_state('inbox', 'No flows in flight') }}
+    {%- elif state == 'wait' -%}{{ empty_state('inbox', 'No waiting jobs') }}
+    {%- else -%}{{ empty_state('inbox', 'No ' ~ state ~ ' jobs') }}
+    {%- endif -%}
+  </div>
   {% endfor %}
 </div>
 

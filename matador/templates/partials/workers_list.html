@@ -49,8 +49,8 @@
           </div>
           {% else %}<span class="text-muted">idle</span>{% endif %}
         </td>
-        <td class="td text-right tabular-nums">{{ w.processed|compact }}</td>
-        <td class="td text-right tabular-nums{{ ' text-danger' if w.failed }}">{{ w.failed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-muted' if not w.processed }}">{{ w.processed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-danger' if w.failed else ' text-muted' }}">{{ w.failed|compact }}</td>
         <td class="td text-right tabular-nums text-muted">{{ w.started|uptime }}</td>
       </tr>
       {% endfor %}
@@ -58,7 +58,7 @@
   </table>
 </div>
 {% else %}
-{{ empty_state('server', 'No workers running', 'Start a toro Worker against this Redis and it appears here.', bordered=true) }}
+{{ empty_state('server', 'No workers running', bordered=true) }}
 {% endif %}
 
 {% if departed %}
@@ -106,8 +106,8 @@
             {% endif %}
           </div>
         </td>
-        <td class="td text-right tabular-nums">{{ d.processed|compact }}</td>
-        <td class="td text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-muted' if not d.processed }}">{{ d.processed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-danger' if d.failed else ' text-muted' }}">{{ d.failed|compact }}</td>
         <td class="td text-right tabular-nums"
             title="last heartbeat {{ ((d.at - d.last_seen) / 1000)|round(1) }}s before detected">{{ d.at|uptime }} ago</td>
       </tr>

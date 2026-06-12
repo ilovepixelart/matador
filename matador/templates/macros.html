@@ -41,13 +41,12 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 </svg>
 {%- endmacro %}
 
-{# The shared empty/absent state: a centred icon + message (and optional detail),
-   so "no jobs", "no schedulers", "no workers" and "no results" all read the same. #}
-{% macro empty_state(icon_name='inbox', message='Nothing here', detail=None, bordered=false) -%}
+{# The shared empty/absent state: a centred icon + ONE line, so "no jobs",
+   "no schedulers", "no workers" and "no results" all read the same. #}
+{% macro empty_state(icon_name='inbox', message='Nothing here', bordered=false) -%}
 <div class="px-4 py-14 flex flex-col items-center gap-2 text-center text-muted{{ ' rounded-xl border border-line' if bordered }}">
   <span class="opacity-50">{{ icon(icon_name, 'w-7 h-7') }}</span>
   <span class="text-sm">{{ message }}</span>
-  {% if detail %}<span class="text-xs opacity-80 max-w-xs">{{ detail }}</span>{% endif %}
 </div>
 {%- endmacro %}
 
@@ -100,7 +99,9 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under
          Schedulers and names the schedule it came from. #}
-      <span class="tip inline-flex items-center gap-1 {{ badge('accent', 'shrink-0') }}"
+      {# muted, not accent: metadata badges stay neutral - red accent on a
+         healthy occurrence reads as a failure #}
+      <span class="tip inline-flex items-center gap-1 {{ badge('muted', 'shrink-0') }}"
             data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
         {{ icon('clock', 'w-3 h-3') }} scheduled<span class="sr-only"> occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
       {% endif %}

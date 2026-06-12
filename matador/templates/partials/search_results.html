@@ -9,6 +9,6 @@
 {% if jobs %}{{ jobs_head(bulk=false) }}{% endif %}
 {% for j in jobs %}{{ job_row(name, j, j.state or state, bulk=false) }}
 {% else %}
-  <div class="col-span-full">{{ empty_state('search', 'no jobs match “' ~ query ~ '”') }}</div>
+  <div class="col-span-full">{{ empty_state('search', 'No jobs match “' ~ query ~ '”') }}</div>
 {% endfor %}
 </div>

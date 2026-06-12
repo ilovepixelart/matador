@@ -22,9 +22,12 @@
         {% for n in names %}
         <tr class="border-t border-line hover:bg-panel2/20">
           <td class="td font-medium truncate">{{ n.name }}</td>
-          <td class="td text-right tabular-nums">{{ n.completed|comma }}</td>
-          <td class="td text-right tabular-nums{{ ' text-danger' if n.failed }}">
-            {{ n.failed|comma if n.failed else '-' }}</td>
+          {# zero convention, everywhere: counts always show digits - zeros
+             muted, failures in danger only when there are any #}
+          <td class="td text-right tabular-nums{{ ' text-muted' if not n.completed }}">
+            {{ n.completed|comma }}</td>
+          <td class="td text-right tabular-nums{{ ' text-danger' if n.failed else ' text-muted' }}">
+            {{ n.failed|comma }}</td>
           {# below ~10/20 samples a percentile is just the slowest job's bucket
              (CloudWatch's 10/(1-p) significance rule, scaled down) - keep the
              number scannable but dim it and say why #}

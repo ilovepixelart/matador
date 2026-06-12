@@ -18,7 +18,7 @@ def test_enqueued_job_appears_live_on_empty_tab(page: Page, base_url, drive):
 
     drive(clear())
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
-    expect(page.locator("#jobs")).to_contain_text("No wait jobs")
+    expect(page.locator("#jobs")).to_contain_text("No waiting jobs")
     page.wait_for_timeout(2000)  # let the SSE connection establish (no replay if we miss it)
 
     async def enqueue():
