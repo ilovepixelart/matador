@@ -1,0 +1,62 @@
+{% from "macros.html" import icon, job_chip, flow_node with context %}
+{# Flow content only. The #flow-section wrapper (in flow_section.html) is the
+   stable live region; while the flow is live it morphs THIS body in on each job
+   event - the wrapper, the page chrome and the data/opts wells never move.
+   Same shape as workers_list.html inside #workers-list. #}
+<div class="space-y-3">
+  {# fan-in progress + the whole tree, states at a glance #}
+  <div>
+    <div class="label mb-1 flex items-center gap-2">
+      <span class="flex items-center gap-1">
+        {{ icon('flow', 'w-3.5 h-3.5') }} flow
+        <span class="normal-case tracking-normal">· {{ job.children_done }}/{{ job.children_total }} children done</span>
+        {% if job.children_failed %}
+        <span class="normal-case tracking-normal text-danger">· {{ job.children_failed }} failed</span>
+        {% endif %}
+      </span>
+      {% if job.state == 'failed' %}
+      {# one click re-drives the whole subtree: failed parent re-parks, failed
+         children re-join its barrier - completed children keep their results #}
+      <button class="btn btn-sm btn-info ml-auto normal-case tracking-normal"
+              hx-post="{{ url_for('retry_flow', name=job.queue or name, job_id=job.id).path }}"
+              hx-target="#queue-panel"
+              hx-confirm="Re-drive flow #{{ job.id }}? Every failed job in the subtree is retried; completed children keep their results."
+              data-loading-disable data-loading-aria-busy>
+        {{ icon('retry', 'w-3.5 h-3.5') }} retry flow</button>
+      {% endif %}
+    </div>
+    {# Segmented fan-in bar (done green, failed red, pending empty); floored so
+       the two segments never sum past 100 and a failed flow never reads green. #}
+    {% set done_pct = job.children_done * 100 // job.children_total %}
+    {% set failed_pct = job.children_failed * 100 // job.children_total %}
+    <div class="flex items-center gap-2 mb-2">
+      <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden flex">
+        <div class="h-full bg-success transition-all" style="width: {{ done_pct }}%"></div>
+        <div class="h-full bg-danger transition-all" style="width: {{ failed_pct }}%"></div>
+      </div>
+      <span class="text-xs text-muted tabular-nums">{{ done_pct }}%</span>
+    </div>
+    <ul class="ftree well px-3 py-2 max-h-72">
+      {{ flow_node(job.queue or name, job.flow, job.id) }}
+    </ul>
+  </div>
+  {% if job.children_results %}
+  <div>
+    <div class="label mb-1">children results</div>
+    <pre class="jsonv well max-h-56">{{ job.children_results|pretty }}</pre>
+  </div>
+  {% endif %}
+  {% if job.children_failures %}
+  <div>
+    <div class="label mb-1">child failures</div>
+    <div class="well space-y-1 max-h-56">
+      {% for cid, reason in job.children_failures.items() %}
+      <div class="flex items-baseline gap-2 text-sm min-w-0">
+        {{ job_chip(job.queue or name, cid) }}
+        <span class="font-mono text-xs text-danger break-all">{{ reason }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>

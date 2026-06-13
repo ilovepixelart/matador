@@ -265,7 +265,7 @@ async def test_live_refresher_self_stops_when_flow_is_terminal(client, q):
     # parked flow (a delayed child keeps it in flight) -> detail carries the refresher
     parked = await q.add_flow("parked", {}, children=[c("later", {}, delay=600_000)])
     r = await client.get(f"/queues/{QUEUE}/jobs/{parked.id}/detail")
-    assert 'hx-target="closest [data-job-detail]"' in r.text  # live refresher present
+    assert f"/jobs/{parked.id}/flow" in r.text  # self-updating flow fragment is live
 
     # a completed flow -> NO refresher (else it would poll the server forever)
     done = await q.add_flow("done", {}, children=[c("leaf", {})])
@@ -285,7 +285,7 @@ async def test_live_refresher_self_stops_when_flow_is_terminal(client, q):
 
     r = await client.get(f"/queues/{QUEUE}/jobs/{done.id}/detail")
     assert "3/3" not in r.text  # (sanity: it's a 1-child flow)
-    assert 'hx-target="closest [data-job-detail]"' not in r.text  # refresher gone
+    assert f"/jobs/{done.id}/flow" not in r.text  # not live -> no self-refresh
 
 
 async def test_per_node_retry_button_only_on_failed_children_not_the_root(client, q):
@@ -341,7 +341,7 @@ async def test_failed_flow_with_a_retried_child_stays_live_then_stops(client, q)
 
     await _run_until(lambda: _is_state(q, parent.id, "failed"))
 
-    sel = 'hx-target="closest [data-job-detail]"'  # the live refresher
+    sel = f"/jobs/{parent.id}/flow"  # the self-updating flow fragment's hx-get
     r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
     assert sel not in r.text  # a settled failed flow is NOT live
 

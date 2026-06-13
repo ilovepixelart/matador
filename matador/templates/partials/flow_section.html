@@ -1,0 +1,16 @@
+{# Live region for the flow detail. Same idiom as #workers-list (workers.html):
+   a STABLE wrapper that carries the trigger and morphs its OWN inner HTML - it is
+   never replaced, so its sse listener is registered once and stays. While the flow
+   is live it re-fetches flow_body.html on each job event; gated on flow_live, so a
+   flow that is already terminal when you open it never polls (and htmx tears the
+   trigger down when you navigate away). #}
+{% if job and job.flow %}
+<div class="col-span-2" id="flow-section"
+     {% if job.flow_live %}
+     hx-get="{{ url_for('flow_fragment', name=job.queue or name, job_id=job.id).path }}"
+     hx-trigger="sse:changed throttle:1s"
+     hx-target="this" hx-swap="morph:innerHTML" hx-sync="this:drop"
+     {% endif %}>
+  {% include "partials/flow_body.html" %}
+</div>
+{% endif %}

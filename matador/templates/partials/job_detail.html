@@ -43,77 +43,7 @@
     </div>
     {% endif %}
 
-    {% if job.flow %}
-    {# A flow parent: fan-in progress + the whole tree, states at a glance. #}
-    <div class="col-span-2">
-      <dt class="label mb-1 flex items-center gap-2">
-        <span class="flex items-center gap-1">
-          {{ icon('flow', 'w-3.5 h-3.5') }} flow
-          <span class="normal-case tracking-normal">· {{ job.children_done }}/{{ job.children_total }} children done</span>
-          {% if job.children_failed %}
-          <span class="normal-case tracking-normal text-danger">· {{ job.children_failed }} failed</span>
-          {% endif %}
-        </span>
-        {% if job.state == 'failed' %}
-        {# one click re-drives the whole subtree: failed parent re-parks, failed
-           children re-join its barrier - completed children keep their results #}
-        <button class="btn btn-sm btn-info ml-auto normal-case tracking-normal"
-                hx-post="{{ url_for('retry_flow', name=job.queue or name, job_id=job.id).path }}"
-                hx-target="#queue-panel"
-                hx-confirm="Re-drive flow #{{ job.id }}? Every failed job in the subtree is retried; completed children keep their results."
-                data-loading-disable data-loading-aria-busy>
-          {{ icon('retry', 'w-3.5 h-3.5') }} retry flow</button>
-        {% endif %}
-      </dt>
-      <dd>
-        {# Segmented fan-in bar: done · failed · pending each own their share,
-           so "2 done, 1 failed, 2 pending" reads at a glance and a failed
-           flow can never paint itself fully green. #}
-        {# floored, not rounded: 199/200-with-1-failed must read 99%, and the
-           two segments may never sum past 100 #}
-        {% set done_pct = job.children_done * 100 // job.children_total %}
-        {% set failed_pct = job.children_failed * 100 // job.children_total %}
-        <div class="flex items-center gap-2 mb-2">
-          <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden flex">
-            <div class="h-full bg-success transition-all" style="width: {{ done_pct }}%"></div>
-            <div class="h-full bg-danger transition-all" style="width: {{ failed_pct }}%"></div>
-          </div>
-          <span class="text-xs text-muted tabular-nums">{{ done_pct }}%</span>
-        </div>
-        <ul class="ftree well px-3 py-2 max-h-72">
-          {{ flow_node(job.queue or name, job.flow, job.id) }}
-        </ul>
-      </dd>
-    </div>
-    {% if job.flow_live %}
-    {# Live render: while ANY node in the tree is still moving, re-fetch + morph
-       this detail on each job event so the tree and progress tick as children
-       settle - whether the parent is parked OR a retry is running under a
-       still-failed parent. The fresh detail only re-includes this element while
-       work remains, so it self-stops once everything is terminal. Morph keeps
-       it flicker-free and preserves scroll. #}
-    <div class="hidden"
-         hx-get="{{ url_for('job_detail', name=job.queue or name, job_id=job.id).path }}"
-         hx-trigger="sse:changed throttle:1s"
-         hx-target="closest [data-job-detail]" hx-swap="morph:innerHTML"
-         hx-sync="this:drop"></div>
-    {% endif %}
-    {% if job.children_results %}
-    <div class="col-span-2"><dt class="label mb-1">children results</dt>
-      <dd><pre class="jsonv well max-h-56">{{ job.children_results|pretty }}</pre></dd></div>
-    {% endif %}
-    {% if job.children_failures %}
-    <div class="col-span-2"><dt class="label mb-1">child failures</dt>
-      <dd class="well space-y-1 max-h-56">
-        {% for cid, reason in job.children_failures.items() %}
-        <div class="flex items-baseline gap-2 text-sm min-w-0">
-          {{ job_chip(job.queue or name, cid) }}
-          <span class="font-mono text-xs text-danger break-all">{{ reason }}</span>
-        </div>
-        {% endfor %}
-      </dd></div>
-    {% endif %}
-    {% endif %}
+    {% if job.flow %}{% include "partials/flow_section.html" %}{% endif %}
 
     <div class="col-span-2"><dt class="label mb-1">data</dt>
       <dd><pre class="jsonv well">{{ job.data|pretty }}</pre></dd></div>

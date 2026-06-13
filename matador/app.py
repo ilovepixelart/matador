@@ -612,6 +612,15 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             show_stacktraces=show_stacktraces,
         )
 
+    @router.get("/queues/{name}/jobs/{job_id}/flow", response_class=HTMLResponse)
+    async def flow_fragment(request: Request, name: str, job_id: str):
+        # Just the flow body - the #flow-section live region morphs this into itself
+        # on each job event (same as #workers-list <- workers_list.html). The wrapper
+        # and the rest of the detail never move.
+        return _render(
+            request, "partials/flow_body.html", name=name, job=await svc.job(name, job_id)
+        )
+
     @router.get("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def job_page(request: Request, name: str, job_id: str):
         # A standalone, bookmarkable page for one job - the drill-down target for
