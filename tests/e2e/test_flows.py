@@ -292,3 +292,45 @@ def test_failed_flow_updates_live_during_per_node_retry(page: Page, base_url, fl
     drive(finish())
     # no reload: the open detail re-rendered itself to 2/2 as the retry completed
     expect(panel).to_contain_text("2/2 children done", timeout=8000)
+
+
+def test_flow_action_buttons_appear_only_where_they_apply(page: Page, base_url, flows):
+    # retry-flow recovers a FAILED parent; per-node retry recovers a FAILED child.
+    # An in-flight flow offers neither. A failed flow offers retry-flow plus exactly
+    # one per-node retry: on the failed child, not the completed one and not the root
+    # (the root carries retry-flow instead). The single count on parent_b's
+    # failed+completed+root tree is what encodes "only the failed child". The same
+    # selector finds and clicks the button in the live test, so the 0-counts here
+    # are a real absence, not a typo'd locator.
+    panel = page.locator("#queue-panel")
+
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_a']}")  # in flight, 1/2
+    expect(panel).to_contain_text("1/2 children done")
+    expect(panel.get_by_role("button", name="retry flow")).to_have_count(0)
+    expect(panel.locator('button[hx-post*="retry-node"]')).to_have_count(0)
+
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")  # failed
+    expect(panel).to_contain_text("1 failed")
+    expect(panel.get_by_role("button", name="retry flow")).to_have_count(1)
+    expect(panel.locator('button[hx-post*="retry-node"]')).to_have_count(1)
+
+
+def test_deep_nested_tree_renders_every_level(page: Page, base_url, run_async):
+    # flow_node recurses; the shared seed is only 2 levels deep, so render a 4-deep
+    # chain and confirm every level shows up, properly nested (one <ul> per non-leaf).
+    async def seed():
+        q = await reset_queue()
+        parent = await q.add_flow(
+            "deploy",
+            {},
+            children=[c("build", {}, children=[c("compile", {}, children=[c("lint", {})])])],
+        )
+        await q.close()
+        return parent.id
+
+    pid = run_async(seed())
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{pid}")
+    tree = page.locator("ul.ftree")
+    for name in ("deploy", "build", "compile", "lint"):
+        expect(tree).to_contain_text(name)
+    expect(tree.locator("ul")).to_have_count(3)  # build's, compile's, lint's containers
