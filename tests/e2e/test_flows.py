@@ -216,6 +216,45 @@ def test_flow_tree_updates_live_while_in_flight(page: Page, base_url, flows, dri
     expect(panel).to_contain_text("2/2 children done", timeout=8000)
 
 
+def test_live_update_touches_only_the_flow_section_not_the_chrome(
+    page: Page, base_url, flows, drive
+):
+    # Regression for the bug you hit ("the top got eaten"): an earlier live render
+    # re-fetched the WHOLE detail and morphed a parent, collapsing the page header
+    # and the data/opts wells - yet it still showed "2/2", so the in-flight test
+    # above stayed green through it. Guard the chrome explicitly: after the morph the
+    # title, the parent's own data well, and a single #flow-section must all survive.
+    parent = flows["parent_a"]
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{parent}")
+    panel = page.locator("#queue-panel")
+    expect(panel).to_contain_text("1/2 children done")
+    expect(page.locator("h1")).to_contain_text("nightly-report")  # the title (the "top")
+    expect(panel).to_contain_text("period")  # the parent's data well, sibling of the flow
+    expect(page.locator("#flow-section")).to_have_count(1)
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+
+    async def finish():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+        await q.promote_job(flows["a_children"][1])  # the delayed shard runs now
+        await q.close()
+
+        async def proc(job):
+            return {"ok": job.name}
+
+        async def done(qq):
+            j = await qq.get_job(parent)
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+
+    drive(finish())
+    expect(panel).to_contain_text("2/2 children done", timeout=8000)  # the flow updated
+    # ...and the morph touched ONLY the flow body - everything else is still here, once
+    expect(page.locator("h1")).to_contain_text("nightly-report")
+    expect(panel).to_contain_text("period")
+    expect(page.locator("#flow-section")).to_have_count(1)
+
+
 def test_flows_tab_row_shows_progress(page: Page, base_url, flows):
     # flows fixture: nightly-report is parked at 1/2 (one shard done, one pending)
     page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
