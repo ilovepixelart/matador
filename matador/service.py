@@ -36,26 +36,6 @@ def _human_bytes(n: float | None) -> str:
     return f"{n:.2f}P"
 
 
-# Job states that are still moving - a flow with any of these somewhere in its
-# tree has work in flight, so its open detail should keep live-refreshing.
-_NON_TERMINAL = {"active", "wait", "delayed", "waiting-children"}
-
-
-def _flow_in_flight(parent: Job, tree: dict[str, Any] | None) -> bool:
-    """Report whether the parent or any descendant is still non-terminal. Covers
-    both a parked parent filling in AND a retry running under a `failed` parent.
-    """
-    if parent.state in _NON_TERMINAL:
-        return True
-
-    def walk(node: dict[str, Any]) -> bool:
-        if node["job"].state in _NON_TERMINAL:
-            return True
-        return any(walk(ch) for ch in node["children"])
-
-    return walk(tree) if tree else False
-
-
 class UnknownQueueError(KeyError):
     """A request named a queue the dashboard isn't configured to watch.
 
@@ -249,25 +229,33 @@ class Service:
         return detail
 
     async def _flow_detail(self, q: Queue, j: Job) -> dict[str, Any]:
-        """Collect a flow parent's extras: the tree, the fan-in progress, and
-        what the children left behind (results + tolerated failures).
+        """Collect a flow parent's extras in one read: the tree, the fan-in
+        progress, and what the children left behind (results + tolerated
+        failures). toro's flow_view folds what used to be three calls (get_flow +
+        children_results + failed_children) into a single projection.
         """
-        tree = await q.get_flow(j.id)
-        kids = tree["children"] if tree else []
+        view = await q.flow_view(j.id)
+        if view is None:  # parent vanished between the listing and this read
+            return {
+                "flow": None,
+                "children_total": 0,
+                "children_done": 0,
+                "children_failed": 0,
+                "children_results": {},
+                "children_failures": {},
+                "flow_live": False,
+            }
         return {
-            "flow": self._flow_node(tree) if tree else None,
-            # Progress counts COMPLETIONS only - a failed child must never read
-            # as progress toward done (a failed flow at "100%" looks like success).
-            "children_total": len(j.children_ids or []),
-            "children_done": sum(1 for n in kids if n["job"].state == "completed"),
-            "children_failed": sum(1 for n in kids if n["job"].state == "failed"),
-            "children_results": await q.children_results(j.id),
-            "children_failures": await q.failed_children(j.id),
-            # Live as long as ANY node in the tree is non-terminal - so the open
-            # detail keeps refreshing while a parked parent fills in OR while a
-            # per-node/flow retry on a failed flow is still running (the parent
-            # itself may be `failed`, not parked).
-            "flow_live": _flow_in_flight(j, tree),
+            "flow": self._flow_node(view.tree),
+            # done/failed count COMPLETIONS only (view.done) - a failed child must
+            # never read as progress toward done; `live` is true while any node in
+            # the tree is still moving (parked parent OR a retry under a failed one).
+            "children_total": view.total,
+            "children_done": view.done,
+            "children_failed": view.failed,
+            "children_results": view.results,
+            "children_failures": view.failures,
+            "flow_live": view.live,
         }
 
     async def schedulers(self, name: str) -> list[dict[str, Any]]:
