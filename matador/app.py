@@ -67,7 +67,7 @@ def _default_state(counts: dict[str, int]) -> JobState:
     if any, else problems, else what's queued - never an empty `active` list on
     a healthy idle queue.
     """
-    for s in ("active", "failed", "wait", "delayed", "waiting-children"):
+    for s in ("active", "failed", "wait", "delayed"):
         if counts.get(s):
             return cast("JobState", s)
     return "completed"
@@ -388,8 +388,8 @@ async def _panel_ctx(
     # metrics render inline with the panel (a lazy load would pop in a beat late)
     m = await svc.metrics(name)
     names = await svc.metrics_names(name)
-    # the flow-throughput strip is flows-tab only - skip the reads on other tabs
-    fm = await svc.flow_metrics(name) if state == "waiting-children" else None
+    # the flow-throughput strip rides the active tab (where in-flight flows live)
+    fm = await svc.flow_metrics(name) if state == "active" else None
     base = {
         "q": view,
         "m": m,
@@ -411,10 +411,9 @@ async def _panel_ctx(
             "total": len(jobs),
             "nav": [],
         }
-    total = view["counts"].get(state, 0)
+    # pagination follows the ROOT count (children are hidden), not the state badge
+    jobs, total, page = await svc.jobs(name, state, page, PER_PAGE)
     pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-    page = max(1, min(page, pages))
-    jobs = await svc.jobs(name, state, page, PER_PAGE)
     return {
         **base,
         "jobs": jobs,
@@ -533,7 +532,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/queues/{name}/flow-metrics", response_class=HTMLResponse)
     async def flow_metrics_fragment(request: Request, name: str):
-        # The flows-tab throughput strip, self-refreshing on job events.
+        # The flow-throughput strip (active tab), self-refreshing on job events.
         return _render(
             request, "partials/flow_metrics.html", fm=await svc.flow_metrics(name), name=name
         )
@@ -783,9 +782,7 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
         cleaned = _coerce_state(state)  # announce what was ACTUALLY cleaned
         count = await svc.clean(name, cleaned)
         panel = await _panel(svc, request, name, cleaned, 1)
-        # the announcement speaks the display vocabulary, not the raw state
-        noun = "flows" if cleaned == "waiting-children" else f"{cleaned} jobs"
-        return _with_announcement(request, panel, f"{count} {noun} removed")
+        return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):

@@ -15,15 +15,31 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
-# `waiting-children` is rendered as the "flows" tab: one row per parked flow parent.
+# The tabs. A flow is the ROOT job moving through these like any job; its children
+# are hidden from the lists (only in the parent's tree). A parked parent (toro's
+# `waiting-children`) folds into `active` as in-flight - no separate flows tab.
 STATES: tuple[JobState, ...] = (
     "active",
     "wait",
     "delayed",
-    "waiting-children",
     "completed",
     "failed",
 )
+
+# How deep we scan a state for roots when hiding children (same bound as search).
+ROOT_SCAN_CAP = 500
+
+
+def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
+    """Display counts: a parked flow parent (`waiting-children`) reads as in-flight,
+    so fold it into `active` and drop the now-tabless state. These count jobs (root
+    + children); the root-only lists can show fewer rows than the badge on a
+    flow-heavy queue - a deliberate, cheap tradeoff (exact root counts would need a
+    toro-side index).
+    """
+    c = dict(counts)
+    c["active"] = c.get("active", 0) + c.pop("waiting-children", 0)
+    return c
 
 
 def _human_bytes(n: float | None) -> str:
@@ -118,7 +134,7 @@ class Service:
             out.append(
                 {
                     "name": name,
-                    "counts": await q.counts(),
+                    "counts": _fold_counts(await q.counts()),
                     "paused": await q.is_paused(),
                     # last hour of per-minute activity - the sidebar sparkline
                     "spark": await q.metrics(minutes=60),
@@ -199,41 +215,68 @@ class Service:
         q = self._q(name)
         return {
             "name": name,
-            "counts": await q.counts(),
+            "counts": _fold_counts(await q.counts()),
             "paused": await q.is_paused(),
             "schedulers": await q.schedulers(),
         }
 
     async def jobs(
         self, name: str, state: JobState, page: int = 1, per_page: int = 20
-    ) -> list[dict[str, Any]]:
-        start = (page - 1) * per_page
+    ) -> tuple[list[dict[str, Any]], int, int]:
+        """Root-first listing for a state: flow children (a job with a parentId)
+        are hidden - they live only in the parent's tree. The `active` tab also
+        surfaces parked flow roots (`waiting-children`) as in-flight work, so a
+        flow shows there while it fans out and in completed/failed once it settles.
+
+        Returns (page rows, total roots, clamped page). The root scan is capped at
+        ROOT_SCAN_CAP per source (children beyond that aren't paged - the same
+        bounded-scan tradeoff as search).
+        """
         q = self._q(name)
-        jobs = await q.get_jobs(state, start, start + per_page - 1)
-        rows = [{**self._summary(j), "queue": name} for j in jobs]
-        return await self._with_flow_progress(q, rows, state)
+        sources: tuple[JobState, ...] = (
+            ("active", "waiting-children") if state == "active" else (state,)
+        )
+        roots: list[dict[str, Any]] = []
+        for src in sources:
+            jobs = await q.get_jobs(src, 0, ROOT_SCAN_CAP - 1)
+            roots += [{**self._summary(j), "queue": name} for j in jobs if not j.parent_id]
+        total = len(roots)
+        pages = max(1, (total + per_page - 1) // per_page)
+        page = max(1, min(page, pages))
+        start = (page - 1) * per_page
+        rows = await self._with_flow_progress(q, roots[start : start + per_page])
+        return rows, total, page
 
     async def _with_flow_progress(
-        self, q: Queue, rows: list[dict[str, Any]], state: JobState
+        self, q: Queue, rows: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """On the flows tab, attach fan-in progress per parked parent via one
-        pipelined HLEN batch - so a row triages without being opened. Both the
-        listing and search go through here, so neither can ship a flows row
-        without the counts the template needs.
+        """Attach fan-in progress to any flow-parent row (one pipelined HLEN
+        batch) - so a parent triages from the list, in whatever tab it lands,
+        without being opened. Children are already filtered out; only parents
+        (children_count > 0) get progress.
         """
-        if state == "waiting-children" and rows:
-            prog = await q.flow_progress([r["id"] for r in rows])
-            for r in rows:
+        parents = [r for r in rows if r["children_count"]]
+        if parents:
+            prog = await q.flow_progress([r["id"] for r in parents])
+            for r in parents:
                 r["children_done"], r["children_failed"] = prog.get(r["id"], (0, 0))
         return rows
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
     ) -> list[dict[str, Any]]:
+        # Search is an explicit lookup, so it still finds children (you may be
+        # hunting a specific child id); the list browse is what hides them. The
+        # active tab searches both active and parked roots, matching its listing.
         q = self._q(name)
-        jobs = await q.search(state, query, scan_limit)
+        sources: tuple[JobState, ...] = (
+            ("active", "waiting-children") if state == "active" else (state,)
+        )
+        jobs = []
+        for src in sources:
+            jobs += await q.search(src, query, scan_limit)
         rows = [{**self._summary(j), "queue": name} for j in jobs]
-        return await self._with_flow_progress(q, rows, state)
+        return await self._with_flow_progress(q, rows)
 
     async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
         q = self._q(name)

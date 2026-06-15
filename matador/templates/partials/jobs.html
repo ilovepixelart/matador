@@ -11,11 +11,7 @@
     <button id="bulk-delete" class="btn btn-sm btn-danger"
             hx-post="{{ url_for('bulk_remove', name=name).path }}?state={{ state }}&page={{ page }}"
             hx-vals="js:{ids: Matador.bulk.ids()}" hx-target="#queue-panel"
-            {% if state == 'waiting-children' %}
-            hx-confirm="Delete the selected flows? Each parent is removed WITH its whole subtree - children included, even running ones."
-            {% else %}
-            hx-confirm="Delete selected jobs?"
-            {% endif %}
+            hx-confirm="Delete selected jobs? A flow parent is removed with its whole subtree."
             data-loading-disable data-loading-aria-busy>
       {{ icon('trash', 'w-3.5 h-3.5') }} delete</button>
   </div>
@@ -26,11 +22,7 @@
     {{ icon('retry', 'w-3.5 h-3.5') }} retry all</button>
   {% endif %}
   <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean', name=name).path }}?state={{ state }}"
-          {% if state == 'waiting-children' %}
-          hx-confirm="Cancel ALL parked flows? Each parent is removed WITH its whole subtree - children included, even running ones."
-          {% else %}
-          hx-confirm="Clean ALL {{ state_label(state) }} jobs?"
-          {% endif %}
+          hx-confirm="Clean ALL {{ state_label(state) }} jobs? A flow parent takes its whole subtree."
           data-loading-disable data-loading-aria-busy>
     {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state_label(state) }}</button>
 </div>
@@ -44,8 +36,7 @@
   {% for j in jobs %}{{ job_row(name, j, state, page, bulk) }}
   {% else %}
   <div class="col-span-full">
-    {%- if state == 'waiting-children' -%}{{ empty_state('inbox', 'No flows in flight') }}
-    {%- elif state == 'wait' -%}{{ empty_state('inbox', 'No waiting jobs') }}
+    {%- if state == 'wait' -%}{{ empty_state('inbox', 'No waiting jobs') }}
     {%- else -%}{{ empty_state('inbox', 'No ' ~ state ~ ' jobs') }}
     {%- endif -%}
   </div>

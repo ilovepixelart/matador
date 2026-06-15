@@ -134,10 +134,10 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
         </span>
         <span class="text-muted tabular-nums w-9 text-right">{{ j.progress }}%</span>
       </span>
-      {% elif state == 'waiting-children' and j.children_count and j.children_done is defined %}
-      {# flows tab: fan-in progress per parked parent (done green, failed red,
-         pending empty) - the same language as the detail's segmented bar.
-         `children_done is defined` guards any path that didn't enrich the row. #}
+      {% elif j.children_count and j.children_done is defined %}
+      {# A flow parent in any tab: fan-in progress (done green, failed red, pending
+         empty) - the same language as the detail's segmented bar. `children_done
+         is defined` guards any path that didn't enrich the row. #}
       {% set total = j.children_count %}
       <span class="w-28 hidden md:flex items-center gap-1.5"
             title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ total - j.children_done - j.children_failed }} pending">
@@ -196,10 +196,10 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
   {{ icon(icon_name, 'w-3 h-3') }}<span class="sr-only">{{ tip }}</span></span>
 {%- endmacro %}
 
-{# state -> what the tab is called. `waiting-children` reads as "flows": one
-   row per parked flow parent, which is how operators think about them. #}
+{# state -> display label. `waiting-children` (a flow parent parked on its kids)
+   reads as "parked"; it has no tab of its own - such a root shows under active. #}
 {% macro state_label(s) -%}
-{%- if s == 'waiting-children' -%}flows{%- else -%}{{ s }}{%- endif -%}
+{%- if s == 'waiting-children' -%}parked{%- else -%}{{ s }}{%- endif -%}
 {%- endmacro %}
 
 {# state -> semantic status token (one token per state; see styles/input.css) #}

@@ -1,5 +1,6 @@
-"""E2E: flows in a real browser - the flows tab, the tree in the detail, honest
-progress, parent/child navigation, flow-aware retry/remove/clean, live unpark.
+"""E2E: flows in a real browser - root-first listing (parked roots under active,
+children hidden), the tree in the detail, honest progress, parent/child navigation,
+flow-aware retry/remove, live unpark, and the flow-throughput strip.
 """
 
 import pytest
@@ -49,17 +50,19 @@ def flows(run_async):
     return run_async(_seed_flows())
 
 
-def test_flows_tab_lists_parents_with_child_counts(page: Page, base_url, flows):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
-    expect(page.locator("a", has_text="flows").first).to_be_visible()  # the tab label
-    row = page.locator("#jobs details").first
+def test_parked_flow_root_lists_under_active_with_child_count(page: Page, base_url, flows):
+    # no flows tab: a parked flow root shows under active with its branch badge
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
+    expect(page.locator("a", has_text="flows")).to_have_count(0)  # the flows tab is gone
+    row = page.locator("#jobs details", has_text="nightly-report")
     expect(row).to_contain_text("nightly-report")
     expect(row).to_contain_text("2")  # the branch badge: 2 children
-    expect(page.locator("#jobs details")).to_have_count(1)  # B failed - not parked
+    # the failed flow (B) lives under the failed tab, not here
+    expect(page.locator("#jobs details", has_text="publish-video")).to_have_count(0)
 
 
 def test_parent_detail_renders_tree_and_honest_progress(page: Page, base_url, flows):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     row = page.locator("#jobs details").first
     row.locator("summary").click()
     expect(row).to_contain_text("1/2 children done")
@@ -70,7 +73,7 @@ def test_parent_detail_renders_tree_and_honest_progress(page: Page, base_url, fl
 
 
 def test_tree_chip_navigates_to_the_child_job_page(page: Page, base_url, flows):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     row = page.locator("#jobs details").first
     row.locator("summary").click()
     cid = flows["a_children"][0]
@@ -97,39 +100,29 @@ def test_failed_flow_never_reads_as_complete(page: Page, base_url, flows):
     expect(panel).not_to_contain_text("100%")
 
 
-def test_retry_all_reparks_the_failed_parent_into_flows(page: Page, base_url, flows):
+def test_retry_all_reparks_the_failed_flow_under_active(page: Page, base_url, flows):
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
     page.locator('button:has-text("retry all")').click()
     page.locator("dialog[open] #confirm-ok").click()
-    # the parent re-arms its barrier instead of running with partial results
-    expect(page.locator("#tabcount-waiting-children")).to_have_text("2", timeout=5000)
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    # the parent re-arms its barrier (re-parks) instead of running on partial results;
+    # parked flows fold into active, so both flows now count there
+    expect(page.locator("#tabcount-active")).to_have_text("2", timeout=5000)
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     expect(page.locator("#jobs")).to_contain_text("publish-video")
 
 
-def test_remove_parent_confirm_names_the_subtree(page: Page, base_url, flows):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+def test_remove_parked_flow_from_active_names_the_subtree(page: Page, base_url, flows):
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     page.get_by_role("button", name="Remove this job").first.click()
     dialog = page.locator("dialog[open]")
     expect(dialog).to_contain_text("whole subtree")  # honest destructive copy
     dialog.locator("#confirm-ok").click()
     expect(page.locator("#jobs details")).to_have_count(0)
-    expect(page.locator("#jobs")).to_contain_text("No flows in flight")  # empty state
+    expect(page.locator("#jobs")).to_contain_text("No active jobs")  # empty state
 
 
-def test_clean_flows_cancels_every_parked_flow(page: Page, base_url, flows):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
-    page.locator('button:has-text("clean flows")').click()
-    dialog = page.locator("dialog[open]")
-    expect(dialog).to_contain_text("whole subtree")  # warns about the cascade
-    dialog.locator("#confirm-ok").click()
-    expect(page.locator("#jobs details")).to_have_count(0)
-    # the cascade took the pending child with it - nothing left anywhere
-    expect(page.locator("#tabcount-delayed")).to_have_text("0")
-
-
-def test_keyboard_cursor_works_on_the_flows_tab(page: Page, base_url, flows):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+def test_keyboard_cursor_works_on_a_flow_row(page: Page, base_url, flows):
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     page.keyboard.press("j")  # enter the row cursor at the top
     expect(page.locator("#jobs details > summary").first).to_be_focused()
     page.keyboard.press("o")  # open the focused row
@@ -137,7 +130,7 @@ def test_keyboard_cursor_works_on_the_flows_tab(page: Page, base_url, flows):
 
 
 def test_live_refresh_unparks_a_completed_flow(page: Page, base_url, flows, drive):
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     expect(page.locator("#jobs details")).to_have_count(1)
     page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
 
@@ -156,7 +149,7 @@ def test_live_refresh_unparks_a_completed_flow(page: Page, base_url, flows, driv
         await work_until(proc, done)
 
     drive(finish_the_flow())
-    # the SSE-driven refresh empties the flows tab without any user action
+    # the SSE-driven refresh clears the now-completed flow from active, no user action
     expect(page.locator("#jobs details")).to_have_count(0, timeout=8000)
 
 
@@ -168,8 +161,9 @@ def test_retry_flow_button_recovers_the_flow(page: Page, base_url, flows, drive)
     expect(panel).to_contain_text("1 failed")
     page.get_by_role("button", name="retry flow").click()
     page.locator("dialog[open] #confirm-ok").click()
-    # the flow re-parks: the parent leaves failed for waiting-children
-    expect(page.locator("#tabcount-waiting-children")).to_have_text("2", timeout=5000)
+    # the flow re-parks (leaves failed for waiting-children); parked flows fold
+    # into active, so both flows now count there
+    expect(page.locator("#tabcount-active")).to_have_text("2", timeout=5000)
 
     # let a worker drive the recovered flow to completion (transcode succeeds now)
     async def finish():
@@ -257,7 +251,7 @@ def test_live_update_touches_only_the_flow_section_not_the_chrome(
 
 def test_flows_tab_row_shows_progress(page: Page, base_url, flows):
     # flows fixture: nightly-report is parked at 1/2 (one shard done, one pending)
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     row = page.locator("#jobs details", has_text="nightly-report")
     expect(row).to_contain_text("1/2")  # fan-in progress on the row, no need to open it
 
@@ -340,7 +334,7 @@ def test_flows_tab_shows_the_flow_throughput_strip(page: Page, base_url, flows):
     # the seed leaves publish-video FAILED - one WHOLE flow failed (recorded at the
     # root, not per child). The flows-tab throughput strip reports it, separate from
     # the per-job health strip. Nothing completed yet, so "0 flows done".
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     strip = page.locator("#flow-metrics")
     expect(strip).to_be_visible()
     expect(strip).to_contain_text("0 flows done")
@@ -357,7 +351,7 @@ def test_flow_throughput_strip_is_flows_tab_only(page: Page, base_url, flows):
 def test_flow_throughput_climbs_live_when_a_flow_completes(page: Page, base_url, flows, drive):
     # parent_a is parked at 1/2; drive it to completion and the throughput strip
     # should tick 0 -> 1 flows done on its own (self-refresh, no reload).
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     strip = page.locator("#flow-metrics")
     expect(strip).to_contain_text("0 flows done")
     page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)

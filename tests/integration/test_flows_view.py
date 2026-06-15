@@ -1,5 +1,6 @@
-"""Integration: the flows tab and flow rendering - parked parents are visible,
-the job detail shows the tree/progress/results, children link to their parent.
+"""Integration: flow rendering in the root-first model - a flow root shows in its
+state tab (parked roots under active), children are hidden from the lists, and the
+job detail shows the tree/progress/results with children linking to their parent.
 """
 
 import asyncio
@@ -36,22 +37,22 @@ async def _flow(q, *, settle: int = 0):
     return parent
 
 
-async def test_flows_tab_lists_parked_parents(client, q):
+async def test_parked_flow_root_shows_under_active(client, q):
     parent = await _flow(q)
-    r = await client.get(f"/queues/{QUEUE}?state=waiting-children", headers=hx())
+    # no flows tab: a parked flow parent (waiting-children) folds into `active`
+    r = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
     assert r.status_code == 200
-    assert "flows" in r.text  # the tab is labeled "flows" ...
-    assert "state=waiting-children" in r.text  # ... over the raw state in the URL
-    assert f"#{parent.id}" in r.text  # the parked parent is listed
+    assert f"#{parent.id}" in r.text  # the parked parent is listed under active
     assert "report" in r.text
+    assert "tabcount-waiting-children" not in r.text  # the flows tab is gone
 
 
-async def test_waiting_children_not_coerced_away(client, q):
+async def test_old_flows_url_coerces_to_active(client, q):
     await _flow(q)
-    # the state survives the query-string clamp (it used to coerce to "active")
+    # the retired ?state=waiting-children URL clamps to active, where parked flows live
     r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children", headers=hx())
     assert r.status_code == 200
-    assert "report" in r.text
+    assert "report" in r.text  # the parent still shows (via the active union)
 
 
 async def test_parent_detail_shows_tree_progress_and_results(client, q):
@@ -98,23 +99,25 @@ async def test_child_detail_links_to_parent(client, q):
 
 async def test_flow_parent_row_warns_remove_takes_subtree(client, q):
     await _flow(q)
-    r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children", headers=hx())
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
     assert "whole subtree (2 direct children" in r.text  # the destructive confirm is honest
 
 
-async def test_search_scopes_to_the_flows_tab(client, q):
+async def test_search_active_finds_parked_flow(client, q):
     parent = await _flow(q)
-    r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children&query=report", headers=hx())
-    assert f"#{parent.id}" in r.text  # found by name within the parked parents
+    # the active tab searches active + parked roots, matching its listing
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active&query=report", headers=hx())
+    assert f"#{parent.id}" in r.text  # found by name among active + parked roots
     assert "0/2" in r.text  # search rows carry fan-in progress too (not just the listing)
-    r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children&query=nosuch", headers=hx())
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active&query=nosuch", headers=hx())
     assert f"#{parent.id}" not in r.text
 
 
-async def test_tab_counts_oob_includes_the_flows_tab(client, q):
+async def test_tab_counts_oob_has_no_flows_tab(client, q):
     await _flow(q)
     r = await client.get(f"/queues/{QUEUE}/jobs?state=wait", headers=hx())
-    assert 'id="tabcount-waiting-children"' in r.text  # the badge refreshes too
+    assert 'id="tabcount-waiting-children"' not in r.text  # the flows tab is retired
+    assert 'id="tabcount-active"' in r.text  # parked flows fold into the active badge
 
 
 async def test_service_flow_detail_counts_by_child_state(q):
@@ -235,7 +238,7 @@ async def test_retry_node_route_retries_one_child_in_place(client, q):
     assert (await q.get_job(bad_id)).state != "failed"  # the node left failed
 
 
-async def test_flows_tab_row_shows_fanin_progress(client, q):
+async def test_parked_flow_row_shows_fanin_progress(client, q):
     parent = await q.add_flow(
         "report",
         {},
@@ -256,9 +259,9 @@ async def test_flows_tab_row_shows_fanin_progress(client, q):
     await worker.stop(grace_period=0)
     task.cancel()
 
-    r = await client.get(f"/queues/{QUEUE}/jobs?state=waiting-children", headers=hx())
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
     assert r.status_code == 200
-    assert "1/3" in r.text  # 1 of 3 children done, on the row itself
+    assert "1/3" in r.text  # 1 of 3 children done, on the parked row under active
 
 
 async def test_live_refresher_self_stops_when_flow_is_terminal(client, q):

@@ -90,7 +90,7 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
     drive(seed())
 
     # 1. the flow parks in the flows tab, honest about zero progress
-    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     row = page.locator("#jobs details").first
     expect(row).to_contain_text("invoice-batch")
     row.locator("summary").click()
@@ -148,7 +148,8 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
 
     drive(seed())
 
-    # 1. the failed tab shows the parent naming the guilty child, plus the child
+    # 1. the failed tab shows the flow ROOT (children are hidden); the parent's own
+    # reason echoes the guilty child, so the cause is still visible on the row
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
     expect(page.locator("#jobs")).to_contain_text("S3 returned 503")
     expect(page.locator("#jobs")).to_contain_text("deploy-site")
@@ -161,7 +162,8 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
     page.locator('button:has-text("retry all")').click()
     _confirm(page)
-    expect(page.locator("#tabcount-waiting-children")).to_have_text("1", timeout=5000)
+    # the parent re-parks and folds into active
+    expect(page.locator("#tabcount-active")).to_have_text("1", timeout=5000)
 
     async def recover():
         behaviors["upload_ok"] = True

@@ -41,9 +41,9 @@
     {% endfor %}
   </div>
 
-  {# Flow throughput, flows tab only. Self-refreshing band (stable wrapper morphs
-     its own inner html on job events) - same idiom as the health strip above. #}
-  {% if state == 'waiting-children' and fm %}
+  {# Flow throughput, active tab only (where in-flight flows live). Self-refreshing
+     band (stable wrapper morphs its own inner html on job events). #}
+  {% if state == 'active' and fm %}
   <div class="mb-4 min-h-7" id="flow-metrics"
        hx-get="{{ url_for('flow_metrics_fragment', name=q.name).path }}"
        hx-trigger="sse:changed throttle:5s, every 30s"
