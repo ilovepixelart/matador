@@ -334,3 +334,47 @@ def test_deep_nested_tree_renders_every_level(page: Page, base_url, run_async):
     for name in ("deploy", "build", "compile", "lint"):
         expect(tree).to_contain_text(name)
     expect(tree.locator("ul")).to_have_count(3)  # build's, compile's, lint's containers
+
+
+def test_flows_tab_shows_the_flow_throughput_strip(page: Page, base_url, flows):
+    # the seed leaves publish-video FAILED - one WHOLE flow failed (recorded at the
+    # root, not per child). The flows-tab throughput strip reports it, separate from
+    # the per-job health strip. Nothing completed yet, so "0 flows done".
+    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    strip = page.locator("#flow-metrics")
+    expect(strip).to_be_visible()
+    expect(strip).to_contain_text("0 flows done")
+    expect(strip).to_contain_text("1 failed")  # the eagerly-failed flow, counted once
+
+
+def test_flow_throughput_strip_is_flows_tab_only(page: Page, base_url, flows):
+    # the strip is scoped to the flows tab; other tabs keep only the job health strip
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    expect(page.locator("#metrics-strip")).to_be_visible()  # job health strip
+    expect(page.locator("#flow-metrics")).to_have_count(0)  # no flow strip here
+
+
+def test_flow_throughput_climbs_live_when_a_flow_completes(page: Page, base_url, flows, drive):
+    # parent_a is parked at 1/2; drive it to completion and the throughput strip
+    # should tick 0 -> 1 flows done on its own (self-refresh, no reload).
+    page.goto(f"{base_url}/queues/{QUEUE}?state=waiting-children")
+    strip = page.locator("#flow-metrics")
+    expect(strip).to_contain_text("0 flows done")
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+
+    async def finish():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+        await q.promote_job(flows["a_children"][1])  # the delayed shard runs now
+        await q.close()
+
+        async def proc(job):
+            return {"ok": job.name}
+
+        async def done(qq):
+            j = await qq.get_job(flows["parent_a"])
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+
+    drive(finish())
+    expect(strip).to_contain_text("1 flows done", timeout=8000)

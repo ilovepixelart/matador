@@ -149,6 +149,25 @@ class Service:
         """Per-job-name totals + percentiles, failures first (toro's triage order)."""
         return list(await self._q(name).metrics_by_name(minutes=minutes))[:limit]
 
+    async def flow_metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
+        """Feed the flows-tab strip: per-minute whole-flow completed/failed points
+        plus headline totals, failure share, and end-to-end flow duration
+        percentiles (the same shape as metrics(), minus latency).
+        """
+        q = self._q(name)
+        points = await q.flow_metrics(minutes=minutes)
+        completed = sum(p["completed"] for p in points)
+        failed = sum(p["failed"] for p in points)
+        finished = completed + failed
+        return {
+            "points": points,
+            "completed": completed,
+            "failed": failed,
+            "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,
+            "percentiles": await q.flow_percentiles(minutes=minutes),
+            "minutes": minutes,
+        }
+
     async def workers(self) -> list[dict[str, Any]]:
         """Every live worker across all queues (each record carries its `queue`)."""
         out: list[dict[str, Any]] = []

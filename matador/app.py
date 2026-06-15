@@ -246,14 +246,16 @@ SPARK_BUCKETS = 30  # 60 minutes squashed into 2-minute buckets
 
 
 def _squash(points: list[dict[str, Any]], into: int) -> list[dict[str, Any]]:
-    """Merge consecutive minute points into `into` coarser buckets (sums)."""
+    """Merge consecutive minute points into `into` coarser buckets (sums). `ms`
+    is optional - flow points carry only completed/failed.
+    """
     k = max(1, len(points) // into)
     return [
         {
             "timestamp": chunk[0]["timestamp"],
             "completed": sum(p["completed"] for p in chunk),
             "failed": sum(p["failed"] for p in chunk),
-            "ms": sum(p["ms"] for p in chunk),
+            "ms": sum(p.get("ms", 0) for p in chunk),
         }
         for chunk in (points[i : i + k] for i in range(0, len(points), k))
     ]
@@ -264,6 +266,13 @@ def _sparkbars(queues: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     sparks = {q["name"]: _squash(q["spark"], SPARK_BUCKETS) for q in queues if q.get("spark")}
     peak = max((p["completed"] + p["failed"] for pts in sparks.values() for p in pts), default=0)
     return {name: _chart_bars(pts, height=SPARK_H, peak=peak) for name, pts in sparks.items()}
+
+
+def _flowbars(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Bar geometry for the flows-tab sparkline - one series on its own scale."""
+    pts = _squash(points, SPARK_BUCKETS)
+    peak = max((p["completed"] + p["failed"] for p in pts), default=0)
+    return _chart_bars(pts, height=SPARK_H, peak=peak)
 
 
 def _dur(ms: int | None) -> str:
@@ -282,6 +291,7 @@ def _dur(ms: int | None) -> str:
 
 # cast: ty narrows env.globals' value type from jinja's own entries
 _TEMPLATES.env.globals["sparkbars"] = cast("Any", _sparkbars)
+_TEMPLATES.env.globals["flowbars"] = cast("Any", _flowbars)
 _TEMPLATES.env.filters["schedule"] = _schedule_label
 _TEMPLATES.env.filters["comma"] = lambda n: f"{n:,}"
 _TEMPLATES.env.filters["compact"] = _compact
@@ -378,9 +388,12 @@ async def _panel_ctx(
     # metrics render inline with the panel (a lazy load would pop in a beat late)
     m = await svc.metrics(name)
     names = await svc.metrics_names(name)
+    # the flow-throughput strip is flows-tab only - skip the reads on other tabs
+    fm = await svc.flow_metrics(name) if state == "waiting-children" else None
     base = {
         "q": view,
         "m": m,
+        "fm": fm,
         "names": names,
         "states": STATES,
         "state": state,
@@ -517,6 +530,13 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     @router.get("/queues/{name}/metrics", response_class=HTMLResponse)
     async def queue_metrics(request: Request, name: str):
         return _render(request, "partials/metrics.html", m=await svc.metrics(name), name=name)
+
+    @router.get("/queues/{name}/flow-metrics", response_class=HTMLResponse)
+    async def flow_metrics_fragment(request: Request, name: str):
+        # The flows-tab throughput strip, self-refreshing on job events.
+        return _render(
+            request, "partials/flow_metrics.html", fm=await svc.flow_metrics(name), name=name
+        )
 
     @router.get("/queues/{name}", response_class=HTMLResponse)
     async def queue_view(

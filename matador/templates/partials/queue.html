@@ -41,6 +41,15 @@
     {% endfor %}
   </div>
 
+  {# Flow throughput, flows tab only. Self-refreshing band (stable wrapper morphs
+     its own inner html on job events) - same idiom as the health strip above. #}
+  {% if state == 'waiting-children' and fm %}
+  <div class="mb-4 min-h-7" id="flow-metrics"
+       hx-get="{{ url_for('flow_metrics_fragment', name=q.name).path }}"
+       hx-trigger="sse:changed throttle:5s, every 30s"
+       hx-target="this" hx-swap="innerHTML">{% include "partials/flow_metrics.html" %}</div>
+  {% endif %}
+
   <div class="relative max-w-sm mb-3">
     <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">{{ icon('search', 'w-4 h-4') }}</span>
     <input type="search" name="query" autocomplete="off" value="{{ query|default('') }}"
