@@ -155,8 +155,11 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     <span class="text-warning justify-end whitespace-nowrap" data-col="time"
           title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
     {% else %}
+    {# a parked flow root sits under active but hasn't started - show when it was
+       enqueued, not its (empty) processed time #}
     {% set ts = j.finished_on if state in ('completed', 'failed')
-                else (j.processed_on if state == 'active' else j.timestamp) %}
+                else (j.timestamp if j.state == 'waiting-children'
+                else (j.processed_on if state == 'active' else j.timestamp)) %}
     <span class="text-muted justify-end whitespace-nowrap" data-col="time"
           title="{{ ts|at }}">{{ ts|ago }}</span>
     {% endif %}

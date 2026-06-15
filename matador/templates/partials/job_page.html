@@ -10,11 +10,14 @@
       {% if job %}
       <span class="truncate">{{ job.name }}</span>
       {# annotations ride inside the title group: badge-gap rule is gap-2 #}
-      <span class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(job.state) }}">{{ job.state }}</span>
+      <span id="job-state-pill" class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(job.state) }}">{{ job.state }}</span>
       <span class="text-xs text-muted tabular-nums shrink-0">{{ job.attempts_made }}×</span>
       {% endif %}
     </h1>
   </div>
+  {# standalone page: the live flow fragment also OOB-updates the title pill above
+     (the accordion has no such pill, so it omits the OOB) #}
+  {% set standalone = true %}
   <div class="card">
     {% include "partials/job_detail.html" %}
   </div>

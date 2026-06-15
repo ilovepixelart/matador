@@ -120,6 +120,32 @@ async def test_tab_counts_oob_has_no_flows_tab(client, q):
     assert 'id="tabcount-active"' in r.text  # parked flows fold into the active badge
 
 
+async def test_clean_flows_cancels_parked_roots_and_subtrees(client, q):
+    await _flow(q)  # one parked flow, two children
+    # the active tab offers the bulk cancel while parked flows exist
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
+    assert "cancel parked flows" in r.text
+    # the action cancels the parked root AND its subtree (children included)
+    r = await client.post(f"/queues/{QUEUE}/flows/clean", headers=hx())
+    assert r.status_code == 200
+    cts = await q.counts()
+    assert cts["waiting-children"] == 0  # the parked root is gone
+    assert cts["wait"] == 0  # its children went with it
+    # with nothing parked, the button is no longer offered
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
+    assert "cancel parked flows" not in r.text
+
+
+async def test_flow_fragment_carries_title_oob_only_when_asked(client, q):
+    parent = await _flow(q)
+    # the standalone page asks ?title=1, so the live fragment also OOB-updates the
+    # page title pill; the accordion (no ?title) gets just the body
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/flow?title=1")
+    assert 'id="job-state-pill"' in r.text and "hx-swap-oob" in r.text
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/flow")
+    assert 'id="job-state-pill"' not in r.text
+
+
 async def test_service_flow_detail_counts_by_child_state(q):
     """The service's fan-in numbers: done counts completions only, failed counts
     failures, pending children count toward neither."""

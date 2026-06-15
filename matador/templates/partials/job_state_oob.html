@@ -1,0 +1,6 @@
+{% from "macros.html" import state_color %}
+{# OOB twin of the standalone job page's title state pill (#job-state-pill).
+   Appended to the live flow fragment so the title tracks the flow's state as it
+   settles. In the accordion there's no such element, so htmx just skips it. #}
+<span id="job-state-pill" hx-swap-oob="true"
+      class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(job.state) }}">{{ job.state }}</span>

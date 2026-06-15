@@ -38,7 +38,9 @@ def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
     toro-side index).
     """
     c = dict(counts)
-    c["active"] = c.get("active", 0) + c.pop("waiting-children", 0)
+    # active reads as active + parked; the raw waiting-children count stays in the
+    # dict (no tab renders it) so the active tab can offer "cancel parked flows"
+    c["active"] = c.get("active", 0) + c.get("waiting-children", 0)
     return c
 
 

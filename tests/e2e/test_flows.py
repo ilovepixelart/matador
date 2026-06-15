@@ -372,3 +372,29 @@ def test_flow_throughput_climbs_live_when_a_flow_completes(page: Page, base_url,
 
     drive(finish())
     expect(strip).to_contain_text("1 flows done", timeout=8000)
+
+
+def test_standalone_title_pill_updates_live(page: Page, base_url, flows, drive):
+    # the standalone job page's title state pill tracks the flow as it settles
+    # (OOB-updated by the live flow fragment), so it never goes stale on reload-less
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_a']}")
+    pill = page.locator("#job-state-pill")
+    expect(pill).to_have_text("waiting-children")  # parked
+    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+
+    async def finish():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+        await q.promote_job(flows["a_children"][1])  # the delayed shard runs now
+        await q.close()
+
+        async def proc(job):
+            return {"ok": job.name}
+
+        async def done(qq):
+            j = await qq.get_job(flows["parent_a"])
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+
+    drive(finish())
+    expect(pill).to_have_text("completed", timeout=8000)  # flipped live, no reload

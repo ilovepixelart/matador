@@ -7,7 +7,7 @@
 {% if job and job.flow %}
 <div class="col-span-2" id="flow-section"
      {% if job.flow_live %}
-     hx-get="{{ url_for('flow_fragment', name=job.queue or name, job_id=job.id).path }}"
+     hx-get="{{ url_for('flow_fragment', name=job.queue or name, job_id=job.id).path }}{% if standalone %}?title=1{% endif %}"
      hx-trigger="sse:changed throttle:1s"
      hx-target="this" hx-swap="morph:innerHTML" hx-sync="this:drop"
      {% endif %}>

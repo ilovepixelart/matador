@@ -636,9 +636,12 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # Just the flow body - the #flow-section live region morphs this into itself
         # on each job event (same as #workers-list <- workers_list.html). The wrapper
         # and the rest of the detail never move.
-        return _render(
-            request, "partials/flow_body.html", name=name, job=await svc.job(name, job_id)
-        )
+        job = await svc.job(name, job_id)
+        html = _render_str(request, "partials/flow_body.html", name=name, job=job)
+        # the standalone job page asks (?title=1) to keep its title pill in sync
+        if job and request.query_params.get("title"):
+            html += _render_str(request, "partials/job_state_oob.html", job=job)
+        return HTMLResponse(html)
 
     @router.get("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def job_page(request: Request, name: str, job_id: str):
@@ -783,6 +786,14 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
         count = await svc.clean(name, cleaned)
         panel = await _panel(svc, request, name, cleaned, 1)
         return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
+
+    @router.post("/queues/{name}/flows/clean", response_class=HTMLResponse)
+    async def clean_flows(request: Request, name: str):
+        # Cancel every parked flow (waiting-children) and its subtree. Parked roots
+        # show under active, which isn't bulk-selectable, so this is their bulk action.
+        count = await svc.clean(name, "waiting-children")
+        panel = await _panel(svc, request, name, "active", 1)
+        return _with_announcement(request, panel, f"{count} parked flows cancelled")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):
