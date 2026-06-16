@@ -130,6 +130,11 @@ PER_PAGE = 20
 WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
 MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out unboundedly
+# States the bulk "clean" action may target: the history/pending sets. `active`
+# (a worker holds those) and `waiting-children` (cancel via /flows/clean) are
+# deliberately excluded - clean must never coerce an odd state into a destructive
+# default and delete the wrong jobs.
+CLEANABLE_STATES: frozenset[str] = frozenset({"wait", "delayed", "completed", "failed"})
 
 # OOB sidebar refresh fragment - re-rendered alongside a panel so the active-queue
 # highlight + badges update in the same response.
@@ -803,10 +808,13 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
 
     @router.post("/queues/{name}/clean", response_class=HTMLResponse)
     async def clean(request: Request, name: str, state: str = "completed"):
-        cleaned = _coerce_state(state)  # announce what was ACTUALLY cleaned
-        count = await svc.clean(name, cleaned)
-        panel = await _panel(svc, request, name, cleaned, 1)
-        return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
+        # Never coerce the clean target: an unknown/active/parked state must be
+        # rejected, not silently turned into a destructive clean of running jobs.
+        if state not in CLEANABLE_STATES:
+            return _toast(request, "Can't clean", f"{state!r} is not a cleanable state", status=400)
+        count = await svc.clean(name, cast("JobState", state))
+        panel = await _panel(svc, request, name, cast("JobState", state), 1)
+        return _with_announcement(request, panel, f"{count} {state} jobs removed")
 
     @router.post("/queues/{name}/flows/clean", response_class=HTMLResponse)
     async def clean_flows(request: Request, name: str):
