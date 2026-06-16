@@ -398,3 +398,28 @@ def test_standalone_title_pill_updates_live(page: Page, base_url, flows, drive):
 
     drive(finish())
     expect(pill).to_have_text("completed", timeout=8000)  # flipped live, no reload
+
+
+def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
+    # Regression: a live region (the metrics strip) with a "this" target used to
+    # outlive navigation into a job and, on the next sse:changed, re-root to the
+    # inherited queue-panel target, wiping the open detail ("body disappears").
+    # Live regions now target their own id, so a detached fire aborts instead.
+    cid = flows["a_children"][0]  # a child job
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{cid}")
+    panel = page.locator("#queue-panel")
+    expect(panel).to_contain_text("part of")  # the child detail (links up to its parent)
+    page.wait_for_timeout(2000)  # SSE connect
+
+    # churn the queue so sse:changed fires repeatedly while we sit on the detail
+    async def churn():
+        q = Queue(QUEUE, url=URL, prefix=PREFIX)
+        for _ in range(4):
+            await q.add("churn", {})
+        await q.close()
+
+    drive(churn())
+    page.wait_for_timeout(2500)
+    # the detail must still be here - not replaced by the queue panel
+    expect(panel).to_contain_text("part of")
+    expect(page.locator("#job-state-pill")).to_be_visible()

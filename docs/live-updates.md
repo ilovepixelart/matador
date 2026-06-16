@@ -61,6 +61,29 @@ accordions, focus, and scroll positions survive a refresh.
 Tab counts ride along as out-of-band fragments (`tab_counts_oob.html`) on the
 list refresh, so one response updates the table *and* the numbers on the tabs.
 
+### Every live region targets its own stable id (never `hx-target="this"`)
+
+`#queue-panel` carries an inherited `hx-target="#queue-panel"` so navigation
+controls (tabs, pagination, pause/resume, toolbar) re-render the whole panel by
+default. That inheritance is a trap for live regions. htmx does **not** reliably
+tear down an `sse:`/`every` listener the instant an *ancestor* `innerHTML`-swaps
+the region away ([htmx#1350](https://github.com/bigskysoftware/htmx/issues/1350)),
+so a region can fire once *after* you've navigated the panel elsewhere. If that
+region used `hx-target="this"`, htmx - now unable to resolve `this` on the
+detached node - re-roots to the inherited `#queue-panel` and swaps its small
+fragment over the whole panel. That was the "open a job, the body disappears on
+the next event" bug.
+
+The rule, per htmx's own guidance on
+[targets](https://htmx.org/attributes/hx-target/) and
+[inheritance](https://htmx.org/docs/#inheritance): **a self-refreshing region
+sets `hx-target` to its own stable id** (`#metrics-live`, `#flow-section`,
+`#flow-metrics`, `#workers-list`, `#jobs`), not `this`. When such a region fires
+after navigation, its id is gone, so htmx raises `htmx:targetError` and
+*aborts* - it can never clobber the panel. A unit test
+(`test_no_live_region_targets_this`) fails the build if any template reintroduces
+`hx-target="this"`.
+
 ## The live table pauses while you read
 
 Refreshing a job list while you have a row expanded would yank the detail out

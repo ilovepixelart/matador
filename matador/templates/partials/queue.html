@@ -21,11 +21,12 @@
 
   {# Health chips: rendered inline with the panel (no pop-in), then refreshed
      on job events (throttled - the buckets are per-minute, sub-second repaints
-     buy nothing) and a slow tick. hx-target="this" opts out of the panel's
-     inherited #queue-panel target. #}
-  <div class="mb-4 min-h-7" hx-get="{{ url_for('queue_metrics', name=q.name).path }}"
+     buy nothing) and a slow tick. Targets its OWN id (not "this"): if this region
+     ever fires after the panel navigated away, the id is gone and htmx aborts -
+     a "this" target would re-root to the inherited #queue-panel and wipe it. #}
+  <div id="metrics-live" class="mb-4 min-h-7" hx-get="{{ url_for('queue_metrics', name=q.name).path }}"
        hx-trigger="sse:changed throttle:5s, every 30s"
-       hx-target="this" hx-swap="innerHTML">{% include "partials/metrics.html" %}</div>
+       hx-target="#metrics-live" hx-swap="innerHTML">{% include "partials/metrics.html" %}</div>
 
   <div class="flex gap-1 border-b border-line mb-4">
     {% for s in states %}
@@ -47,7 +48,7 @@
   <div class="mb-4 min-h-7" id="flow-metrics"
        hx-get="{{ url_for('flow_metrics_fragment', name=q.name).path }}"
        hx-trigger="sse:changed throttle:5s, every 30s"
-       hx-target="this" hx-swap="innerHTML">{% include "partials/flow_metrics.html" %}</div>
+       hx-target="#flow-metrics" hx-swap="innerHTML">{% include "partials/flow_metrics.html" %}</div>
   {% endif %}
 
   <div class="relative max-w-sm mb-3">

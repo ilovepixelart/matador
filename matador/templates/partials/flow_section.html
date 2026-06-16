@@ -9,7 +9,7 @@
      {% if job.flow_live %}
      hx-get="{{ url_for('flow_fragment', name=job.queue or name, job_id=job.id).path }}{% if standalone %}?title=1{% endif %}"
      hx-trigger="sse:changed throttle:1s"
-     hx-target="this" hx-swap="morph:innerHTML" hx-sync="this:drop"
+     hx-target="#flow-section" hx-swap="morph:innerHTML" hx-sync="this:drop"
      {% endif %}>
   {% include "partials/flow_body.html" %}
 </div>
