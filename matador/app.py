@@ -291,7 +291,7 @@ def _sparkbars(queues: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
 
 
 def _flowbars(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Bar geometry for the flows-tab sparkline - one series on its own scale."""
+    """Bar geometry for the active-tab flow sparkline - one series on its own scale."""
     pts = _squash(points, SPARK_BUCKETS)
     peak = max((p["completed"] + p["failed"] for p in pts), default=0)
     return _chart_bars(pts, height=SPARK_H, peak=peak)

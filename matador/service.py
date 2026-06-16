@@ -165,7 +165,7 @@ class Service:
         return list(await self._q(name).metrics_by_name(minutes=minutes))[:limit]
 
     async def flow_metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
-        """Feed the flows-tab strip: per-minute whole-flow completed/failed points
+        """Feed the active-tab flow strip: per-minute whole-flow completed/failed points
         plus headline totals, failure share, and end-to-end flow duration
         percentiles (the same shape as metrics(), minus latency).
         """
