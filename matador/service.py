@@ -26,16 +26,13 @@ STATES: tuple[JobState, ...] = (
     "failed",
 )
 
-# How deep we scan a state for roots when hiding children (same bound as search).
-ROOT_SCAN_CAP = 500
-
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
-    """Display counts: a parked flow parent (`waiting-children`) reads as in-flight,
-    so fold it into `active` and drop the now-tabless state. These count jobs (root
-    + children); the root-only lists can show fewer rows than the badge on a
-    flow-heavy queue - a deliberate, cheap tradeoff (exact root counts would need a
-    toro-side index).
+    """Fold toro's root-only counts into the five display tabs: a parked flow
+    parent (`waiting-children`) reads as in-flight, so it joins `active`, and the
+    now-tabless state drops off the tabs. Fed by `roots_counts()`, so each badge
+    is the EXACT number of roots the tab pages through - children are hidden from
+    both, and the badge can never disagree with the pager.
     """
     c = dict(counts)
     # active reads as active + parked; the raw waiting-children count stays in the
@@ -136,7 +133,7 @@ class Service:
             out.append(
                 {
                     "name": name,
-                    "counts": _fold_counts(await q.counts()),
+                    "counts": _fold_counts(await q.roots_counts()),
                     "paused": await q.is_paused(),
                     # last hour of per-minute activity - the sidebar sparkline
                     "spark": await q.metrics(minutes=60),
@@ -217,7 +214,7 @@ class Service:
         q = self._q(name)
         return {
             "name": name,
-            "counts": _fold_counts(await q.counts()),
+            "counts": _fold_counts(await q.roots_counts()),
             "paused": await q.is_paused(),
             "schedulers": await q.schedulers(),
         }
@@ -226,28 +223,68 @@ class Service:
         self, name: str, state: JobState, page: int = 1, per_page: int = 20
     ) -> tuple[list[dict[str, Any]], int, int]:
         """Root-first listing for a state: flow children (a job with a parentId)
-        are hidden - they live only in the parent's tree. The `active` tab also
-        surfaces parked flow roots (`waiting-children`) as in-flight work, so a
-        flow shows there while it fans out and in completed/failed once it settles.
+        are hidden - they live only in the parent's tree, so a flow shows as its
+        ROOT moving through the tabs. The `active` tab also surfaces parked flow
+        roots (`waiting-children`) as in-flight work, so a flow shows there while
+        it fans out and in completed/failed once it settles.
 
-        Returns (page rows, total roots, clamped page). The root scan is capped at
-        ROOT_SCAN_CAP per source (children beyond that aren't paged - the same
-        bounded-scan tradeoff as search).
+        Exact and unbounded: toro answers roots-only off a children index, so this
+        pages past any depth with no scan cap and the total matches the tab badge.
+        Returns (page rows, total roots, clamped page).
         """
         q = self._q(name)
-        sources: tuple[JobState, ...] = (
-            ("active", "waiting-children") if state == "active" else (state,)
+        if state == "active":
+            total, found, page = await self._active_roots_page(q, page, per_page)
+        else:
+            total, found, page = await self._roots_page(q, state, page, per_page)
+        rows = await self._with_flow_progress(
+            q, [{**self._summary(j), "queue": name} for j in found]
         )
-        roots: list[dict[str, Any]] = []
-        for src in sources:
-            jobs = await q.get_jobs(src, 0, ROOT_SCAN_CAP - 1)
-            roots += [{**self._summary(j), "queue": name} for j in jobs if not j.parent_id]
-        total = len(roots)
-        pages = max(1, (total + per_page - 1) // per_page)
-        page = max(1, min(page, pages))
-        start = (page - 1) * per_page
-        rows = await self._with_flow_progress(q, roots[start : start + per_page])
         return rows, total, page
+
+    @staticmethod
+    async def _roots_page(
+        q: Queue, state: JobState, page: int, per_page: int
+    ) -> tuple[int, list[Any], int]:
+        """Page one state's roots, with the exact total and the page clamped to
+        range. Fetches the requested page, then refetches only if the request fell
+        past the last page (the rare clamp).
+        """
+        page = max(1, page)
+        start = (page - 1) * per_page
+        total, found = await q.get_jobs_roots(state, start, start + per_page - 1)
+        pages = max(1, (total + per_page - 1) // per_page)
+        if page > pages:  # asked beyond the last page → clamp and refetch
+            page = pages
+            start = (page - 1) * per_page
+            _, found = await q.get_jobs_roots(state, start, start + per_page - 1)
+        return total, found, page
+
+    @staticmethod
+    async def _active_roots_page(q: Queue, page: int, per_page: int) -> tuple[int, list[Any], int]:
+        """Page the active tab: active roots (small, bounded by worker concurrency)
+        followed by parked flow roots, as one concatenated list. Active roots are
+        fetched whole; the waiting-children slice continues after them.
+        """
+        a_total, a_roots = await q.get_jobs_roots("active", 0, -1)
+
+        async def slice_at(p: int) -> tuple[int, list[Any]]:
+            start = (p - 1) * per_page
+            active_part = a_roots[start : start + per_page]
+            need = per_page - len(active_part)
+            wc_start = max(0, start - a_total)
+            wc_total, wc_roots = await q.get_jobs_roots(
+                "waiting-children", wc_start, wc_start + per_page - 1
+            )
+            return a_total + wc_total, active_part + (wc_roots[:need] if need > 0 else [])
+
+        page = max(1, page)
+        total, rows = await slice_at(page)
+        pages = max(1, (total + per_page - 1) // per_page)
+        if page > pages:  # asked beyond the last page → clamp and re-slice
+            page = pages
+            total, rows = await slice_at(page)
+        return total, rows, page
 
     async def _with_flow_progress(
         self, q: Queue, rows: list[dict[str, Any]]

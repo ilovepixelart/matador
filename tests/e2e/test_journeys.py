@@ -89,16 +89,19 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
 
     drive(seed())
 
-    # 1. the flow parks in the flows tab, honest about zero progress
+    # 1. no flows tab: the flow shows as its ROOT under active, honest about zero
+    # progress, while its three children are hidden from the list
     page.goto(f"{base_url}/queues/{QUEUE}?state=active")
+    expect(page.locator("a", has_text="flows")).to_have_count(0)  # the flows tab is retired
     row = page.locator("#jobs details").first
     expect(row).to_contain_text("invoice-batch")
+    expect(page.locator("#jobs")).not_to_contain_text("collect")  # children hidden
     row.locator("summary").click()
     expect(row).to_contain_text("0/3 children done")
     page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
     row.locator("summary").click()  # close - live refresh resumes
 
-    # 2. workers chew through it; the flows tab empties on its own
+    # 2. workers chew through it; the active list empties on its own
     async def run():
         async def proc(job):
             if job.name == "collect":
@@ -114,7 +117,12 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
     drive(run())
     expect(page.locator("#jobs details")).to_have_count(0, timeout=8000)
 
-    # 3. the parent lands in completed with the aggregated result
+    # 3. the flow-throughput strip on the active tab counts the settled flow as ONE
+    # (a whole flow that finished), not its three child jobs
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")  # fresh render: fm computed server-side
+    expect(page.locator('#flow-metrics-strip [data-flows-done="1"]')).to_be_visible()
+
+    # 4. the parent lands in completed with the aggregated result
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{ids['parent']}")
     panel = page.locator("#queue-panel")
     expect(panel).to_contain_text("3/3 children done")
@@ -184,6 +192,121 @@ def test_journey_flow_failure_recovery_arc(page: Page, base_url, drive):
     expect(page.locator("#tabcount-failed")).to_have_text("0", timeout=8000)
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{ids['parent']}")
     expect(page.locator("#queue-panel")).to_contain_text("2/2 children done")
+
+
+# ---- journey: a queue full of flows pages root-first, counts exact ---------------
+
+
+def test_journey_many_flows_page_root_first(page: Page, base_url, drive):
+    # The toro root index earns its keep here: 25 flows (75 jobs) must read as 25
+    # ROOTS across the tabs and pages, with every child hidden - exact, unbounded.
+    async def seed():
+        q = await reset_queue()
+        for i in range(25):
+            await q.add_flow(
+                "batch", {"i": i}, children=[c("shard", {"n": 0}), c("shard", {"n": 1})]
+            )
+        await q.close()
+
+    drive(seed())
+
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
+    # the badge is the exact ROOT count - 25 parked flows, not the 75 underlying jobs
+    expect(page.locator("#tabcount-active")).to_have_text("25")
+    # children live in wait, but they're hidden, so the wait tab reads zero roots
+    expect(page.locator("#tabcount-wait")).to_have_text("0")
+    # page one shows a full page of roots; no child ("shard") leaks into the list
+    expect(page.locator("#jobs details")).to_have_count(20)
+    expect(page.locator("#jobs")).not_to_contain_text("shard")
+
+    # page two holds the remaining five roots - deep paging works on roots alone
+    page.locator('nav[aria-label="pagination"] a.pg', has_text="2").click()
+    expect(page.locator("#jobs details")).to_have_count(5)
+    expect(page.locator("#jobs")).not_to_contain_text("shard")
+
+
+# ---- journey: recover one failed flow with the scoped "retry flow" button --------
+
+
+def test_journey_retry_one_flow_from_its_detail(page: Page, base_url, drive):
+    flaky = {"ok": False}
+    ids = {}
+
+    async def seed():
+        q = await reset_queue()
+        parent = await q.add_flow("nightly-etl", {}, children=[c("extract", {}), c("load", {})])
+        ids["parent"] = parent.id
+
+        async def proc(job):
+            if job.name == "load" and not flaky["ok"]:
+                raise RuntimeError("warehouse offline")
+            return "ok"
+
+        async def parent_failed(q):
+            j = await q.get_job(ids["parent"])
+            return j is not None and j.state == "failed"
+
+        await work_until(proc, parent_failed)
+        await q.close()
+
+    drive(seed())
+
+    # 1. open the failed flow's detail (a deep link); the tree pins the failure to `load`
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{ids['parent']}")
+    panel = page.locator("#queue-panel")
+    expect(panel).to_contain_text("warehouse offline")
+    expect(panel).to_contain_text("1/2 children done")  # extract is green
+
+    # 2. warehouse is back; the scoped "retry flow" re-drives THIS subtree only
+    async def recover():
+        flaky["ok"] = True
+
+        async def proc(job):
+            return await job.children_results() if job.name == "nightly-etl" else "ok"
+
+        async def done(q):
+            j = await q.get_job(ids["parent"])
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+
+    page.locator('button:has-text("retry flow")').click()
+    _confirm(page)
+    drive(recover())
+
+    # 3. the whole flow recovered; reopening shows every child done
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{ids['parent']}")
+    expect(page.locator("#queue-panel")).to_contain_text("2/2 children done", timeout=8000)
+    # 4. the back-link (no referrer on a deep link) falls back to the queue
+    page.locator("a.btn-ghost", has_text=QUEUE).first.click()
+    expect(page).to_have_url(f"{base_url}/queues/{QUEUE}")
+    expect(page.locator("#tabcount-failed")).to_have_text("0")
+
+
+# ---- journey: cancel a batch of parked flows outright ----------------------------
+
+
+def test_journey_cancel_parked_flows(page: Page, base_url, drive):
+    async def seed():
+        q = await reset_queue()
+        for i in range(3):
+            await q.add_flow(
+                "import", {"i": i}, children=[c("page", {"n": 0}), c("page", {"n": 1})]
+            )
+        await q.close()
+
+    drive(seed())
+
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
+    expect(page.locator("#tabcount-active")).to_have_text("3")  # three parked flows
+    # the active tab offers a bulk cancel for parked flows (they aren't row-selectable)
+    page.locator('button:has-text("cancel parked flows")').click()
+    _confirm(page)
+
+    # every parked parent AND its subtree is gone - active and wait both drain
+    expect(page.locator("#tabcount-active")).to_have_text("0", timeout=5000)
+    expect(page.locator("#tabcount-wait")).to_have_text("0")
+    expect(page.locator("#jobs")).to_contain_text("No active jobs")
 
 
 # ---- journey: an overdue delayed job needs to run NOW ----------------------------
