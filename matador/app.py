@@ -73,6 +73,23 @@ def _default_state(counts: dict[str, int]) -> JobState:
     return "completed"
 
 
+def _back_href(request: Request, name: str, job_id: str) -> str:
+    """Where a job page's back button goes: the in-app view the reader came from
+    (htmx sends it as `HX-Current-URL`), else the queue. Only a same-origin
+    `/queues/...` path is honored - never an off-site value, never the job's own
+    page (a refresh/in-place action) - so a stale header can't misdirect or loop.
+    """
+    fallback = request.url_for("queue_view", name=name).path
+    current = request.headers.get("hx-current-url", "")
+    if not current:
+        return fallback  # full page load (deep link / bookmark): no back, go to queue
+    came_from = urlsplit(current)
+    here = request.url_for("job_page", name=name, job_id=job_id).path
+    if came_from.path.startswith("/queues/") and came_from.path != here:
+        return came_from.path + (f"?{came_from.query}" if came_from.query else "")
+    return fallback
+
+
 def _page_window(page: int, pages: int, span: int = 2) -> list[int | None]:
     """Page numbers to show: first, last, and `span` either side of current,
     with None marking an ellipsis gap. e.g. [1, None, 4, 5, 6, None, 20].
@@ -648,6 +665,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # A standalone, bookmarkable page for one job - the drill-down target for
         # job-id chips. Shows "no longer here" cleanly if the job is already gone.
         job = await svc.job(name, job_id)
+        back_href = _back_href(request, name, job_id)
         if wants_fragment(request):
             panel = _render_str(
                 request,
@@ -655,6 +673,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
                 name=name,
                 job=job,
                 job_id=job_id,
+                back_href=back_href,
                 show_stacktraces=show_stacktraces,
             )
             side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
@@ -667,6 +686,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             name=name,
             job=job,
             job_id=job_id,
+            back_href=back_href,
             job_page=True,
             show_stacktraces=show_stacktraces,
         )
@@ -733,6 +753,7 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
             name=name,
             job=flow,
             job_id=parent,
+            back_href=_back_href(request, name, parent),
             show_stacktraces=show_stacktraces,
         )
         side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)

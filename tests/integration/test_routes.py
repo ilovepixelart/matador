@@ -62,6 +62,29 @@ async def test_job_page_renders_as_full_page(client, seeded):
     assert (await client.get(f"/queues/{QUEUE}/jobs/ghost-1")).status_code == 200
 
 
+async def test_job_page_back_link_returns_to_the_referring_view(client, seeded):
+    # the back button goes to where the reader came from (htmx's HX-Current-URL)
+    jid = seeded["completed"]
+    r = await client.get(
+        f"/queues/{QUEUE}/jobs/{jid}",
+        headers=hx(**{"HX-Current-URL": f"http://host/queues/{QUEUE}?state=completed"}),
+    )
+    assert f'href="/queues/{QUEUE}?state=completed"' in r.text
+
+
+async def test_job_page_back_link_falls_back_to_the_queue(client, seeded):
+    jid = seeded["completed"]
+    # a deep link (no HX-Current-URL) -> back goes to the queue
+    r = await client.get(f"/queues/{QUEUE}/jobs/{jid}", headers=hx())
+    assert f'href="/queues/{QUEUE}" hx-get="/queues/{QUEUE}"' in r.text
+    # the job's own page as the referrer -> still the queue, never a self-loop
+    r = await client.get(
+        f"/queues/{QUEUE}/jobs/{jid}",
+        headers=hx(**{"HX-Current-URL": f"http://host/queues/{QUEUE}/jobs/{jid}"}),
+    )
+    assert f'href="/queues/{QUEUE}" hx-get="/queues/{QUEUE}"' in r.text
+
+
 async def test_job_accordion_detail_fragment(client, seeded):
     r = await client.get(f"/queues/{QUEUE}/jobs/{seeded['completed']}/detail", headers=hx())
     assert r.status_code == 200

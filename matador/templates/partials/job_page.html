@@ -1,8 +1,10 @@
 {% from "macros.html" import icon, state_color %}
 <div class="p-5">
   <div class="flex items-center gap-3 mb-5 min-w-0">
-    <a href="{{ url_for('queue_view', name=name).path }}{% if job %}?state={{ job.state }}{% endif %}"
-       hx-get="{{ url_for('queue_view', name=name).path }}{% if job %}?state={{ job.state }}{% endif %}"
+    {# Back to wherever the reader came from (server-derived from HX-Current-URL),
+       falling back to the queue on a deep link or any render that omits it. #}
+    {% set back = back_href|default('', true) or url_for('queue_view', name=name).path %}
+    <a href="{{ back }}" hx-get="{{ back }}"
        hx-target="#queue-panel" hx-push-url="true"
        class="btn btn-ghost btn-sm shrink-0">{{ icon('chevron', 'w-4 h-4 rotate-90') }} {{ name }}</a>
     <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
