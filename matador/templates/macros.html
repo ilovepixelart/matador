@@ -237,36 +237,40 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
    spelled out (no color-decoding); the active pill pulses like a draining
    worker. The current job's row is gently lifted so "you are here" needs no
    legend. Import `with context` (job_chip needs url_for). #}
-{% macro flow_node(queue, node, current_id) -%}
-<li>
-  <div class="ftree-row{{ ' ftree-here' if node.job.id == current_id }}">
-    {{ job_chip(queue, node.job.id) }}
-    <span class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(node.job.state) }}{{ ' animate-pulse' if node.job.state == 'active' }}">
-      {{- 'waiting' if node.job.state == 'waiting-children' else node.job.state -}}
-    </span>
-    <span class="shrink-0 truncate max-w-48{{ ' font-medium' if node.job.id == current_id }}">{{ node.job.name }}</span>
-    {% if node.job.processed_on and node.job.finished_on
-          and node.job.finished_on - node.job.processed_on > 0 %}
-    <span class="text-xs text-muted tabular-nums shrink-0">{{ (node.job.finished_on - node.job.processed_on)|dur }}</span>
-    {% endif %}
-    {% if node.job.state == 'failed' and node.job.failed_reason %}
-    <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
-    {% endif %}
-    {% if node.job.state == 'failed' and node.job.id != current_id %}
-    {# retry just this node, in place. The root parent has its own "retry flow"
-       button (whole-flow recovery), so it's excluded here. #}
-    <button class="btn btn-sm btn-info tip ml-auto shrink-0" data-tip="Retry this job"
-            hx-post="{{ url_for('retry_node', name=queue, job_id=node.job.id).path }}?parent={{ current_id }}"
-            hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
-      {{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry job #{{ node.job.id }}</span></button>
-    {% endif %}
-  </div>
-  {% if node.children %}
-  <ul>
-    {% for child in node.children %}{{ flow_node(queue, child, current_id) }}{% endfor %}
-  </ul>
-  {% endif %}
-</li>
+{# Takes a LIST of sibling nodes and emits the <ul> itself (recursing on each
+   node's children), so every <li> lives inside its <ul> within the macro AND
+   siblings share one <ul> - which the connector CSS (.ftree ul > li:last-child)
+   needs. `cls` decorates the outermost <ul>; nested levels get a plain <ul>. #}
+{% macro flow_tree(queue, nodes, current_id, cls='') -%}
+<ul{% if cls %} class="{{ cls }}"{% endif %}>
+  {% for node in nodes %}
+  <li>
+    <div class="ftree-row{{ ' ftree-here' if node.job.id == current_id }}">
+      {{ job_chip(queue, node.job.id) }}
+      <span class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(node.job.state) }}{{ ' animate-pulse' if node.job.state == 'active' }}">
+        {{- 'waiting' if node.job.state == 'waiting-children' else node.job.state -}}
+      </span>
+      <span class="shrink-0 truncate max-w-48{{ ' font-medium' if node.job.id == current_id }}">{{ node.job.name }}</span>
+      {% if node.job.processed_on and node.job.finished_on
+            and node.job.finished_on - node.job.processed_on > 0 %}
+      <span class="text-xs text-muted tabular-nums shrink-0">{{ (node.job.finished_on - node.job.processed_on)|dur }}</span>
+      {% endif %}
+      {% if node.job.state == 'failed' and node.job.failed_reason %}
+      <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
+      {% endif %}
+      {% if node.job.state == 'failed' and node.job.id != current_id %}
+      {# retry just this node, in place. The root parent has its own "retry flow"
+         button (whole-flow recovery), so it's excluded here. #}
+      <button class="btn btn-sm btn-info tip ml-auto shrink-0" data-tip="Retry this job"
+              hx-post="{{ url_for('retry_node', name=queue, job_id=node.job.id).path }}?parent={{ current_id }}"
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
+        {{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry job #{{ node.job.id }}</span></button>
+      {% endif %}
+    </div>
+    {% if node.children %}{{ flow_tree(queue, node.children, current_id) }}{% endif %}
+  </li>
+  {% endfor %}
+</ul>
 {%- endmacro %}
 
 {# A pagination link → queue_view at page `p`. Import `with context` (url_for + the

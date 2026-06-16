@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, job_chip, flow_node with context %}
+{% from "macros.html" import icon, job_chip, flow_tree with context %}
 {# Flow content only. The #flow-section wrapper (in flow_section.html) is the
    stable live region; while the flow is live it morphs THIS body in on each job
    event - the wrapper, the page chrome and the data/opts wells never move.
@@ -41,9 +41,7 @@
       </div>
       <span class="text-xs text-muted tabular-nums">{{ done_pct }}%</span>
     </div>
-    <ul class="ftree well px-3 py-2 max-h-72">
-      {{ flow_node(job.queue or name, job.flow, job.id) }}
-    </ul>
+    {{ flow_tree(job.queue or name, [job.flow], job.id, cls='ftree well px-3 py-2 max-h-72') }}
   </div>
   {% if job.children_results %}
   <div>
