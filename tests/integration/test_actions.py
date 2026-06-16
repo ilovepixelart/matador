@@ -62,6 +62,17 @@ async def test_clean_empties_a_state(client, q, seeded):
     assert (await q.counts())["wait"] == 0
 
 
+async def test_clean_rejects_non_cleanable_states(client, q, seeded):
+    # a crafted clean of active/parked/garbage must NOT coerce to a destructive
+    # default (the old _coerce_state turned these into "active" and deleted running
+    # jobs); the route rejects them and leaves every state untouched.
+    before = await q.counts()
+    for state in ("active", "waiting-children", "nonsense"):
+        r = await client.post(f"/queues/{QUEUE}/clean?state={state}", headers=hx())
+        assert r.status_code == 400, state
+    assert await q.counts() == before  # nothing was removed
+
+
 async def test_trigger_scheduler_enqueues_one(client, q, seeded):
     sid = (await q.schedulers())[0]["id"]
     before = (await q.counts())["wait"]

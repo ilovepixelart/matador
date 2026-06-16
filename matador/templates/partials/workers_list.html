@@ -12,21 +12,21 @@
   {% set tfail = workers|sum(attribute='failed') %}
   {% if tfail %}<span class="text-muted">·</span><span class="text-danger tabular-nums">{{ tfail|compact }} failed</span>{% endif %}
 </div>
-<div class="rounded-xl border border-line overflow-hidden">
+<div class="card">
   <table class="w-full text-sm">
-    <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+    <thead class="bg-panel2/40">
       <tr>
         <th scope="col" class="th">Worker</th>
         {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
         <th scope="col" class="th">Running</th>
-        <th scope="col" class="th text-right">Done</th>
-        <th scope="col" class="th text-right">Failed</th>
-        <th scope="col" class="th text-right">Uptime</th>
+        <th scope="col" class="th text-right w-28">Done</th>
+        <th scope="col" class="th text-right w-28">Failed</th>
+        <th scope="col" class="th text-right w-28">Uptime</th>
       </tr>
     </thead>
     <tbody>
       {% for w in workers %}
-      <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20">
+      <tr id="w-{{ w.host }}-{{ w.pid }}" class="border-t border-line hover:bg-panel2/20 transition-colors">
         <td class="td">
           <div class="flex items-center gap-2 min-w-0">
             {% if w.state == 'stopping' %}
@@ -49,8 +49,8 @@
           </div>
           {% else %}<span class="text-muted">idle</span>{% endif %}
         </td>
-        <td class="td text-right tabular-nums">{{ w.processed|compact }}</td>
-        <td class="td text-right tabular-nums{{ ' text-danger' if w.failed }}">{{ w.failed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-muted' if not w.processed }}">{{ w.processed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-danger' if w.failed else ' text-muted' }}">{{ w.failed|compact }}</td>
         <td class="td text-right tabular-nums text-muted">{{ w.started|uptime }}</td>
       </tr>
       {% endfor %}
@@ -58,33 +58,33 @@
   </table>
 </div>
 {% else %}
-{{ empty_state('server', 'No workers running', 'Start a toro Worker against this Redis and it appears here.', bordered=true) }}
+{{ empty_state('server', 'No workers running', bordered=true) }}
 {% endif %}
 
 {% if departed %}
 <div class="flex items-center justify-between mt-8 mb-3">
-  <div class="text-xs uppercase tracking-wider text-muted">Recently stopped</div>
+  <div class="label">Recently stopped</div>
   <button class="btn btn-sm btn-ghost tip" data-tip="Clear stopped-worker history"
           hx-post="{{ url_for('clear_departed').path }}"
           hx-target="#workers-list" hx-swap="morph:innerHTML"
           hx-confirm="Clear the stopped-worker history?"
           data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} clear<span class="sr-only"> stopped-worker history</span></button>
 </div>
-<div class="rounded-xl border border-line overflow-hidden">
+<div class="card">
   <table class="w-full text-sm">
-    <thead class="bg-panel2/40 text-xs uppercase tracking-wider text-muted text-left">
+    <thead class="bg-panel2/40">
       <tr>
         <th scope="col" class="th">Worker</th>
         {% if multi %}<th scope="col" class="th">Queue</th>{% endif %}
         <th scope="col" class="th">Status</th>
-        <th scope="col" class="th text-right">Done</th>
-        <th scope="col" class="th text-right">Failed</th>
-        <th scope="col" class="th text-right">Stopped</th>
+        <th scope="col" class="th text-right w-28">Done</th>
+        <th scope="col" class="th text-right w-28">Failed</th>
+        <th scope="col" class="th text-right w-28">Stopped</th>
       </tr>
     </thead>
     <tbody>
       {% for d in departed %}
-      <tr id="d-{{ d.host }}-{{ d.pid }}" class="border-t border-line hover:bg-panel2/20 text-muted">
+      <tr id="d-{{ d.host }}-{{ d.pid }}" class="border-t border-line hover:bg-panel2/20 transition-colors text-muted">
         <td class="td">
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full shrink-0 {{ 'bg-danger' if d.reason == 'lost' else 'bg-muted/50' }}"></span>
@@ -106,8 +106,8 @@
             {% endif %}
           </div>
         </td>
-        <td class="td text-right tabular-nums">{{ d.processed|compact }}</td>
-        <td class="td text-right tabular-nums{{ ' text-danger' if d.failed }}">{{ d.failed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-muted' if not d.processed }}">{{ d.processed|compact }}</td>
+        <td class="td text-right tabular-nums{{ ' text-danger' if d.failed else ' text-muted' }}">{{ d.failed|compact }}</td>
         <td class="td text-right tabular-nums"
             title="last heartbeat {{ ((d.at - d.last_seen) / 1000)|round(1) }}s before detected">{{ d.at|uptime }} ago</td>
       </tr>

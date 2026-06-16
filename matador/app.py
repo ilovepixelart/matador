@@ -73,6 +73,23 @@ def _default_state(counts: dict[str, int]) -> JobState:
     return "completed"
 
 
+def _back_href(request: Request, name: str, job_id: str) -> str:
+    """Where a job page's back button goes: the in-app view the reader came from
+    (htmx sends it as `HX-Current-URL`), else the queue. Only a same-origin
+    `/queues/...` path is honored - never an off-site value, never the job's own
+    page (a refresh/in-place action) - so a stale header can't misdirect or loop.
+    """
+    fallback = request.url_for("queue_view", name=name).path
+    current = request.headers.get("hx-current-url", "")
+    if not current:
+        return fallback  # full page load (deep link / bookmark): no back, go to queue
+    came_from = urlsplit(current)
+    here = request.url_for("job_page", name=name, job_id=job_id).path
+    if came_from.path.startswith("/queues/") and came_from.path != here:
+        return came_from.path + (f"?{came_from.query}" if came_from.query else "")
+    return fallback
+
+
 def _page_window(page: int, pages: int, span: int = 2) -> list[int | None]:
     """Page numbers to show: first, last, and `span` either side of current,
     with None marking an ellipsis gap. e.g. [1, None, 4, 5, 6, None, 20].
@@ -113,6 +130,11 @@ PER_PAGE = 20
 WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
 MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out unboundedly
+# States the bulk "clean" action may target: the history/pending sets. `active`
+# (a worker holds those) and `waiting-children` (cancel via /flows/clean) are
+# deliberately excluded - clean must never coerce an odd state into a destructive
+# default and delete the wrong jobs.
+CLEANABLE_STATES: frozenset[str] = frozenset({"wait", "delayed", "completed", "failed"})
 
 # OOB sidebar refresh fragment - re-rendered alongside a panel so the active-queue
 # highlight + badges update in the same response.
@@ -246,14 +268,16 @@ SPARK_BUCKETS = 30  # 60 minutes squashed into 2-minute buckets
 
 
 def _squash(points: list[dict[str, Any]], into: int) -> list[dict[str, Any]]:
-    """Merge consecutive minute points into `into` coarser buckets (sums)."""
+    """Merge consecutive minute points into `into` coarser buckets (sums). `ms`
+    is optional - flow points carry only completed/failed.
+    """
     k = max(1, len(points) // into)
     return [
         {
             "timestamp": chunk[0]["timestamp"],
             "completed": sum(p["completed"] for p in chunk),
             "failed": sum(p["failed"] for p in chunk),
-            "ms": sum(p["ms"] for p in chunk),
+            "ms": sum(p.get("ms", 0) for p in chunk),
         }
         for chunk in (points[i : i + k] for i in range(0, len(points), k))
     ]
@@ -264,6 +288,13 @@ def _sparkbars(queues: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     sparks = {q["name"]: _squash(q["spark"], SPARK_BUCKETS) for q in queues if q.get("spark")}
     peak = max((p["completed"] + p["failed"] for pts in sparks.values() for p in pts), default=0)
     return {name: _chart_bars(pts, height=SPARK_H, peak=peak) for name, pts in sparks.items()}
+
+
+def _flowbars(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Bar geometry for the active-tab flow sparkline - one series on its own scale."""
+    pts = _squash(points, SPARK_BUCKETS)
+    peak = max((p["completed"] + p["failed"] for p in pts), default=0)
+    return _chart_bars(pts, height=SPARK_H, peak=peak)
 
 
 def _dur(ms: int | None) -> str:
@@ -282,6 +313,7 @@ def _dur(ms: int | None) -> str:
 
 # cast: ty narrows env.globals' value type from jinja's own entries
 _TEMPLATES.env.globals["sparkbars"] = cast("Any", _sparkbars)
+_TEMPLATES.env.globals["flowbars"] = cast("Any", _flowbars)
 _TEMPLATES.env.filters["schedule"] = _schedule_label
 _TEMPLATES.env.filters["comma"] = lambda n: f"{n:,}"
 _TEMPLATES.env.filters["compact"] = _compact
@@ -378,9 +410,12 @@ async def _panel_ctx(
     # metrics render inline with the panel (a lazy load would pop in a beat late)
     m = await svc.metrics(name)
     names = await svc.metrics_names(name)
+    # the flow-throughput strip rides the active tab (where in-flight flows live)
+    fm = await svc.flow_metrics(name) if state == "active" else None
     base = {
         "q": view,
         "m": m,
+        "fm": fm,
         "names": names,
         "states": STATES,
         "state": state,
@@ -398,10 +433,9 @@ async def _panel_ctx(
             "total": len(jobs),
             "nav": [],
         }
-    total = view["counts"].get(state, 0)
+    # pagination follows the ROOT count (children are hidden), not the state badge
+    jobs, total, page = await svc.jobs(name, state, page, PER_PAGE)
     pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-    page = max(1, min(page, pages))
-    jobs = await svc.jobs(name, state, page, PER_PAGE)
     return {
         **base,
         "jobs": jobs,
@@ -518,6 +552,13 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     async def queue_metrics(request: Request, name: str):
         return _render(request, "partials/metrics.html", m=await svc.metrics(name), name=name)
 
+    @router.get("/queues/{name}/flow-metrics", response_class=HTMLResponse)
+    async def flow_metrics_fragment(request: Request, name: str):
+        # The flow-throughput strip (active tab), self-refreshing on job events.
+        return _render(
+            request, "partials/flow_metrics.html", fm=await svc.flow_metrics(name), name=name
+        )
+
     @router.get("/queues/{name}", response_class=HTMLResponse)
     async def queue_view(
         request: Request, name: str, state: str = "", page: int = 1, query: str = ""
@@ -612,11 +653,24 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             show_stacktraces=show_stacktraces,
         )
 
+    @router.get("/queues/{name}/jobs/{job_id}/flow", response_class=HTMLResponse)
+    async def flow_fragment(request: Request, name: str, job_id: str):
+        # Just the flow body - the #flow-section live region morphs this into itself
+        # on each job event (same as #workers-list <- workers_list.html). The wrapper
+        # and the rest of the detail never move.
+        job = await svc.job(name, job_id)
+        html = _render_str(request, "partials/flow_body.html", name=name, job=job)
+        # the standalone job page asks (?title=1) to keep its title pill in sync
+        if job and request.query_params.get("title"):
+            html += _render_str(request, "partials/job_state_oob.html", job=job)
+        return HTMLResponse(html)
+
     @router.get("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def job_page(request: Request, name: str, job_id: str):
         # A standalone, bookmarkable page for one job - the drill-down target for
         # job-id chips. Shows "no longer here" cleanly if the job is already gone.
         job = await svc.job(name, job_id)
+        back_href = _back_href(request, name, job_id)
         if wants_fragment(request):
             panel = _render_str(
                 request,
@@ -624,6 +678,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
                 name=name,
                 job=job,
                 job_id=job_id,
+                back_href=back_href,
                 show_stacktraces=show_stacktraces,
             )
             side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
@@ -636,6 +691,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             name=name,
             job=job,
             job_id=job_id,
+            back_href=back_href,
             job_page=True,
             show_stacktraces=show_stacktraces,
         )
@@ -643,7 +699,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     return router
 
 
-def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write routes
+def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa: C901 - wires N write routes
     """Build the write routes: each mutates state, then re-renders the panel."""
     router = APIRouter()
 
@@ -678,6 +734,35 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write ro
         if not await svc.retry(name, job_id):
             return _toast(request, "Couldn't retry", f"Job #{job_id} is no longer here.")
         return await _panel(svc, request, name, state, page)
+
+    @router.post("/queues/{name}/jobs/{job_id}/retry-flow", response_class=HTMLResponse)
+    async def retry_flow(
+        request: Request, name: str, job_id: str, state: str = "failed", page: int = 1
+    ):
+        count = await svc.retry_flow(name, job_id)
+        panel = await _panel(svc, request, name, state, page)
+        return _with_announcement(request, panel, f"{count} jobs re-queued for the flow")
+
+    @router.post("/queues/{name}/jobs/{job_id}/retry-node", response_class=HTMLResponse)
+    async def retry_node(request: Request, name: str, job_id: str, parent: str):
+        # Retry one node from inside a flow tree, then re-render the flow it
+        # belongs to (the `parent` page) so the node flips in place instead of
+        # bouncing to the list. A failed parent does not auto-recover from a
+        # single child retry (v1) - "retry flow" is the whole-flow recovery.
+        if not await svc.retry(name, job_id):
+            return _toast(request, "Couldn't retry", f"Job #{job_id} is no longer here.")
+        flow = await svc.job(name, parent)
+        panel = _render_str(
+            request,
+            "partials/job_page.html",
+            name=name,
+            job=flow,
+            job_id=parent,
+            back_href=_back_href(request, name, parent),
+            show_stacktraces=show_stacktraces,
+        )
+        side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
+        return _with_announcement(request, HTMLResponse(panel + side), f"Retried job #{job_id}")
 
     @router.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def remove(
@@ -723,10 +808,21 @@ def _actions_router(svc: Service) -> APIRouter:  # noqa: C901 - wires N write ro
 
     @router.post("/queues/{name}/clean", response_class=HTMLResponse)
     async def clean(request: Request, name: str, state: str = "completed"):
-        cleaned = _coerce_state(state)  # announce what was ACTUALLY cleaned
-        count = await svc.clean(name, cleaned)
-        panel = await _panel(svc, request, name, cleaned, 1)
-        return _with_announcement(request, panel, f"{count} {cleaned} jobs removed")
+        # Never coerce the clean target: an unknown/active/parked state must be
+        # rejected, not silently turned into a destructive clean of running jobs.
+        if state not in CLEANABLE_STATES:
+            return _toast(request, "Can't clean", f"{state!r} is not a cleanable state", status=400)
+        count = await svc.clean(name, cast("JobState", state))
+        panel = await _panel(svc, request, name, cast("JobState", state), 1)
+        return _with_announcement(request, panel, f"{count} {state} jobs removed")
+
+    @router.post("/queues/{name}/flows/clean", response_class=HTMLResponse)
+    async def clean_flows(request: Request, name: str):
+        # Cancel every parked flow (waiting-children) and its subtree. Parked roots
+        # show under active, which isn't bulk-selectable, so this is their bulk action.
+        count = await svc.clean(name, "waiting-children")
+        panel = await _panel(svc, request, name, "active", 1)
+        return _with_announcement(request, panel, f"{count} parked flows cancelled")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):
@@ -809,5 +905,5 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     app.exception_handler(UnknownQueueError)(_unknown_queue)
 
     app.include_router(_views_router(svc, show_stacktraces=show_stacktraces))
-    app.include_router(_actions_router(svc))
+    app.include_router(_actions_router(svc, show_stacktraces=show_stacktraces))
     return app

@@ -7,7 +7,10 @@ w-72 shrink-0 border-r border-line overflow-y-auto p-3 max-md:fixed max-md:inset
 {%- endmacro %}
 
 {# One badge style everywhere (paused, draining, state chips, counts) - the
-   hand-rolled copies had drifted between px-1.5 and px-2. #}
+   hand-rolled copies had drifted between px-1.5 and px-2.
+   Gap rules: a badge annotating text sits gap-2 from it (inside the same
+   group); sibling badges in a cluster sit gap-1.5 apart; icon-to-text inside
+   a badge is gap-1. #}
 {% macro badge(tone, extra='') -%}
 text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {%- endmacro %}
@@ -36,23 +39,47 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 {%- elif name == 'inbox' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H6.911a2.25 2.25 0 0 0-2.15 1.588L2.35 13.177a2.25 2.25 0 0 0-.1.661Z"/>
 {%- elif name == 'server' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z"/>
 {%- elif name == 'queue' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/>
+{%- elif name == 'flow' -%}<path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/>
+{%- elif name == 'flow-child' -%}<path stroke-linecap="round" stroke-linejoin="round" d="m16.49 12 3.75 3.75m0 0-3.75 3.75m3.75-3.75H3.74V4.499"/>
 {%- endif -%}
 </svg>
 {%- endmacro %}
 
-{# The shared empty/absent state: a centred icon + message (and optional detail),
-   so "no jobs", "no schedulers", "no workers" and "no results" all read the same. #}
-{% macro empty_state(icon_name='inbox', message='Nothing here', detail=None, bordered=false) -%}
+{# The shared empty/absent state: a centred icon + ONE line, so "no jobs",
+   "no schedulers", "no workers" and "no results" all read the same. #}
+{% macro empty_state(icon_name='inbox', message='Nothing here', bordered=false) -%}
 <div class="px-4 py-14 flex flex-col items-center gap-2 text-center text-muted{{ ' rounded-xl border border-line' if bordered }}">
   <span class="opacity-50">{{ icon(icon_name, 'w-7 h-7') }}</span>
   <span class="text-sm">{{ message }}</span>
-  {% if detail %}<span class="text-xs opacity-80 max-w-xs">{{ detail }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{# The jobs-table header row: one cell per grid track, aligned by the subgrid.
+   Rendered for EVERY state that lists rows; only the select-all checkbox is
+   conditional (it needs the bulk bar to act on). #}
+{% macro jobs_head(bulk=true) -%}
+<div class="jobs-head border-b border-line bg-panel2/40 label font-medium select-none">
+  {% if bulk %}
+  <label class="cursor-pointer">
+    <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
+  </label>
+  {% else %}<span></span>{% endif %}
+  <span></span>
+  <span data-col="id">id</span>
+  <span data-col="name">job</span>
+  <span>data</span>
+  <span></span>
+  {# right-aligned like the numeric values they head #}
+  <span class="justify-end" data-col="time">when</span>
+  <span class="justify-end" title="attempts">×</span>
+  <span></span>
 </div>
 {%- endmacro %}
 
 {# One job as a native <details> accordion row. `state` keys the per-row actions
-   (use the job's own state for search results that span states). #}
-{% macro job_row(name, j, state, page=1) -%}
+   (use the job's own state for search results that span states); `bulk` says
+   whether a bulk bar exists to act on the row checkbox. #}
+{% macro job_row(name, j, state, page=1, bulk=true) -%}
 <details id="jrow-{{ state }}-{{ j.id }}" class="jobs-row acc-item border-b border-line"
          hx-get="{{ url_for('job_detail', name=name, job_id=j.id).path }}"
          hx-target="find .acc-body" hx-trigger="toggle[this.open]">
@@ -61,22 +88,33 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
      aligning (.jobs-table in input.css). #}
   <summary class="jobs-cells hover:bg-panel2/30 transition-colors cursor-pointer
                   list-none [&::-webkit-details-marker]:hidden">
+    {% if bulk %}
     <label class="cursor-pointer">
       <input type="checkbox" class="jcheck chk" value="{{ j.id }}"
              aria-label="Select job {{ j.id }}" />
     </label>
+    {% else %}<span></span>{% endif %}
     <span class="chevron text-muted">{{ icon('chevron', 'w-4 h-4') }}</span>
     <span class="text-muted font-mono truncate" data-col="id" title="#{{ j.id }}">#{{ j.id }}</span>
-    <span class="gap-1" data-col="name">
+    <span class="gap-2" data-col="name">
       {# The name is what operators scan; the full name is one hover away. #}
       <span class="font-medium truncate" title="{{ j.name }}">{{ j.name }}</span>
       {% if j.id.startswith('repeat:') %}
       {# A scheduler's materialized next run. It's a real delayed job (so it counts
          and can be inspected/promoted); the badge explains why it also shows under
          Schedulers and names the schedule it came from. #}
-      <span class="tip inline-flex items-center gap-1 {{ badge('accent', 'shrink-0') }}"
-            data-tip="Scheduled occurrence from scheduler '{{ j.id.split(':')[1] }}'">
-        {{ icon('clock', 'w-3 h-3') }} scheduled<span class="sr-only"> occurrence from scheduler '{{ j.id.split(':')[1] }}'</span></span>
+      {{ glyph('clock', "Scheduled occurrence from scheduler '" ~ j.id.split(':')[1] ~ "'") }}
+      {% endif %}
+      {% if j.children_count %}
+      {# A flow parent: quiet branch glyph + how wide the fan-out is. #}
+      <span class="tip inline-flex items-center gap-1 {{ badge('muted', 'shrink-0') }}"
+            data-tip="Flow parent - waits on {{ j.children_count }} child{{ 'ren' if j.children_count != 1 }}">
+        {{ icon('flow', 'w-3 h-3') }} {{ j.children_count }}<span class="sr-only"> children in this flow</span></span>
+      {% elif j.parent_id %}
+      {# A flow child: its own turn-arrow glyph (belongs under a parent), so
+         parents and children read differently at a glance. The parent link
+         lives in the detail; the row just hints. #}
+      {{ glyph('flow-child', 'Part of flow #' ~ j.parent_id) }}
       {% endif %}
     </span>
     {% if state == 'failed' and j.failed_reason %}
@@ -87,12 +125,27 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     <span class="font-mono text-muted"><span class="truncate">{{ j.data|tojson }}</span></span>
     {% endif %}
     <span>
-      {% if j.progress is number %}
+      {# progress is an active-job concept: a finished row's 100% bar (or a
+         failed row's stuck one) is noise next to its real outcome #}
+      {% if j.progress is number and state == 'active' %}
       <span class="w-28 hidden md:flex items-center gap-1.5">
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
           <span class="block h-full {{ bar_color(j.state) }} rounded-full transition-[width] duration-300" style="width: {{ j.progress }}%"></span>
         </span>
         <span class="text-muted tabular-nums w-9 text-right">{{ j.progress }}%</span>
+      </span>
+      {% elif j.children_count and j.children_done is defined %}
+      {# A flow parent in any tab: fan-in progress (done green, failed red, pending
+         empty) - the same language as the detail's segmented bar. `children_done
+         is defined` guards any path that didn't enrich the row. #}
+      {% set total = j.children_count %}
+      <span class="w-28 hidden md:flex items-center gap-1.5"
+            title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ total - j.children_done - j.children_failed }} pending">
+        <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden flex">
+          <span class="block h-full bg-success transition-[width] duration-300" style="width: {{ j.children_done * 100 // total }}%"></span>
+          <span class="block h-full bg-danger transition-[width] duration-300" style="width: {{ j.children_failed * 100 // total }}%"></span>
+        </span>
+        <span class="text-muted tabular-nums w-9 text-right">{{ j.children_done }}/{{ total }}</span>
       </span>
       {% endif %}
     </span>
@@ -102,8 +155,11 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     <span class="text-warning justify-end whitespace-nowrap" data-col="time"
           title="{{ (j.timestamp + (j.delay or 0))|at }}">{{ (j.timestamp + (j.delay or 0))|due }}</span>
     {% else %}
+    {# a parked flow root sits under active but hasn't started - show when it was
+       enqueued, not its (empty) processed time #}
     {% set ts = j.finished_on if state in ('completed', 'failed')
-                else (j.processed_on if state == 'active' else j.timestamp) %}
+                else (j.timestamp if j.state == 'waiting-children'
+                else (j.processed_on if state == 'active' else j.timestamp)) %}
     <span class="text-muted justify-end whitespace-nowrap" data-col="time"
           title="{{ ts|at }}">{{ ts|ago }}</span>
     {% endif %}
@@ -121,13 +177,32 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {% endif %}
       <button class="btn btn-sm btn-danger tip" data-tip="Remove this job"
               hx-delete="{{ url_for('remove', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
-              hx-target="#queue-panel" hx-confirm="Remove job #{{ j.id }}?"
+              hx-target="#queue-panel"
+              {% if j.children_count %}
+              hx-confirm="Remove flow #{{ j.id }} and its whole subtree ({{ j.children_count }} direct child{{ 'ren' if j.children_count != 1 }}, grandchildren included, even running ones)?"
+              {% else %}
+              hx-confirm="Remove job #{{ j.id }}?"
+              {% endif %}
               data-loading-disable data-loading-aria-busy>
         {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove this job</span></button>
     </span>
   </summary>
   <div class="acc-body"></div>
 </details>
+{%- endmacro %}
+
+{# An icon-only metadata glyph: a muted pill, words live in the tooltip.
+   Gap rules for badges are documented on badge() above. #}
+{% macro glyph(icon_name, tip) -%}
+<span class="tip inline-flex items-center shrink-0 p-1 rounded-md bg-muted/10 text-muted"
+      data-tip="{{ tip }}">
+  {{ icon(icon_name, 'w-3 h-3') }}<span class="sr-only">{{ tip }}</span></span>
+{%- endmacro %}
+
+{# state -> display label. `waiting-children` (a flow parent parked on its kids)
+   reads as "parked"; it has no tab of its own - such a root shows under active. #}
+{% macro state_label(s) -%}
+{%- if s == 'waiting-children' -%}parked{%- else -%}{{ s }}{%- endif -%}
 {%- endmacro %}
 
 {# state -> semantic status token (one token per state; see styles/input.css) #}
@@ -154,6 +229,48 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 <a href="{{ href }}" hx-get="{{ href }}" hx-target="#queue-panel" hx-push-url="true"
    title="View job #{{ jid }}"
    class="px-1.5 py-0.5 rounded-md bg-info/10 text-info text-xs font-mono hover:bg-info/20">#{{ jid }}</a>
+{%- endmacro %}
+
+{# One node of a flow tree (recursive): id chip · status pill · name · duration
+   · failure reason. The status sits in a fixed-width column so names stay
+   flush within a level - the same state pills the rest of the UI uses,
+   spelled out (no color-decoding); the active pill pulses like a draining
+   worker. The current job's row is gently lifted so "you are here" needs no
+   legend. Import `with context` (job_chip needs url_for). #}
+{# Takes a LIST of sibling nodes and emits the <ul> itself (recursing on each
+   node's children), so every <li> lives inside its <ul> within the macro AND
+   siblings share one <ul> - which the connector CSS (.ftree ul > li:last-child)
+   needs. `cls` decorates the outermost <ul>; nested levels get a plain <ul>. #}
+{% macro flow_tree(queue, nodes, current_id, cls='') -%}
+<ul{% if cls %} class="{{ cls }}"{% endif %}>
+  {% for node in nodes %}
+  <li>
+    <div class="ftree-row{{ ' ftree-here' if node.job.id == current_id }}">
+      {{ job_chip(queue, node.job.id) }}
+      <span class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(node.job.state) }}{{ ' animate-pulse' if node.job.state == 'active' }}">
+        {{- 'waiting' if node.job.state == 'waiting-children' else node.job.state -}}
+      </span>
+      <span class="shrink-0 truncate max-w-48{{ ' font-medium' if node.job.id == current_id }}">{{ node.job.name }}</span>
+      {% if node.job.processed_on and node.job.finished_on
+            and node.job.finished_on - node.job.processed_on > 0 %}
+      <span class="text-xs text-muted tabular-nums shrink-0">{{ (node.job.finished_on - node.job.processed_on)|dur }}</span>
+      {% endif %}
+      {% if node.job.state == 'failed' and node.job.failed_reason %}
+      <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
+      {% endif %}
+      {% if node.job.state == 'failed' and node.job.id != current_id %}
+      {# retry just this node, in place. The root parent has its own "retry flow"
+         button (whole-flow recovery), so it's excluded here. #}
+      <button class="btn btn-sm btn-info tip ml-auto shrink-0" data-tip="Retry this job"
+              hx-post="{{ url_for('retry_node', name=queue, job_id=node.job.id).path }}?parent={{ current_id }}"
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
+        {{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry job #{{ node.job.id }}</span></button>
+      {% endif %}
+    </div>
+    {% if node.children %}{{ flow_tree(queue, node.children, current_id) }}{% endif %}
+  </li>
+  {% endfor %}
+</ul>
 {%- endmacro %}
 
 {# A pagination link → queue_view at page `p`. Import `with context` (url_for + the

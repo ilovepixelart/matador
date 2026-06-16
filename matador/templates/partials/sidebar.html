@@ -1,10 +1,10 @@
 {% from "macros.html" import badge, icon %}
 {% set sb = sparkbars(queues) %}
-<div class="text-xs uppercase tracking-wider text-muted px-2 mb-2">Queues</div>
+<div class="label px-2 mb-2">Queues</div>
 {% for qq in queues %}
 <a id="q-{{ qq.name }}" href="{{ url_for('queue_view', name=qq.name).path }}" hx-get="{{ url_for('queue_view', name=qq.name).path }}"
    hx-target="#queue-panel" hx-push-url="true"
-   class="queue-item block rounded-lg px-3 py-2.5 mb-1 hover:bg-panel2 transition-colors{{ ' q-active' if qq.name == selected }}"
+   class="queue-item block rounded-lg px-3 py-2.5 mb-1 text-sm hover:bg-panel2 transition-colors{{ ' q-active' if qq.name == selected }}"
    {% if qq.name == selected %}aria-current="page"{% endif %}>
   <div class="flex items-center justify-between gap-2">
     <span class="flex items-center gap-2 min-w-0">
@@ -31,20 +31,20 @@
   {% endif %}
   {# Always render all three so they never appear/disappear (the main source of jumping);
      tabular-nums keeps the digits aligned as the numbers change. #}
-  <div class="mt-1.5 flex gap-1 text-xs tabular-nums">
+  <div class="mt-1.5 flex gap-1.5 text-xs tabular-nums">
     <span class="{{ badge('info') }}" title="{{ qq.counts.active|comma }}">{{ qq.counts.active|compact }} active</span>
     <span class="{{ badge('muted') }}" title="{{ qq.counts.wait|comma }}">{{ qq.counts.wait|compact }} wait</span>
     <span class="{{ badge('danger') }}" title="{{ qq.counts.failed|comma }}">{{ qq.counts.failed|compact }} failed</span>
   </div>
 </a>
 {% else %}
-<div class="text-muted text-sm px-2">none</div>
+<div class="text-muted text-sm px-2">None</div>
 {% endfor %}
 
-<div class="text-xs uppercase tracking-wider text-muted px-2 mb-2 mt-5">Cluster</div>
+<div class="label px-2 mb-2 mt-5">Cluster</div>
 <a id="nav-workers" href="{{ url_for('workers_view').path }}" hx-get="{{ url_for('workers_view').path }}"
    hx-target="#queue-panel" hx-push-url="true"
-   class="queue-item flex items-center gap-2.5 rounded-lg px-3 py-2.5 hover:bg-panel2 transition-colors{{ ' q-active' if selected == '__workers__' }}"
+   class="queue-item flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm hover:bg-panel2 transition-colors{{ ' q-active' if selected == '__workers__' }}"
    {% if selected == '__workers__' %}aria-current="page"{% endif %}>
   <span class="text-muted">{{ icon('server', 'w-4 h-4') }}</span>
   <span class="q-name font-medium">Workers</span>

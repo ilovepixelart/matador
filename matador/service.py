@@ -15,7 +15,30 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
-STATES: tuple[JobState, ...] = ("active", "wait", "delayed", "completed", "failed")
+# The tabs. A flow is the ROOT job moving through these like any job; its children
+# are hidden from the lists (only in the parent's tree). A parked parent (toro's
+# `waiting-children`) folds into `active` as in-flight - no separate flows tab.
+STATES: tuple[JobState, ...] = (
+    "active",
+    "wait",
+    "delayed",
+    "completed",
+    "failed",
+)
+
+
+def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
+    """Fold toro's root-only counts into the five display tabs: a parked flow
+    parent (`waiting-children`) reads as in-flight, so it joins `active`, and the
+    now-tabless state drops off the tabs. Fed by `roots_counts()`, so each badge
+    is the EXACT number of roots the tab pages through - children are hidden from
+    both, and the badge can never disagree with the pager.
+    """
+    c = dict(counts)
+    # active reads as active + parked; the raw waiting-children count stays in the
+    # dict (no tab renders it) so the active tab can offer "cancel parked flows"
+    c["active"] = c.get("active", 0) + c.get("waiting-children", 0)
+    return c
 
 
 def _human_bytes(n: float | None) -> str:
@@ -110,7 +133,7 @@ class Service:
             out.append(
                 {
                     "name": name,
-                    "counts": await q.counts(),
+                    "counts": _fold_counts(await q.roots_counts()),
                     "paused": await q.is_paused(),
                     # last hour of per-minute activity - the sidebar sparkline
                     "spark": await q.metrics(minutes=60),
@@ -140,6 +163,25 @@ class Service:
     async def metrics_names(self, name: str, *, minutes: int = 60, limit: int = 8) -> list[Any]:
         """Per-job-name totals + percentiles, failures first (toro's triage order)."""
         return list(await self._q(name).metrics_by_name(minutes=minutes))[:limit]
+
+    async def flow_metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
+        """Feed the active-tab flow strip: per-minute whole-flow completed/failed points
+        plus headline totals, failure share, and end-to-end flow duration
+        percentiles (the same shape as metrics(), minus latency).
+        """
+        q = self._q(name)
+        points = await q.flow_metrics(minutes=minutes)
+        completed = sum(p["completed"] for p in points)
+        failed = sum(p["failed"] for p in points)
+        finished = completed + failed
+        return {
+            "points": points,
+            "completed": completed,
+            "failed": failed,
+            "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,
+            "percentiles": await q.flow_percentiles(minutes=minutes),
+            "minutes": minutes,
+        }
 
     async def workers(self) -> list[dict[str, Any]]:
         """Every live worker across all queues (each record carries its `queue`)."""
@@ -172,23 +214,108 @@ class Service:
         q = self._q(name)
         return {
             "name": name,
-            "counts": await q.counts(),
+            "counts": _fold_counts(await q.roots_counts()),
             "paused": await q.is_paused(),
             "schedulers": await q.schedulers(),
         }
 
     async def jobs(
         self, name: str, state: JobState, page: int = 1, per_page: int = 20
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], int, int]:
+        """Root-first listing for a state: flow children (a job with a parentId)
+        are hidden - they live only in the parent's tree, so a flow shows as its
+        ROOT moving through the tabs. The `active` tab also surfaces parked flow
+        roots (`waiting-children`) as in-flight work, so a flow shows there while
+        it fans out and in completed/failed once it settles.
+
+        Exact and unbounded: toro answers roots-only off a children index, so this
+        pages past any depth with no scan cap and the total matches the tab badge.
+        Returns (page rows, total roots, clamped page).
+        """
+        q = self._q(name)
+        if state == "active":
+            total, found, page = await self._active_roots_page(q, page, per_page)
+        else:
+            total, found, page = await self._roots_page(q, state, page, per_page)
+        rows = await self._with_flow_progress(
+            q, [{**self._summary(j), "queue": name} for j in found]
+        )
+        return rows, total, page
+
+    @staticmethod
+    async def _roots_page(
+        q: Queue, state: JobState, page: int, per_page: int
+    ) -> tuple[int, list[Any], int]:
+        """Page one state's roots, with the exact total and the page clamped to
+        range. Fetches the requested page, then refetches only if the request fell
+        past the last page (the rare clamp).
+        """
+        page = max(1, page)
         start = (page - 1) * per_page
-        jobs = await self._q(name).get_jobs(state, start, start + per_page - 1)
-        return [{**self._summary(j), "queue": name} for j in jobs]
+        total, found = await q.get_jobs_roots(state, start, start + per_page - 1)
+        pages = max(1, (total + per_page - 1) // per_page)
+        if page > pages:  # asked beyond the last page → clamp and refetch
+            page = pages
+            start = (page - 1) * per_page
+            _, found = await q.get_jobs_roots(state, start, start + per_page - 1)
+        return total, found, page
+
+    @staticmethod
+    async def _active_roots_page(q: Queue, page: int, per_page: int) -> tuple[int, list[Any], int]:
+        """Page the active tab: active roots (small, bounded by worker concurrency)
+        followed by parked flow roots, as one concatenated list. Active roots are
+        fetched whole; the waiting-children slice continues after them.
+        """
+        a_total, a_roots = await q.get_jobs_roots("active", 0, -1)
+
+        async def slice_at(p: int) -> tuple[int, list[Any]]:
+            start = (p - 1) * per_page
+            active_part = a_roots[start : start + per_page]
+            need = per_page - len(active_part)
+            wc_start = max(0, start - a_total)
+            wc_total, wc_roots = await q.get_jobs_roots(
+                "waiting-children", wc_start, wc_start + per_page - 1
+            )
+            return a_total + wc_total, active_part + (wc_roots[:need] if need > 0 else [])
+
+        page = max(1, page)
+        total, rows = await slice_at(page)
+        pages = max(1, (total + per_page - 1) // per_page)
+        if page > pages:  # asked beyond the last page → clamp and re-slice
+            page = pages
+            total, rows = await slice_at(page)
+        return total, rows, page
+
+    async def _with_flow_progress(
+        self, q: Queue, rows: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Attach fan-in progress to any flow-parent row (one pipelined HLEN
+        batch) - so a parent triages from the list, in whatever tab it lands,
+        without being opened. Children are already filtered out; only parents
+        (children_count > 0) get progress.
+        """
+        parents = [r for r in rows if r["children_count"]]
+        if parents:
+            prog = await q.flow_progress([r["id"] for r in parents])
+            for r in parents:
+                r["children_done"], r["children_failed"] = prog.get(r["id"], (0, 0))
+        return rows
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
     ) -> list[dict[str, Any]]:
-        jobs = await self._q(name).search(state, query, scan_limit)
-        return [{**self._summary(j), "queue": name} for j in jobs]
+        # Search is an explicit lookup, so it still finds children (you may be
+        # hunting a specific child id); the list browse is what hides them. The
+        # active tab searches both active and parked roots, matching its listing.
+        q = self._q(name)
+        sources: tuple[JobState, ...] = (
+            ("active", "waiting-children") if state == "active" else (state,)
+        )
+        jobs = []
+        for src in sources:
+            jobs += await q.search(src, query, scan_limit)
+        rows = [{**self._summary(j), "queue": name} for j in jobs]
+        return await self._with_flow_progress(q, rows)
 
     async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
         q = self._q(name)
@@ -198,7 +325,39 @@ class Service:
         detail = self._detail(j)
         detail["logs"] = await q.get_logs(job_id)
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
+        if j.children_ids:
+            detail |= await self._flow_detail(q, j)
         return detail
+
+    async def _flow_detail(self, q: Queue, j: Job) -> dict[str, Any]:
+        """Collect a flow parent's extras in one read: the tree, the fan-in
+        progress, and what the children left behind (results + tolerated
+        failures). toro's flow_view folds what used to be three calls (get_flow +
+        children_results + failed_children) into a single projection.
+        """
+        view = await q.flow_view(j.id)
+        if view is None:  # parent vanished between the listing and this read
+            return {
+                "flow": None,
+                "children_total": 0,
+                "children_done": 0,
+                "children_failed": 0,
+                "children_results": {},
+                "children_failures": {},
+                "flow_live": False,
+            }
+        return {
+            "flow": self._flow_node(view.tree),
+            # done/failed count COMPLETIONS only (view.done) - a failed child must
+            # never read as progress toward done; `live` is true while any node in
+            # the tree is still moving (parked parent OR a retry under a failed one).
+            "children_total": view.total,
+            "children_done": view.done,
+            "children_failed": view.failed,
+            "children_results": view.results,
+            "children_failures": view.failures,
+            "flow_live": view.live,
+        }
 
     async def schedulers(self, name: str) -> list[dict[str, Any]]:
         return await self._q(name).schedulers()
@@ -207,6 +366,10 @@ class Service:
 
     async def retry(self, name: str, job_id: str) -> bool:
         return await self._q(name).retry_job(job_id)
+
+    async def retry_flow(self, name: str, parent_id: str) -> int:
+        """Re-drive a whole failed flow; returns how many jobs were retried."""
+        return await self._q(name).retry_flow(parent_id)
 
     async def remove(self, name: str, job_id: str) -> bool:
         return await self._q(name).remove_job(job_id)
@@ -355,6 +518,17 @@ class Service:
             "processed_on": j.processed_on,
             "finished_on": j.finished_on,
             "delay": j.opts.delay,
+            # Flow membership: parents show a child count, children a parent link.
+            "parent_id": j.parent_id,
+            "children_count": len(j.children_ids) if j.children_ids else 0,
+        }
+
+    @classmethod
+    def _flow_node(cls, node: dict[str, Any]) -> dict[str, Any]:
+        """Shape a toro get_flow() tree for templates (Job -> summary dicts)."""
+        return {
+            "job": cls._summary(node["job"]),
+            "children": [cls._flow_node(child) for child in node["children"]],
         }
 
     @classmethod

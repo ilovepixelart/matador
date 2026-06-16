@@ -2,7 +2,7 @@
 
 from toro.job import Job, JobOptions
 
-from matador.service import Service
+from matador.service import STATES, Service, _fold_counts
 
 
 def _job(**over):
@@ -39,7 +39,17 @@ def test_summary_has_exactly_the_list_fields():
         "processed_on": 1700000000100,
         "finished_on": 1700000000500,
         "delay": 0,
+        # flow membership: a parent shows its child count, a child its parent link
+        "parent_id": None,
+        "children_count": 0,
     }
+
+
+def test_summary_carries_flow_membership():
+    parent = Service._summary(_job(state="waiting-children", children_ids=["6", "7"]))
+    assert parent["children_count"] == 2
+    child = Service._summary(_job(id="6", parent_id="5"))
+    assert child["parent_id"] == "5"
 
 
 def test_detail_extends_summary_with_full_metadata():
@@ -69,3 +79,22 @@ def test_detail_surfaces_failure_info_on_failed_jobs():
     assert d["state"] == "failed"
     assert d["failed_reason"] == "boom"
     assert "RuntimeError" in d["stacktrace"]
+
+
+def test_fold_counts_parks_waiting_children_into_active():
+    # toro's root counts; the parked-flow state has no tab and folds into active
+    folded = _fold_counts(
+        {"wait": 3, "active": 2, "delayed": 0, "completed": 9, "failed": 1, "waiting-children": 4}
+    )
+    assert folded["active"] == 6  # 2 running + 4 parked roots
+    assert folded["wait"] == 3 and folded["completed"] == 9 and folded["failed"] == 1
+    # the raw parked count is kept (no tab shows it; the active tab's bulk action uses it)
+    assert folded["waiting-children"] == 4
+    # every rendered tab has a count to show
+    assert all(s in folded for s in STATES)
+
+
+def test_fold_counts_does_not_mutate_its_input():
+    raw = {"active": 1, "waiting-children": 2}
+    _fold_counts(raw)
+    assert raw == {"active": 1, "waiting-children": 2}

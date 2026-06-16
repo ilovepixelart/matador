@@ -1,13 +1,17 @@
-{% from "macros.html" import job_row, empty_state with context %}
+{% from "macros.html" import job_row, jobs_head, empty_state, state_label with context %}
+{# Selection works in search results too (tick here, clear the search, bulk-act);
+   same rule as the tab itself - everything but active is bulk-actionable. #}
+{% set bulk = state != 'active' %}
 <div class="px-4 py-2.5 bg-panel2/40 border-b border-line text-xs text-muted flex flex-wrap items-center gap-x-2">
   <span>{{ jobs|length }} result{{ '' if jobs|length == 1 else 's' }} for
     “<span class="text-fg font-medium">{{ query }}</span>”</span>
   {% if exact %}<span class="text-success">· exact id match</span>{% endif %}
-  <span class="opacity-70">· scanned the most recent {{ scan_limit }} {{ state }} jobs</span>
+  <span class="opacity-70">· scanned the most recent {{ scan_limit }} {{ state_label(state) }} jobs</span>
 </div>
 <div class="jobs-table">
-{% for j in jobs %}{{ job_row(name, j, j.state or state) }}
+{% if jobs %}{{ jobs_head(bulk) }}{% endif %}
+{% for j in jobs %}{{ job_row(name, j, j.state or state, bulk=bulk) }}
 {% else %}
-  <div class="col-span-full">{{ empty_state('search', 'no jobs match “' ~ query ~ '”') }}</div>
+  <div class="col-span-full">{{ empty_state('search', 'No jobs match “' ~ query ~ '”') }}</div>
 {% endfor %}
 </div>

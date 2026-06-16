@@ -78,11 +78,39 @@ def base_url(live_server):
     return live_server
 
 
-async def _seed() -> dict:
+async def reset_queue() -> Queue:
+    """Wipe the e2e queue's keys; returns an open Queue for further seeding."""
     q = Queue(QUEUE, url=URL, prefix=PREFIX)
     keys = await q.redis.keys(q.keys.base + "*")
     if keys:
         await q.redis.delete(*keys)
+    return q
+
+
+async def work_until(proc, until, *, concurrency: int = 4, timeout: float = 8.0) -> None:
+    """Run a worker until `until(q)` holds, then stop it - and FAIL loudly on
+    timeout instead of letting a half-seeded state surface as a confusing
+    downstream assertion.
+    """
+    q = Queue(QUEUE, url=URL, prefix=PREFIX)
+    worker = Worker(
+        QUEUE, proc, url=URL, prefix=PREFIX, concurrency=concurrency, stalled_interval=0
+    )
+    task = asyncio.create_task(worker.run())
+    try:
+        for _ in range(int(timeout / 0.02)):
+            if await until(q):
+                break
+            await asyncio.sleep(0.02)
+        assert await until(q), f"work_until timed out after {timeout}s"
+    finally:
+        await worker.stop(grace_period=0)
+        task.cancel()
+        await q.close()
+
+
+async def _seed() -> dict:
+    q = await reset_queue()
     done = await q.add("okjob", {"recipient": "ada@example.com"})
     await q.add("badjob", {"why": "bad"}, attempts=1)
 

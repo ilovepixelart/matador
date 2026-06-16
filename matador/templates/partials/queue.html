@@ -1,4 +1,4 @@
-{% from "macros.html" import badge, icon, state_color %}
+{% from "macros.html" import badge, icon, state_color, state_label %}
 <div class="p-5">
   <div class="flex items-center justify-between mb-5 gap-3">
     <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
@@ -21,18 +21,19 @@
 
   {# Health chips: rendered inline with the panel (no pop-in), then refreshed
      on job events (throttled - the buckets are per-minute, sub-second repaints
-     buy nothing) and a slow tick. hx-target="this" opts out of the panel's
-     inherited #queue-panel target. #}
-  <div class="mb-4 min-h-7" hx-get="{{ url_for('queue_metrics', name=q.name).path }}"
+     buy nothing) and a slow tick. Targets its OWN id (not "this"): if this region
+     ever fires after the panel navigated away, the id is gone and htmx aborts -
+     a "this" target would re-root to the inherited #queue-panel and wipe it. #}
+  <div id="metrics-live" class="mb-4 min-h-7" hx-get="{{ url_for('queue_metrics', name=q.name).path }}"
        hx-trigger="sse:changed throttle:5s, every 30s"
-       hx-target="this" hx-swap="innerHTML">{% include "partials/metrics.html" %}</div>
+       hx-target="#metrics-live" hx-swap="innerHTML">{% include "partials/metrics.html" %}</div>
 
   <div class="flex gap-1 border-b border-line mb-4">
     {% for s in states %}
     <a href="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}"
        hx-get="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}" hx-push-url="true"
        class="relative flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors {{ 'text-fg' if s == state else 'text-muted hover:text-fg' }}">
-      {{ s }}
+      {{ state_label(s) }}
       <span id="tabcount-{{ s }}" title="{{ q.counts[s]|comma }}" class="text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md {{ state_color(s) }}">{{ q.counts[s]|compact }}</span>
       {% if s == state %}
       <span class="absolute -bottom-px inset-x-2 h-0.5 rounded-full bg-accent"></span>
@@ -41,10 +42,20 @@
     {% endfor %}
   </div>
 
+  {# Flow throughput, active tab only (where in-flight flows live). Self-refreshing
+     band (stable wrapper morphs its own inner html on job events). #}
+  {% if state == 'active' and fm %}
+  <div class="mb-4 min-h-7" id="flow-metrics"
+       hx-get="{{ url_for('flow_metrics_fragment', name=q.name).path }}"
+       hx-trigger="sse:changed throttle:5s, every 30s"
+       hx-target="#flow-metrics" hx-swap="innerHTML">{% include "partials/flow_metrics.html" %}</div>
+  {% endif %}
+
   <div class="relative max-w-sm mb-3">
+    <label for="job-search" class="sr-only">Search {{ state_label(state) }} jobs by name, data, or id</label>
     <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">{{ icon('search', 'w-4 h-4') }}</span>
-    <input type="search" name="query" autocomplete="off" value="{{ query|default('') }}"
-           placeholder="search {{ state }} - name, data, or #id…"
+    <input id="job-search" type="search" name="query" autocomplete="off" value="{{ query|default('') }}"
+           placeholder="search {{ state_label(state) }} - name, data, or #id…"
            class="input !pl-9"
            hx-get="{{ url_for('jobs_fragment', name=q.name).path }}?state={{ state }}"
            hx-trigger="input changed delay:300ms, search"

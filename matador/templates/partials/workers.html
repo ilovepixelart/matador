@@ -8,10 +8,11 @@
   {# Self-refreshing list - workers heartbeat every ~5s; poll a little faster so
      "running" and the live counts stay fresh. Polling stops when you navigate
      away (htmx tears down the interval with the removed element). #}
-  {# hx-target="this" is REQUIRED: the panel's #queue-panel target is inherited, so
-     without this the refresh would replace the whole panel (losing this header). #}
+  {# Targets its OWN id, never "this": the panel's #queue-panel target is inherited,
+     and a "this" target re-roots to it if this region ever fires after the panel
+     navigated away - wiping the panel. A stable id is gone by then, so htmx aborts. #}
   <div id="workers-list" hx-get="{{ url_for('workers_fragment').path }}"
-       hx-target="this" hx-swap="morph:innerHTML" hx-sync="this:drop"
+       hx-target="#workers-list" hx-swap="morph:innerHTML" hx-sync="this:drop"
        hx-trigger="every 2s, sse:changed throttle:1s">
     {% include "partials/workers_list.html" %}
   </div>

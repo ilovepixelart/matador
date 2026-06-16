@@ -1,0 +1,33 @@
+{% from "macros.html" import icon %}
+{# Flow throughput strip (active tab only): whole flows completed/failed over the
+   last hour, plus end-to-end flow-duration percentiles. Same chip + sparkline
+   vocabulary as the queue health strip - neutral ink for done, danger for failed,
+   one shared visual language. Counts are throughput (flows that SETTLED in the
+   window), not the live parked count the tab badge shows. #}
+<div id="flow-metrics-strip" class="flex flex-wrap items-center gap-x-5 gap-y-2">
+  {% if fm.completed or fm.failed %}
+  <svg viewBox="0 0 120 20" width="120" height="20" class="q-spark shrink-0"
+       role="img" shape-rendering="crispEdges" preserveAspectRatio="none"
+       aria-label="flow activity, last hour">
+    <line x1="0" y1="19.5" x2="120" y2="19.5" class="stroke-line"/>
+    {% for b in flowbars(fm.points) %}
+    {% if b.dh %}<rect x="{{ b.x }}" y="{{ b.y_done }}" width="3" height="{{ b.dh }}" class="fill-muted/40{{ ' opacity-40' if loop.last }}"/>{% endif %}
+    {% if b.fh %}<rect x="{{ b.x }}" y="{{ b.y_fail }}" width="3" height="{{ b.fh }}" class="fill-danger{{ ' opacity-40' if loop.last }}"/>{% endif %}
+    {% endfor %}
+  </svg>
+  {% endif %}
+  <span class="chip" data-flows-done="{{ fm.completed }}">
+    <span class="text-muted">{{ icon('flow', 'w-3.5 h-3.5') }}</span>
+    <b class="text-fg tabular-nums">{{ fm.completed|compact }}</b> flows done</span>
+  {% if fm.failed %}
+  <span class="chip" data-flows-failed="{{ fm.failed }}">
+    <b class="text-danger tabular-nums">{{ fm.failed|compact }}</b>
+    <span class="text-danger">failed · {{ fm.fail_pct }}%</span></span>
+  {% endif %}
+  {% if fm.percentiles.p95 %}
+  <span class="chip tip" data-tip="End-to-end flow duration (enqueue to the parent finishing), completed flows only - estimates from log-scale buckets (within ~22%).">
+    p50 <b class="text-fg tabular-nums">{{ fm.percentiles.p50|dur }}</b>
+    · p95 <b class="text-fg tabular-nums">{{ fm.percentiles.p95|dur }}</b></span>
+  {% endif %}
+  <span class="chip text-muted">last {{ fm.minutes }}m</span>
+</div>

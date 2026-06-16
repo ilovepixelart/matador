@@ -1,14 +1,17 @@
 {% from "macros.html" import icon, empty_state %}
-<h2 class="text-xs uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5">
+<h2 class="label mb-3 flex items-center gap-1.5">
   {{ icon('clock', 'w-3.5 h-3.5') }} Schedulers</h2>
 <div class="card">
+  {% if not schedulers %}
+  {{ empty_state('clock', 'No schedulers') }}
+  {% else %}
   <table class="w-full text-sm">
-    <thead class="bg-panel2/60">
+    <thead class="bg-panel2/40">
       <tr><th scope="col" class="th">name</th><th scope="col" class="th">schedule</th><th scope="col" class="th">next run</th><th scope="col" class="th"><span class="sr-only">actions</span></th></tr>
     </thead>
     <tbody>
     {% for s in schedulers %}
-      <tr class="border-t border-line">
+      <tr class="border-t border-line hover:bg-panel2/20 transition-colors">
         <td class="td font-medium">{{ s.name }}</td>
         <td class="td font-mono text-muted">{{ s|schedule }}</td>
         <td class="td font-mono text-muted">{{ s.next|clock }}</td>
@@ -24,9 +27,8 @@
           </div>
         </td>
       </tr>
-    {% else %}
-      <tr><td colspan="4">{{ empty_state('clock', 'no schedulers', 'Register one with add_scheduler(every=…) or cron.') }}</td></tr>
     {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 </div>

@@ -1,6 +1,8 @@
-{% from "macros.html" import icon, bar_color, job_row, empty_state, pglink with context %}
-{% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
-<div class="flex items-center gap-2 px-4 py-2 bg-panel2/60 border-b border-line">
+{% from "macros.html" import icon, bar_color, job_row, jobs_head, empty_state, pglink, state_label with context %}
+{# every state except active is bulk-actionable (a worker holds active jobs) #}
+{% set bulk = state != 'active' %}
+{% if bulk and jobs %}
+<div class="flex items-center gap-2 px-4 py-2.5 bg-panel2/40 border-b border-line">
   {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
   <div id="bulk-bar" class="items-center gap-2" style="display: none">
     <span class="text-xs text-muted"><b id="bulk-count" class="text-fg tabular-nums">0</b> selected</span>
@@ -9,7 +11,8 @@
     <button id="bulk-delete" class="btn btn-sm btn-danger"
             hx-post="{{ url_for('bulk_remove', name=name).path }}?state={{ state }}&page={{ page }}"
             hx-vals="js:{ids: Matador.bulk.ids()}" hx-target="#queue-panel"
-            hx-confirm="Delete selected jobs?" data-loading-disable data-loading-aria-busy>
+            hx-confirm="Delete selected jobs? A flow parent is removed with its whole subtree."
+            data-loading-disable data-loading-aria-busy>
       {{ icon('trash', 'w-3.5 h-3.5') }} delete</button>
   </div>
   <div class="flex-1"></div>
@@ -19,35 +22,35 @@
     {{ icon('retry', 'w-3.5 h-3.5') }} retry all</button>
   {% endif %}
   <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean', name=name).path }}?state={{ state }}"
-          hx-confirm="Clean ALL {{ state }} jobs?" data-loading-disable data-loading-aria-busy>
-    {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state }}</button>
+          hx-confirm="Clean ALL {{ state_label(state) }} jobs? A flow parent takes its whole subtree."
+          data-loading-disable data-loading-aria-busy>
+    {{ icon('trash', 'w-3.5 h-3.5') }} clean {{ state_label(state) }}</button>
 </div>
 
+{% endif %}
+
+{% if state == 'active' and q.counts['waiting-children'] %}
+{# Parked flows fold into active, which isn't bulk-selectable, so their bulk
+   cancel lives here: every waiting-children parent plus its whole subtree. #}
+<div class="flex items-center justify-end px-4 py-2.5 bg-panel2/40 border-b border-line">
+  <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean_flows', name=name).path }}"
+          hx-confirm="Cancel ALL {{ q.counts['waiting-children'] }} parked flow{{ 's' if q.counts['waiting-children'] != 1 }}? Each parent is removed with its whole subtree - children included, even running ones."
+          hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
+    {{ icon('flow', 'w-3.5 h-3.5') }} cancel parked flows</button>
+</div>
 {% endif %}
 
 {# data-view sits ON the grid itself (bulk-select page identity) - no extra
    wrapper: idiomorph relocates id-keyed rows across intermediate divs. #}
 <div class="jobs-table" id="jt-{{ name }}-{{ state }}" data-view="{{ name }}:{{ state }}">
-  {% if state in ['failed', 'completed', 'delayed', 'wait'] and jobs %}
-  {# Header cells mirror the row cells one-per-track; the subgrid aligns them. #}
-  <div class="jobs-head border-b border-line bg-panel2/30 text-xs uppercase tracking-wider text-muted select-none">
-    <label class="cursor-pointer">
-      <input type="checkbox" id="select-all" class="chk" aria-label="Select all jobs on this page" />
-    </label>
-    <span></span>
-    <span data-col="id">id</span>
-    <span data-col="name">job</span>
-    <span>data</span>
-    <span></span>
-    {# right-aligned like the numeric values they head #}
-    <span class="justify-end" data-col="time">when</span>
-    <span class="justify-end" title="attempts">×</span>
-    <span></span>
-  </div>
-  {% endif %}
-  {% for j in jobs %}{{ job_row(name, j, state, page) }}
+  {% if jobs %}{{ jobs_head(bulk) }}{% endif %}
+  {% for j in jobs %}{{ job_row(name, j, state, page, bulk) }}
   {% else %}
-  <div class="col-span-full">{{ empty_state('inbox', 'No ' ~ state ~ ' jobs' ~ (' - all clear' if state == 'failed' else '')) }}</div>
+  <div class="col-span-full">
+    {%- if state == 'wait' -%}{{ empty_state('inbox', 'No waiting jobs') }}
+    {%- else -%}{{ empty_state('inbox', 'No ' ~ state ~ ' jobs') }}
+    {%- endif -%}
+  </div>
   {% endfor %}
 </div>
 
@@ -64,7 +67,7 @@
 
 {% if pages > 1 %}
 <div class="flex items-center justify-between px-4 py-2.5 border-t border-line text-xs">
-  <span class="text-muted">{{ total|comma }} {{ state }} · page {{ page }} of {{ pages }}</span>
+  <span class="text-muted">{{ total|comma }} {{ state_label(state) }} · page {{ page }} of {{ pages }}</span>
   <nav class="flex items-center gap-1" aria-label="pagination">
     {{ pglink(page - 1, icon('chevron', 'w-3.5 h-3.5 rotate-90'), disabled=(page <= 1)) }}
     {% for p in nav %}

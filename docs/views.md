@@ -11,16 +11,27 @@ fragment mechanics behind these routes are covered in
 | `/` | The hub: redirects you into the first queue, or an empty state when no queues are configured. |
 | `/queues/{name}?state=<tab>&page=<n>&query=<q>` | The queue panel: state tabs with counts, the job list (paginated), schedulers, pause/resume. The canonical URL - tabs and pagination push it into history. |
 | `/queues/{name}/jobs` | Just the job table + tab-count OOB pieces; what the [SSE refresh](live-updates.md) re-fetches. |
-| `/queues/{name}/jobs/{job_id}/detail` | The lazy accordion body for one row: data, options, result, logs, stack trace. Loaded only when a row is opened. |
+| `/queues/{name}/jobs/{job_id}/detail` | The lazy accordion body for one row: data, options, result, logs, stack trace - and, for flow jobs, the flow tree, fan-in progress and children results/failures. Loaded only when a row is opened. |
 | `/queues/{name}/jobs/{job_id}` | A standalone, bookmarkable page for one job (where a job-id chip links). |
+| `/queues/{name}/jobs/{job_id}/flow` | Just the flow body, for the self-refreshing live region on a flow detail. |
+| `/queues/{name}/flow-metrics` | The active tab's flow-throughput strip: whole flows completed/failed over the last hour with end-to-end flow-duration percentiles. |
 | `/workers` | Live workers (from their heartbeats) and the departed-workers history. |
 | `/workers/list` | Just the worker table, for the periodic refresh. |
 | `/sidebar` | The queue nav with counts; usually delivered out-of-band rather than fetched directly. |
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
 
-Job tabs cover toro's five states: `active`, `wait`, `delayed`, `completed`,
-`failed`. A bad `state` query value is coerced to `active`, never an error.
+Five job tabs: `active`, `wait`, `delayed`, `completed`, `failed`. Flows are
+shown root-first - the lists hold flow roots and standalone jobs, while flow
+children (a job with a parentId) are hidden, surfaced only in the parent's tree
+on the detail. toro's `waiting-children` (a parked flow parent) has no tab of
+its own: it folds into `active` as in-flight, and the active badge counts
+`active + waiting-children`. A bad `state` query value (including the retired
+`waiting-children`) is coerced to `active`, never an error.
+
+Tab badges count total jobs per state, so on a flow-heavy queue a badge can read
+higher than the visible roots (the lists hide children); exact root-only counts
+would need a toro-side index.
 
 ## Search
 
@@ -51,10 +62,13 @@ silently.
 | `POST /queues/{name}/pause` · `/resume` | Pause / resume the queue (in-flight jobs finish). |
 | `POST /queues/{name}/jobs/{job_id}/retry` | Retry one failed job. |
 | `POST /queues/{name}/jobs/{job_id}/promote` | Run a delayed job now. |
-| `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. |
+| `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. Flow-aware: removing a flow parent removes its whole subtree (the confirm dialog says so). |
 | `POST /queues/{name}/jobs/bulk-remove` | Remove the checkbox-selected jobs - capped at 1000 per request so one click can't fan out unboundedly. |
 | `POST /queues/{name}/retry-all` | Re-queue every failed job. |
-| `POST /queues/{name}/clean` | Remove every job in the current state. |
+| `POST /queues/{name}/clean` | Remove every job in the current state. A flow root cleaned this way takes its whole subtree with it. |
+| `POST /queues/{name}/flows/clean` | Cancel every parked flow (waiting-children) and its subtree - the bulk action for parked roots, which fold into the non-selectable active tab. |
+| `POST /queues/{name}/jobs/{job_id}/retry-flow` | Re-drive a whole failed flow: retry every failed job in the subtree. |
+| `POST /queues/{name}/jobs/{job_id}/retry-node` | Retry one node of a flow in place (re-joins its parent's barrier). |
 | `POST /queues/{name}/schedulers/{id}/trigger` | Run one occurrence of a schedule now. |
 | `DELETE /queues/{name}/schedulers/{id}` | Remove a schedule. |
 
