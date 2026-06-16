@@ -2,7 +2,12 @@
 {# Flow content only. The #flow-section wrapper (in flow_section.html) is the
    stable live region; while the flow is live it morphs THIS body in on each job
    event - the wrapper, the page chrome and the data/opts wells never move.
-   Same shape as workers_list.html inside #workers-list. #}
+   Same shape as workers_list.html inside #workers-list.
+   Guard with the SAME condition flow_section uses: the live region re-fetches
+   this body directly (flow_fragment route), so a parent removed/cancelled
+   between events arrives here as job=None or flow=None with children_total=0 -
+   render nothing rather than divide by zero. #}
+{% if job and job.flow %}
 <div class="space-y-3">
   {# fan-in progress + the whole tree, states at a glance #}
   <div>
@@ -60,3 +65,4 @@
   </div>
   {% endif %}
 </div>
+{% endif %}

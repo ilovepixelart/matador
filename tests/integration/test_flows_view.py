@@ -136,6 +136,16 @@ async def test_clean_flows_cancels_parked_roots_and_subtrees(client, q):
     assert "cancel parked flows" not in r.text
 
 
+async def test_flow_fragment_survives_a_vanished_parent(client, q):
+    # The live #flow-section polls .../flow on each event. If the parent is removed
+    # (or cancelled) between events, svc.job -> None and the body must render empty,
+    # not 500 on `children_done * 100 // 0`.
+    parent = await _flow(q)
+    assert await q.remove_job(parent.id)  # parent + subtree gone
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/flow?title=1")
+    assert r.status_code == 200  # no ZeroDivisionError / UndefinedError
+
+
 async def test_flow_fragment_carries_title_oob_only_when_asked(client, q):
     parent = await _flow(q)
     # the standalone page asks ?title=1, so the live fragment also OOB-updates the
