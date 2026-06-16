@@ -404,14 +404,20 @@ def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
     # Regression: a live region (the metrics strip) with a "this" target used to
     # outlive navigation into a job and, on the next sse:changed, re-root to the
     # inherited queue-panel target, wiping the open detail ("body disappears").
-    # Live regions now target their own id, so a detached fire aborts instead.
-    cid = flows["a_children"][0]  # a child job
-    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{cid}")
+    #
+    # IMPORTANT: a clean page.goto to the child does NOT reproduce this - a fresh
+    # page has no stale region. The clobber needs the htmx-navigation path: arrive
+    # at the child by drilling in FROM the active tab (which mounts the live metrics
+    # strip), so the in-panel swap leaves that region's listener behind.
+    cid = flows["a_children"][0]
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")  # active tab: metrics strip is live
+    page.wait_for_timeout(2000)  # SSE connect + live region registered
+    page.locator("#jobs details summary").first.click()  # open the parked flow's tree
+    page.locator(f'#jobs a[href="/queues/{QUEUE}/jobs/{cid}"]').first.click()  # drill into a child
     panel = page.locator("#queue-panel")
-    expect(panel).to_contain_text("part of")  # the child detail (links up to its parent)
-    page.wait_for_timeout(2000)  # SSE connect
+    expect(panel).to_contain_text("part of")  # landed on the child detail
 
-    # churn the queue so sse:changed fires repeatedly while we sit on the detail
+    # churn the queue so sse:changed fires while we sit on the detail
     async def churn():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
         for _ in range(4):
@@ -420,6 +426,6 @@ def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
 
     drive(churn())
     page.wait_for_timeout(2500)
-    # the detail must still be here - not replaced by the queue panel
+    # the stale metrics strip must NOT have re-rooted and wiped the detail
     expect(panel).to_contain_text("part of")
     expect(page.locator("#job-state-pill")).to_be_visible()
