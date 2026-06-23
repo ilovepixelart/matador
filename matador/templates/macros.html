@@ -171,9 +171,12 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
               hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}<span class="sr-only">Promote, run now</span></button>
       {% endif %}
       {% if state == 'failed' %}
-      <button class="btn btn-sm btn-info tip" data-tip="Retry this job"
+      {# A failed flow parent re-drives its whole failed subtree, not just itself,
+         so the label says so rather than undersell it as "this job". #}
+      {% set retry_label = 'Retry flow - re-drives its failed children' if j.children_count else 'Retry this job' %}
+      <button class="btn btn-sm btn-info tip" data-tip="{{ retry_label }}"
               hx-post="{{ url_for('retry', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
-              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry this job</span></button>
+              hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">{{ retry_label }}</span></button>
       {% endif %}
       <button class="btn btn-sm btn-danger tip" data-tip="Remove this job"
               hx-delete="{{ url_for('remove', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
@@ -260,11 +263,13 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {% endif %}
       {% if node.job.state == 'failed' and node.job.id != current_id %}
       {# retry just this node, in place. The root parent has its own "retry flow"
-         button (whole-flow recovery), so it's excluded here. #}
-      <button class="btn btn-sm btn-info tip ml-auto shrink-0" data-tip="Retry this job"
+         button (whole-flow recovery), so it's excluded here. An interior node is
+         itself a sub-parent, so retrying it re-drives its own failed subtree. #}
+      {% set node_label = 'Retry flow - re-drives its failed children' if node.children else 'Retry job #' ~ node.job.id %}
+      <button class="btn btn-sm btn-info tip ml-auto shrink-0" data-tip="{{ node_label }}"
               hx-post="{{ url_for('retry_node', name=queue, job_id=node.job.id).path }}?parent={{ current_id }}"
               hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
-        {{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">Retry job #{{ node.job.id }}</span></button>
+        {{ icon('retry', 'w-3.5 h-3.5') }}<span class="sr-only">{{ node_label }}</span></button>
       {% endif %}
     </div>
     {% if node.children %}{{ flow_tree(queue, node.children, current_id) }}{% endif %}
