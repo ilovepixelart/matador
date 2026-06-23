@@ -10,3 +10,5 @@ tailwindcss
 
 .coverage
 coverage.xml
+
+.DS_Store
