@@ -184,6 +184,36 @@ def test_retry_flow_button_recovers_the_flow(page: Page, base_url, flows, drive)
     expect(page.locator("#queue-panel")).to_contain_text("2/2 children done")
 
 
+def test_failed_flow_parent_row_retry_relabels_and_redrives(page: Page, base_url, flows, drive):
+    # The ROW retry button on a failed flow parent (the list, not the detail's
+    # "retry flow") routes through retry_job, which in toro 0.5.0 re-drives the whole
+    # failed subtree. Its label says so, and clicking it recovers the flow - whereas
+    # 0.4.0 would only re-park the parent and strand the failed child.
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    row = page.locator("#jobs details", has_text="publish-video")
+    redrive = row.get_by_role("button", name="Retry flow - re-drives its failed children")
+    expect(redrive).to_be_visible()  # not the plain "Retry this job": this re-drives the subtree
+
+    redrive.click()
+    # parent re-parks and folds into active alongside the other parked flow; the failed
+    # child was re-queued too (not stranded), which is what lets the flow recover
+    expect(page.locator("#tabcount-active")).to_have_text("2", timeout=5000)
+
+    async def finish():
+        async def proc(job):
+            return {"ok": job.name} if job.name != "publish-video" else "done"
+
+        async def done(qq):
+            j = await qq.get_job(flows["parent_b"])
+            return j is not None and j.state == "completed"
+
+        await work_until(proc, done)
+
+    drive(finish())
+    page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")
+    expect(page.locator("#queue-panel")).to_contain_text("2/2 children done")
+
+
 def test_flow_tree_updates_live_while_in_flight(page: Page, base_url, flows, drive):
     # parent_a is parked at 1/2 (one shard done, one delayed-pending)
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_a']}")
