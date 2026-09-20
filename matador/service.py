@@ -63,24 +63,29 @@ def cap_summary(worker_caps: list[int], active: int, waiting: int) -> dict[str, 
 
     toro's cap is a WORKER option, so a queue has no cap of its own: it has
     whatever its live workers agree on. `None` when no live worker sets one.
-    When they disagree each enforces its own value, which toro does not
-    reconcile: `mixed`, with every distinct value (0 = a worker with no cap).
-    `full` is the state worth explaining on screen: jobs are waiting on a free
-    slot, not on a worker, so latency grows by design.
+
+    `state` is one of:
+      * ``mixed`` - workers disagree. Each enforces its own value, which toro does
+        not reconcile. `caps` holds every distinct one (0 = a worker with no cap)
+        and `limit` is None.
+      * ``full``  - every slot is taken and jobs are waiting: they wait on a free
+        slot, not on a worker, so latency grows by design.
+      * ``open``  - a cap exists and has room, or nothing is waiting on it.
     """
-    values = sorted(set(worker_caps))
-    if not any(values):
+    caps = sorted(set(worker_caps))
+    if not any(caps):
         return None
-    mixed = len(values) > 1
-    limit = None if mixed else values[0]
+    if len(caps) > 1:
+        state, limit = "mixed", None
+    else:
+        limit = caps[0]
+        state = "full" if active >= limit and waiting > 0 else "open"
     return {
+        "state": state,
         "limit": limit,
-        "mixed": mixed,
-        "values": values,
-        "labels": ["none" if v == 0 else str(v) for v in values],
+        "caps": caps,
         "active": active,
         "waiting": waiting,
-        "full": limit is not None and active >= limit and waiting > 0,
     }
 
 
@@ -176,12 +181,13 @@ class Service:
         completed = sum(p["completed"] for p in points)
         failed = sum(p["failed"] for p in points)
         finished = completed + failed
-        counts = await q.counts()
-        caps = [w["global_concurrency"] for w in await q.workers()]
+        worker_caps = [w["global_concurrency"] for w in await q.workers()]
+        # most queues set no cap: only then is the occupancy worth a second read
+        counts = await q.counts() if any(worker_caps) else {"active": 0, "wait": 0}
         return {
             "points": points,
             "latency": await q.latency(),
-            "cap": cap_summary(caps, counts["active"], counts["wait"]),
+            "cap": cap_summary(worker_caps, counts["active"], counts["wait"]),
             "completed": completed,
             "failed": failed,
             "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,

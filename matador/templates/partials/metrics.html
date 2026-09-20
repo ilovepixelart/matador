@@ -14,23 +14,21 @@
      it stays neutral: only workers that DISAGREE on the cap are a problem.
      Focusable, with the tip repeated for screen readers - here the tip is the
      explanation, not a nicety. #}
-  {% if m.cap.mixed %}
-  {% set cap_tip = "Workers disagree on global_concurrency. Each enforces its own value, so the queue has no single cap. Give every worker the same one." %}
-  <span class="chip tip" tabindex="0" data-cap-state="mixed" data-tip="{{ cap_tip }}">
-    cap <span class="text-warning">mixed <b class="tabular-nums">{{ m.cap.labels|join(', ') }}</b></span>
-    <span class="sr-only">{{ cap_tip }}</span></span>
-  {% elif m.cap.full %}
-  {% set cap_tip = "The cap is full. These jobs wait on a free slot, not on a worker, so latency grows by design." %}
-  <span class="chip tip" tabindex="0" data-cap-state="full" data-tip="{{ cap_tip }}">
+  {% set cap_tip = {
+    "mixed": "Workers disagree on global_concurrency. Each enforces its own value, so the queue has no single cap. Give every worker the same one.",
+    "full": "The cap is full. These jobs wait on a free slot, not on a worker, so latency grows by design.",
+    "open": "Jobs active at once across every worker, against the queue-wide cap.",
+  }[m.cap.state] %}
+  <span class="chip tip" tabindex="0" data-cap-state="{{ m.cap.state }}" data-tip="{{ cap_tip }}">
+    {% if m.cap.state == "mixed" %}
+    cap <span class="text-warning">mixed <b class="tabular-nums">{% for v in m.cap.caps %}{{ v or 'none' }}{{ ', ' if not loop.last }}{% endfor %}</b></span>
+    {% elif m.cap.state == "full" %}
     at cap <b class="text-fg tabular-nums">{{ m.cap.active }}/{{ m.cap.limit }}</b>
     · <b class="text-fg tabular-nums">{{ m.cap.waiting|compact }}</b> waiting
-    <span class="sr-only">{{ cap_tip }}</span></span>
-  {% else %}
-  {% set cap_tip = "Jobs active at once across every worker, against the queue-wide cap." %}
-  <span class="chip tip" tabindex="0" data-cap-state="open" data-tip="{{ cap_tip }}">
+    {% else %}
     cap <b class="text-fg tabular-nums">{{ m.cap.active }}/{{ m.cap.limit }}</b>
+    {% endif %}
     <span class="sr-only">{{ cap_tip }}</span></span>
-  {% endif %}
   {% endif %}
   <span class="chip" data-done="{{ m.completed }}">
     <b class="text-fg tabular-nums">{{ m.completed|compact }}</b> done</span>

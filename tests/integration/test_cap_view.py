@@ -56,15 +56,15 @@ async def test_service_reports_cap_states(q, svc):
 
     async with live(q, worker(global_concurrency=3), worker(global_concurrency=3)):
         cap = (await svc.metrics(QUEUE))["cap"]
-        assert (cap["limit"], cap["mixed"], cap["values"]) == (3, False, [3])
+        assert (cap["state"], cap["limit"], cap["caps"]) == ("open", 3, [3])
 
     async with live(q, worker(global_concurrency=3), worker(global_concurrency=5)):
         cap = (await svc.metrics(QUEUE))["cap"]
-        assert (cap["limit"], cap["mixed"], cap["values"]) == (None, True, [3, 5])
+        assert (cap["state"], cap["limit"], cap["caps"]) == ("mixed", None, [3, 5])
 
     async with live(q, worker(global_concurrency=3), worker()):
         cap = (await svc.metrics(QUEUE))["cap"]
-        assert (cap["limit"], cap["mixed"], cap["values"]) == (None, True, [0, 3])
+        assert (cap["state"], cap["limit"], cap["caps"]) == ("mixed", None, [0, 3])
 
 
 class _CapChip(HTMLParser):
