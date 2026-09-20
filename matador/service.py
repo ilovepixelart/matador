@@ -58,6 +58,37 @@ class UnknownQueueError(KeyError):
     """
 
 
+def cap_summary(worker_caps: list[int], active: int, waiting: int) -> dict[str, Any] | None:
+    """Summarize the queue's global concurrency cap, as its live workers report it.
+
+    toro's cap is a WORKER option, so a queue has no cap of its own: it has
+    whatever its live workers agree on. `None` when no live worker sets one.
+
+    `state` is one of:
+      * ``mixed`` - workers disagree. Each enforces its own value, which toro does
+        not reconcile. `caps` holds every distinct one (0 = a worker with no cap)
+        and `limit` is None.
+      * ``full``  - every slot is taken and jobs are waiting: they wait on a free
+        slot, not on a worker, so latency grows by design.
+      * ``open``  - a cap exists and has room, or nothing is waiting on it.
+    """
+    caps = sorted(set(worker_caps))
+    if not any(caps):
+        return None
+    if len(caps) > 1:
+        state, limit = "mixed", None
+    else:
+        limit = caps[0]
+        state = "full" if active >= limit and waiting > 0 else "open"
+    return {
+        "state": state,
+        "limit": limit,
+        "caps": caps,
+        "active": active,
+        "waiting": waiting,
+    }
+
+
 class Service:
     """The dashboard's read/action API over a fixed set of toro queues."""
 
@@ -150,9 +181,13 @@ class Service:
         completed = sum(p["completed"] for p in points)
         failed = sum(p["failed"] for p in points)
         finished = completed + failed
+        worker_caps = [w["global_concurrency"] for w in await q.workers()]
+        # most queues set no cap: only then is the occupancy worth a second read
+        counts = await q.counts() if any(worker_caps) else {"active": 0, "wait": 0}
         return {
             "points": points,
             "latency": await q.latency(),
+            "cap": cap_summary(worker_caps, counts["active"], counts["wait"]),
             "completed": completed,
             "failed": failed,
             "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,

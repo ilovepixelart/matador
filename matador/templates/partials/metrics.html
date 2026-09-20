@@ -9,6 +9,28 @@
     <span class="text-muted">{{ icon('clock', 'w-3.5 h-3.5') }}</span> latency
     <span class="font-medium tabular-nums {{ 'text-warning' if m.latency >= 30000 else 'text-fg' }}">
       {{ m.latency|dur if m.latency else '0ms' }}</span></span>
+  {% if m.cap %}
+  {# The cap sits next to the number it explains. Full is intended behavior, so
+     it stays neutral: only workers that DISAGREE on the cap are a problem.
+     The chip's own text carries the state; the tip only adds to it, and is
+     repeated for screen readers. Not focusable, like every chip here: this
+     region is swapped whole on refresh, which would drop the focus. #}
+  {% set cap_tip = {
+    "mixed": "Workers disagree on global_concurrency. Each enforces its own value, so the queue has no single cap. Give every worker the same one.",
+    "full": "The cap is full. These jobs wait on a free slot, not on a worker, so latency grows by design.",
+    "open": "Jobs active at once across every worker, against the queue-wide cap.",
+  }[m.cap.state] %}
+  <span class="chip tip" data-cap-state="{{ m.cap.state }}" data-tip="{{ cap_tip }}">
+    {% if m.cap.state == "mixed" %}
+    cap <span class="text-warning">mixed <b class="tabular-nums">{% for v in m.cap.caps %}{{ v or 'none' }}{{ ', ' if not loop.last }}{% endfor %}</b></span>
+    {% elif m.cap.state == "full" %}
+    at cap <b class="text-fg tabular-nums">{{ m.cap.active }}/{{ m.cap.limit }}</b>
+    · <b class="text-fg tabular-nums">{{ m.cap.waiting|compact }}</b> waiting
+    {% else %}
+    cap <b class="text-fg tabular-nums">{{ m.cap.active }}/{{ m.cap.limit }}</b>
+    {% endif %}
+    <span class="sr-only">{{ cap_tip }}</span></span>
+  {% endif %}
   <span class="chip" data-done="{{ m.completed }}">
     <b class="text-fg tabular-nums">{{ m.completed|compact }}</b> done</span>
   {% if m.failed %}

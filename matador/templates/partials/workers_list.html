@@ -37,6 +37,9 @@
             <span class="font-medium truncate">{{ w.host }}</span>
             <span class="font-mono text-muted shrink-0">pid {{ w.pid }}</span>
             <span class="text-muted shrink-0">×{{ w.concurrency }}</span>
+            {% if w.global_concurrency %}
+            <span class="text-muted shrink-0 tabular-nums" data-worker-cap="{{ w.global_concurrency }}">cap {{ w.global_concurrency }}</span>
+            {% endif %}
             {% if w.state == 'stopping' %}<span class="{{ badge('warning', 'shrink-0') }}">draining</span>{% endif %}
           </div>
         </td>
