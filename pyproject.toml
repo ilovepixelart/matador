@@ -69,10 +69,13 @@ toro-queue = { path = "../toro", editable = true }
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+# Ruff 0.16 formats Python blocks inside Markdown by default. The docs lay their
+# examples out by hand, which a formatter flattens.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
-# Strictest sensible baseline: enable everything, then opt out deliberately
-# (ruff is version-pinned in dev deps so new rules can't surprise CI).
+# Strictest sensible baseline: enable everything, then opt out deliberately. The
+# lockfile pins ruff, so new rules arrive only with a deliberate `uv lock --upgrade`.
 select = ["ALL"]
 ignore = [
     "COM812", "ISC001",            # conflict with the formatter (per Ruff docs)
@@ -87,6 +90,7 @@ ignore = [
     "ANN202", "ANN003",            # return/`**kwargs` types on nested handlers+closures: low value
     "BLE001",                      # deliberate best-effort except in the Redis-stats path
     "TC001", "TC002", "TC003",     # prefer normal runtime imports over TYPE_CHECKING blocks
+    "CPY001",                      # the LICENSE file covers the repo; no per-file notices
 ]
 
 [tool.ruff.lint.per-file-ignores]
