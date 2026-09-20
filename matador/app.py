@@ -59,7 +59,7 @@ def _pretty_json(obj: object) -> Markup:
 
 def _coerce_state(state: str) -> JobState:
     """Clamp an arbitrary query-string state to a valid one (bad input → active tab)."""
-    return cast("JobState", state) if state in STATES else "active"
+    return state if state in STATES else "active"
 
 
 def _default_state(counts: dict[str, int]) -> JobState:
@@ -239,7 +239,7 @@ def _chart_bars(
     charts on one shared scale (small-multiples honesty).
     """
     if peak is None:
-        peak = max((p["completed"] + p["failed"] for p in points), default=0)
+        peak = max((int(p["completed"]) + int(p["failed"]) for p in points), default=0)
     bars: list[dict[str, Any]] = []
     for i, p in enumerate(points):
         dh = max(1.0, p["completed"] * height / peak) if p["completed"] else 0.0
