@@ -183,3 +183,16 @@ async def test_cap_chip_warns_on_mixed_caps(q, client):
         chip = await cap_chip(client)
         assert chip is not None
         assert chip.text == "cap mixed none, 3"  # a worker with no cap is a disagreement too
+
+
+async def test_workers_list_shows_the_cap(q, client):
+    """A mixed fleet has to be traceable to the worker, so each row says its cap.
+    A worker with none says nothing: "cap 0" would be ink with no data in it."""
+    capped, plain = worker(global_concurrency=3), worker()
+    async with live(q, capped, plain):
+        r = await client.get("/workers/list", headers=hx())
+        assert r.status_code == 200
+        assert {w["id"] for w in await q.workers()} == {capped.token, plain.token}
+        # both workers share a host and pid in-process, so count the markers
+        assert r.text.count('data-worker-cap="3"') == 1
+        assert r.text.count("data-worker-cap") == 1
