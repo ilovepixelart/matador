@@ -38,7 +38,7 @@ which toro does not reconcile, are flagged.
   be traced to the worker.
 - **Cost.** One `Queue.workers()` read per strip refresh (pipelined, throttled
   to 5 s by the existing trigger).
-- **Dependency.** `toro-queue>=0.6.0`.
+- **Dependency.** `toro-queue>=0.6.1`.
 
 ## Acceptance clauses
 
@@ -51,7 +51,7 @@ which toro does not reconcile, are flagged.
 | CV-005 | Workers disagree: the chip lists the values in `text-warning`. | `::test_cap_chip_warns_on_mixed_caps` |
 | CV-006 | The workers list shows a worker's cap when set and nothing when unset. | `::test_workers_list_shows_the_cap` |
 | CV-007 | In a real browser the chip appears once a capped worker is live and the queue fills, without a reload, and the panel stays intact after the live swap. | `tests/e2e/test_cap_view.py::test_cap_chip_goes_live` |
-| CV-008 | The chip meets the strip's accessibility bar: the tip is reachable by keyboard and the state is conveyed in text, not by color alone. | `tests/e2e/test_cap_view.py::test_cap_chip_is_accessible` |
+| CV-008 | The state is conveyed in the chip's visible words, not by color or by the tip alone, and the tip's explanation reaches screen readers from text that is really hidden. The chip is not a tab stop. | `tests/e2e/test_cap_view.py::test_cap_chip_is_accessible` |
 
 ## Out of scope
 
@@ -59,19 +59,30 @@ which toro does not reconcile, are flagged.
 - A per-job "held by the cap" marker in the jobs table. The cap holds back
   whatever is next in line, not particular jobs.
 - The view for jobs held on a `concurrency_key`. toro does not have it yet.
+- Keyboard access to tips. No tip in the dashboard is reachable by keyboard
+  today, and the tooltip behavior has no Escape, `role="tooltip"` or
+  `aria-describedby`. Making one chip focusable inside a region that is swapped
+  whole on refresh would drop its focus every few seconds. It needs one fix for
+  the whole dashboard, with morph swaps to keep focus.
 
 ## Risks
 
+- **The strip can lag a burst.** htmx's `throttle` fires on the first event and
+  drops the rest of the window, with no trailing request, so a burst of enqueues
+  followed by claims (which publish nothing) can leave the strip showing the
+  pre-claim state until the next event or its 30 s tick. This is how every live
+  region behaves today and it affects the latency chip equally.
 - **Stale workers.** `Queue.workers()` prunes records with no heartbeat for 30 s,
   so a crashed capped worker can keep the chip up for that long.
 - **No live worker.** With every worker down the cap is unknown and the chip
   disappears, while jobs still wait. The workers view already shows that state.
 
-## Open questions
+## Decisions
 
-1. **Wording.** `at cap 3/3 · 12 waiting` versus something shorter.
-2. **Latency color at the cap.** Recommended: leave the latency chip's amber
-   threshold alone. Alternative: suppress amber while the queue is at its cap.
+1. The full state reads `at cap 3/3 · 12 waiting`.
+2. The latency chip keeps its amber threshold while the queue is at its cap. The
+   backlog is real either way, and the cap chip beside it explains it.
+3. The chip is not focusable (see Out of scope, keyboard access to tips).
 
 ## Tasks
 
@@ -82,6 +93,6 @@ which toro does not reconcile, are flagged.
 | 3 | CV-004 | The full state and its tip | same | hold the slots by hand, red first |
 | 4 | CV-005 | Mixed caps | same, `matador/service.py` | two workers, two caps, red first |
 | 5 | CV-006 | Cap in the workers list | `matador/templates/partials/workers_list.html` | integration, red first |
-| 6 | CV-007, CV-008 | Browser behavior | tests only | Playwright: live swap, keyboard, computed style |
-| 7 | | `toro-queue>=0.6.0`, docs (`docs/views.md`), rebuilt CSS if a utility is new | `pyproject.toml`, docs | the CSS freshness gate |
+| 6 | CV-007, CV-008 | Browser behavior | tests only | Playwright against a real capped workload: live swap, hidden text, tab order |
+| 7 | | `toro-queue>=0.6.1`, docs (`docs/views.md`), rebuilt CSS if a utility is new | `pyproject.toml`, docs | the CSS freshness gate |
 | 8 | | Prove: full suite, mutation audit, a live demo against a capped fleet | | evidence captured |

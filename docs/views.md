@@ -14,6 +14,7 @@ fragment mechanics behind these routes are covered in
 | `/queues/{name}/jobs/{job_id}/detail` | The lazy accordion body for one row: data, options, result, logs, stack trace - and, for flow jobs, the flow tree, fan-in progress and children results/failures. Loaded only when a row is opened. |
 | `/queues/{name}/jobs/{job_id}` | A standalone, bookmarkable page for one job (where a job-id chip links). |
 | `/queues/{name}/jobs/{job_id}/flow` | Just the flow body, for the self-refreshing live region on a flow detail. |
+| `/queues/{name}/metrics` | The queue's health strip: latency, then the global concurrency cap when its workers set one (how full it is, how many jobs wait on it, and a warning when workers disagree on the value), then completed and failed over the last hour and duration percentiles. |
 | `/queues/{name}/flow-metrics` | The active tab's flow-throughput strip: whole flows completed/failed over the last hour with end-to-end flow-duration percentiles. |
 | `/workers` | Live workers (from their heartbeats) and the departed-workers history. |
 | `/workers/list` | Just the worker table, for the periodic refresh. |

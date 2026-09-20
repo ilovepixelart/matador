@@ -166,7 +166,8 @@ async def test_cap_chip_names_the_cap_as_the_wait(q, client):
         assert chip.text == "at cap 2/2 · 3 waiting"
         assert "slot" in (chip.attrs["data-tip"] or "")
         assert chip.sr_text == chip.attrs["data-tip"]  # the tip reaches screen readers
-        assert chip.attrs["tabindex"] == "0"  # and the keyboard
+        # not a tab stop: the strip is swapped whole on refresh, which drops focus
+        assert "tabindex" not in chip.attrs
         # at the cap is intended behavior: color must keep meaning "a problem"
         assert "text-warning" not in chip.classes and "text-danger" not in chip.classes
 
