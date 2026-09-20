@@ -157,6 +157,16 @@ async def test_cap_chip_shows_occupancy(q, client):
         assert "text-warning" not in chip.classes and "text-danger" not in chip.classes
 
 
+async def test_cap_chip_at_the_limit_with_nothing_waiting_is_not_full(q, client):
+    """Every slot taken and nothing queued behind them: no job is being held back,
+    so there is nothing to explain. "at cap ... 0 waiting" would be ink with no data."""
+    async with holding(q, held=2, waiting=0, global_concurrency=2):
+        chip = await cap_chip(client)
+        assert chip is not None
+        assert chip.attrs["data-cap-state"] == "open"
+        assert chip.text == "cap 2/2"
+
+
 async def test_cap_chip_names_the_cap_as_the_wait(q, client):
     # 2 slots, both taken, 3 more queued: they wait on the cap, not on a worker
     async with holding(q, held=2, waiting=3, global_concurrency=2):
