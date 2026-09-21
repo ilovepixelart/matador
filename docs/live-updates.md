@@ -35,10 +35,13 @@ active until something else happens.
 
 Under a storm of job events the cost of a refresh is bounded by the HTML render,
 not by queue throughput, and while every window is closed the stream waits on the
-clock rather than waking once per job. A rate that has sent nothing for 8 seconds
-emits - a heartbeat, counted per rate, that keeps the connection alive through proxies,
-refreshes relative times, and covers the transitions toro does not publish
-(below). The stream advertises `retry: 3000`, so a dropped connection reconnects
+clock rather than waking once per job. Every rate emits as soon as a stream is
+subscribed: pub/sub has no replay, so what changed between the page's render and
+the subscription, or while a dropped connection was reconnecting, was announced to
+nobody, and the page catches up by refreshing once. After that, a rate that has
+sent nothing for 8 seconds emits - a heartbeat, counted per rate, that keeps the
+connection alive through proxies, refreshes relative times, and covers the
+transitions toro does not publish (below). The stream advertises `retry: 3000`, so a dropped connection reconnects
 on its own - including when Redis itself goes away: the stream ends cleanly and
 the browser's reconnect loop picks things back up once the broadcaster can
 subscribe again.

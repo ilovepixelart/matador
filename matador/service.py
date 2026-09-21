@@ -553,7 +553,9 @@ class Service:
         read the state, so a change later in the window would otherwise be in
         nobody's repaint. A rate that has sent nothing for HEARTBEAT seconds emits:
         it keeps the connection alive and covers the transitions toro does not
-        publish. All streams share ONE pubsub via the broadcaster.
+        publish. Every rate also emits as soon as the stream is subscribed, so a page
+        catches up on connect and reconnect. All streams share ONE pubsub via the
+        broadcaster.
         """
         try:
             await self._ensure_broadcaster()
@@ -569,8 +571,10 @@ class Service:
         try:
             yield "retry: 3000\n\n"
             # per rate, from its own last emit: a slow rate's trailing emit must not
-            # postpone the heartbeat of a faster rate that went quiet long before it
-            beat_at = dict.fromkeys(rates, clock() + HEARTBEAT)
+            # postpone the heartbeat of a faster rate that went quiet long before it.
+            # The first beat is due at once: what changed between the page's render
+            # and this subscription, or during a reconnect, was published to nobody.
+            beat_at = dict.fromkeys(rates, clock())
             while True:
                 # Exit promptly when the client goes away instead of waiting for the
                 # next yield to raise - drops our listener registration right away.

@@ -49,6 +49,10 @@ region's own cadence, with the rate limits the dashboard has today.
 - **The heartbeat stays at 8 s, counted per rate.** A rate that has sent nothing
   for 8 seconds emits, as `changed` does today. It keeps the connection alive, refreshes relative times,
   and covers the transitions toro does not publish.
+- **A stream's first heartbeat is due at once.** Pub/sub has no replay: a change
+  published between the page's render and the subscription, or during a
+  reconnect, reaches nobody. Every rate emits once when the stream is
+  subscribed, through its coalescer like any beat.
 - **Per-stream state** is three coalescers and one wake flag. The shared
   broadcaster and its single subscription are untouched.
 
@@ -63,6 +67,7 @@ region's own cadence, with the rate limits the dashboard has today.
 | LT-005 | No live region carries a `throttle` on an `sse:` trigger, and every region that listens to the stream syncs with `queue last`. | `tests/integration/test_markup.py::test_live_regions_use_server_cadence` |
 | LT-006 | In a real browser, a job that finishes after the page has repainted for the previous finish, so inside the closed window, leaves the active list within 2 s, and the sidebar agrees. | `tests/e2e/test_live.py::test_last_finish_of_a_burst_lands` |
 | LT-007 | A region still targets its own stable id and the panel survives a live refresh that fires after navigation. | the existing e2e guards, unchanged and green |
+| LT-008 | A stream announces every rate as soon as it is subscribed, with nothing published, so a page catches up on connect and reconnect. | `tests/integration/test_stream.py::test_a_stream_beats_as_soon_as_it_is_subscribed` |
 
 ## Out of scope
 

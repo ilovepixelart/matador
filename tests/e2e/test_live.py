@@ -15,14 +15,10 @@ def test_sse_refreshes_sidebar_count_on_enqueue(page: Page, base_url, seeded, dr
 
     async def _enqueue():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
+        # toro announces the add itself. Pub/sub has no replay, so an add that lands
+        # before the page's stream is subscribed is announced to nobody - and is still
+        # shown, because a stream beats as soon as it is subscribed.
         await q.add("zeta", {"n": "zeta"})
-        # toro publishes on job lifecycle (complete/fail), not on enqueue - emit the
-        # same event a worker would. Publish a few times over ~1.5s to bridge the SSE
-        # connection-establishment window: pub/sub has no replay, so the first event
-        # can land before the client has subscribed; a later one always lands after.
-        for _ in range(6):
-            await q.redis.publish(q.keys.events, '{"event":"completed"}')
-            await asyncio.sleep(0.25)
         await q.close()
 
     drive(_enqueue())

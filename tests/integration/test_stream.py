@@ -16,17 +16,38 @@ from matador.service import Service, _confirm_subscribed
 from .conftest import PREFIX, QUEUE
 
 
+async def _opened(agen) -> None:
+    """Consume a stream's opening: the reconnect directive, then every rate once."""
+    assert (await asyncio.wait_for(agen.__anext__(), timeout=3)).startswith("retry:")
+    frames = [await asyncio.wait_for(agen.__anext__(), timeout=1) for _ in RATES]
+    assert frames == [f"event: {name}\ndata: 1\n\n" for name in RATES]
+
+
 async def test_event_stream_starts_then_signals_change(q):
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     agen = svc.event_stream()
     try:
-        first = await asyncio.wait_for(agen.__anext__(), timeout=3)
-        assert first.startswith("retry:")  # SSE auto-reconnect directive
+        await _opened(agen)  # the reconnect directive, then every rate once
 
-        # a published job event opens every rate at once: no latency when quiet
+        # a published job event is announced: here by the fast rate's trailing edge,
+        # since the opening just closed every window
         await q.redis.publish(q.keys.events, '{"event":"completed"}')
-        frames = [await asyncio.wait_for(agen.__anext__(), timeout=3) for _ in RATES]
-        assert frames == [f"event: {name}\ndata: 1\n\n" for name in RATES]
+        frame = await asyncio.wait_for(agen.__anext__(), timeout=3)
+        assert frame == "event: changed-fast\ndata: 1\n\n"
+    finally:
+        await agen.aclose()
+        await svc.close()
+
+
+async def test_a_stream_beats_as_soon_as_it_is_subscribed(q):
+    """Whatever changed between the page's render and this subscription, or while a
+    dropped connection was reconnecting, was published to nobody. A stream's first
+    heartbeat is due at once, so every region refreshes on connect and reconnect
+    instead of staying stale until a job event or the 8 s heartbeat."""
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    agen = svc.event_stream()
+    try:
+        await _opened(agen)  # nothing was published
     finally:
         await agen.aclose()
         await svc.close()
@@ -50,8 +71,8 @@ async def test_concurrent_streams_share_one_subscription(q):
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     a, b = svc.event_stream(), svc.event_stream()
     try:
-        assert (await asyncio.wait_for(a.__anext__(), timeout=3)).startswith("retry:")
-        assert (await asyncio.wait_for(b.__anext__(), timeout=3)).startswith("retry:")
+        await _opened(a)
+        await _opened(b)
 
         subs = int((await q.redis.pubsub_numsub(q.keys.events))[0][1])
         assert subs == 1, f"{subs} subscriptions for 2 streams"
@@ -154,7 +175,7 @@ async def test_stream_ends_cleanly_if_the_subscription_dies(q):
     # A new stream heals: fresh subscription, signals flow again.
     agen2 = svc.event_stream()
     try:
-        assert (await asyncio.wait_for(agen2.__anext__(), timeout=3)).startswith("retry:")
+        await _opened(agen2)
         await q.redis.publish(q.keys.events, '{"event":"completed"}')
         assert "changed" in await asyncio.wait_for(agen2.__anext__(), timeout=10)
     finally:
@@ -162,13 +183,17 @@ async def test_stream_ends_cleanly_if_the_subscription_dies(q):
         await svc.close()
 
 
-async def test_second_event_in_a_window_is_announced(q):
+async def test_second_event_in_a_window_is_announced(q, monkeypatch):
     """Two job events 100 ms apart. The refresh the first one triggers has already
     read the state, so the second must be announced too, at each rate's own
-    cadence. Left to the 8 s heartbeat it would land after this test has ended."""
+    cadence. Left to the 8 s heartbeat it would land after this test has ended.
+    Shorter intervals than the shipped ones, so every window the opening closed
+    has reopened before the first event."""
+    rates = {"changed-fast": 0.2, "changed": 0.4, "changed-slow": 0.8}
+    monkeypatch.setattr("matador.service.STREAM_RATES", rates)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     loop = asyncio.get_running_loop()
-    seen: dict[str, list[float]] = {name: [] for name in RATES}
+    seen: dict[str, list[float]] = {name: [] for name in rates}
     t0 = 0.0
 
     async def read() -> None:
@@ -179,17 +204,19 @@ async def test_second_event_in_a_window_is_announced(q):
 
     reader = asyncio.create_task(read())
     try:
-        await asyncio.sleep(0.4)  # subscribed
+        await asyncio.sleep(max(rates.values()) + 0.4)  # opened, and quiet again
+        for times in seen.values():
+            times.clear()
         t0 = loop.time()
         await q.redis.publish(q.keys.events, '{"event":"completed"}')
         await asyncio.sleep(0.1)
         await q.redis.publish(q.keys.events, '{"event":"completed"}')
-        await asyncio.sleep(max(RATES.values()) + 0.6)
+        await asyncio.sleep(max(rates.values()) + 0.6)
     finally:
         reader.cancel()
         await svc.close()
 
-    for name, interval in RATES.items():
+    for name, interval in rates.items():
         times = seen[name]
         assert len(times) == 2, f"{name}: {times}"  # the first event, then the tail
         assert times[0] < 0.15, f"{name}: the first event must emit at once, got {times}"
@@ -200,6 +227,8 @@ async def test_quiet_stream_opens_every_rate_as_its_heartbeat(q, monkeypatch):
     """With nothing sent for HEARTBEAT seconds every rate emits: it keeps the
     connection alive through proxies and covers the transitions toro never
     publishes. Shortened here; nothing is published at all."""
+    rates = {"changed-fast": 0.1, "changed": 0.2, "changed-slow": 0.3}
+    monkeypatch.setattr("matador.service.STREAM_RATES", rates)
     monkeypatch.setattr("matador.service.HEARTBEAT", 0.5)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     loop = asyncio.get_running_loop()
@@ -214,13 +243,15 @@ async def test_quiet_stream_opens_every_rate_as_its_heartbeat(q, monkeypatch):
 
     reader = asyncio.create_task(read())
     try:
-        await asyncio.sleep(0.9)
+        await asyncio.sleep(0.85)
     finally:
         reader.cancel()
         await svc.close()
 
-    assert [name for name, _ in seen] == list(RATES)  # one beat, every rate, in order
-    assert all(0.45 <= at <= 0.8 for _, at in seen), seen
+    # the opening, then one beat HEARTBEAT later: every rate, in order, both times
+    assert [name for name, _ in seen] == [*rates, *rates]
+    assert all(at < 0.2 for _, at in seen[:3]), seen
+    assert all(0.45 <= at <= 0.8 for _, at in seen[3:]), seen
 
 
 async def test_each_rate_beats_on_its_own_clock(q, monkeypatch):
@@ -241,7 +272,8 @@ async def test_each_rate_beats_on_its_own_clock(q, monkeypatch):
 
     reader = asyncio.create_task(read())
     try:
-        await asyncio.sleep(0.4)  # subscribed
+        await asyncio.sleep(1.6)  # opened, and the slow window it closed has reopened
+        fast.clear()
         t0 = loop.time()
         await q.redis.publish(q.keys.events, '{"event":"completed"}')
         await asyncio.sleep(0.05)
@@ -320,8 +352,9 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
 
     reader = asyncio.create_task(read())
     try:
-        await asyncio.sleep(0.4)  # subscribed
+        await asyncio.sleep(0.4)  # subscribed and opened
         waits = 0
+        opening = len(frames)
         started = loop.time()
         for _ in range(300):
             await q.redis.publish(q.keys.events, '{"event":"completed"}')
@@ -335,4 +368,4 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
     # one wake per window that reopened, however long the runner took to publish
     allowed = 3 + elapsed * sum(1 / interval for interval in RATES.values())
     assert waits <= allowed, f"the stream woke {waits} times in {elapsed:.2f} s for 300 events"
-    assert sum("changed-fast" in f for f in frames) >= 2  # and still announced them
+    assert sum("changed-fast" in f for f in frames[opening:]) >= 2  # and announced them
