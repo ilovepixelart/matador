@@ -113,8 +113,12 @@ async def test_stream_gives_up_cleanly_when_redis_never_confirms(q, monkeypatch)
     monkeypatch.setattr("matador.service._confirm_subscribed", never)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     try:
+
+        async def drain() -> list[str]:
+            return [f async for f in svc.event_stream()]
+
         # the retry hint, then a clean end: the browser tries again in 3 s
-        assert [f async for f in svc.event_stream()] == ["retry: 3000\n\n"]
+        assert await asyncio.wait_for(drain(), timeout=5) == ["retry: 3000\n\n"]
         # and the half-made subscription was closed, not left holding a connection
         for _ in range(100):
             if int((await q.redis.pubsub_numsub(q.keys.events))[0][1]) == 0:
