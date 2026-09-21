@@ -50,7 +50,7 @@
   </header>
   <div id="redis-bar" class="px-5 py-1.5 border-b border-line flex flex-wrap gap-x-5 gap-y-1"
        hx-get="{{ url_for('redis_bar').path }}" hx-swap="morph:innerHTML"
-       hx-trigger="load, sse:changed throttle:1s, every 8s"></div>
+       hx-trigger="load, sse:changed, every 8s" hx-sync="this:queue last"></div>
   {% block body %}{% endblock %}
 
   {# Backdrop for the off-canvas sidebar (phones). Shown by body.sidebar-open

@@ -62,8 +62,8 @@
    node (and its init-time htmx closures) across different queue/state views #}
 <div data-jobs-live id="jl-{{ name }}-{{ state }}" class="hidden"
      hx-get="{{ url_for('jobs_fragment', name=name).path }}?state={{ state }}&page={{ page }}"
-     hx-trigger="sse:changed throttle:1s" hx-target="#jobs"
-     hx-swap="morph:innerHTML" hx-sync="this:drop"></div>
+     hx-trigger="sse:changed" hx-target="#jobs"
+     hx-swap="morph:innerHTML" hx-sync="this:queue last"></div>
 
 {% if pages > 1 %}
 <div class="flex items-center justify-between px-4 py-2.5 border-t border-line text-xs">
