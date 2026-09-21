@@ -55,8 +55,8 @@ async def _confirm_subscribed(pubsub: PubSub, channels: int) -> None:
 # throttle: htmx's throttle has no trailing edge, so it drops the last change.
 STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-slow": 5.0}
 
-# A rate that has sent nothing for this long emits. It must exceed every interval
-# above: the stream relies on a rate's window being open when its heartbeat falls due.
+# A rate that has sent nothing for this long emits. A rate whose interval is longer
+# than this beats at its interval instead: a beat waits for its window to reopen.
 HEARTBEAT = 8.0
 
 
@@ -578,7 +578,10 @@ class Service:
                     break
                 if self._broadcast_task is None or self._broadcast_task.done():
                     break  # subscription died: end the stream, the client reconnects
-                await _wait_for_work(ev, rates, min(beat_at.values()), clock())
+                # a beat cannot be sent before its rate's window reopens: waking for the
+                # later of the two keeps a beat due behind a closed window from spinning
+                next_beat = min(max(beat_at[n], c.reopens_at) for n, c in rates.items())
+                await _wait_for_work(ev, rates, next_beat, clock())
                 now = clock()
                 changed = ev.is_set()
                 ev.clear()  # before emitting: an event from here on sets it again

@@ -257,6 +257,42 @@ async def test_each_rate_beats_on_its_own_clock(q, monkeypatch):
     assert 2.0 <= fast[2] <= 2.7, fast
 
 
+async def test_a_beat_behind_a_closed_window_waits_for_it(q, monkeypatch):
+    """A heartbeat shorter than a rate's interval falls due while that rate's window
+    is still closed, and cannot be sent until it reopens. The stream has to wait for
+    the reopening; woken by a deadline already in the past it would spin."""
+    from matador import service
+
+    monkeypatch.setattr(service, "HEARTBEAT", 0.5)  # under the 1 s and 5 s intervals
+    waits = 0
+    real_wait = service._wait_for_work
+
+    async def counting(*args):
+        nonlocal waits
+        waits += 1
+        await real_wait(*args)
+
+    monkeypatch.setattr(service, "_wait_for_work", counting)
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    frames: list[str] = []
+
+    async def read() -> None:
+        async for frame in svc.event_stream():
+            frames.append(frame)  # noqa: PERF401 - cancelled mid-stream
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(2.5)  # nothing is published: beats only
+    finally:
+        reader.cancel()
+        await svc.close()
+
+    assert waits < 40, f"the stream woke {waits} times in 2.5 quiet seconds"
+    # and the beats still land: the fast rate every 0.5 s, the 1 s rate at its interval
+    assert sum("changed-fast" in f for f in frames) >= 3
+    assert sum(f.startswith("event: changed\n") for f in frames) >= 2
+
+
 async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
     """300 job events back to back. While every window is closed an event can only
     mark one dirty, so the stream has nothing to do until the first reopens: it must
