@@ -20,7 +20,8 @@ first event of a window and discards the rest:
    match it). Throttle state is per element, so a second trigger on the same
    element cannot recover it.
 3. **`hx-sync="this:drop"`.** A refresh that arrives while one is in flight is
-   dropped, which is htmx's default and is set explicitly on five regions.
+   dropped. Five regions set it. (An element with no `hx-sync` queues the last
+   one; `drop` is the default of an `hx-sync` that names no strategy.)
 
 Outcome: the last change of any burst reaches every live region within that
 region's own cadence, with the rate limits the dashboard has today.
@@ -39,14 +40,14 @@ region's own cadence, with the rate limits the dashboard has today.
 
   | Event | Interval | Regions |
   |---|---|---|
-  | `changed-fast` | 400 ms | hub, sidebar |
+  | `changed-fast` | 400 ms | sidebar |
   | `changed` | 1 s | job list, workers, flow section, Redis bar |
   | `changed-slow` | 5 s | the queue's health strips |
 
 - **`hx-sync="this:queue last"`** on those regions: a refresh arriving while one
   is in flight is kept, one deep, instead of dropped.
-- **The heartbeat is unchanged.** After 8 quiet seconds every rate emits, as
-  `changed` does today. It keeps the connection alive, refreshes relative times,
+- **The heartbeat stays at 8 s, counted per rate.** A rate that has sent nothing
+  for 8 seconds emits, as `changed` does today. It keeps the connection alive, refreshes relative times,
   and covers the transitions toro does not publish.
 - **Per-stream state** is three coalescers and one wake flag. The shared
   broadcaster and its single subscription are untouched.
@@ -58,9 +59,9 @@ region's own cadence, with the rate limits the dashboard has today.
 | LT-001 | A signal in an open window emits at once. Signals in a closed window produce exactly one emit, when the window reopens, however many there were. A window left clean emits nothing. | `tests/unit/test_coalescer.py` (fake clock) |
 | LT-002 | Under sustained signals a coalescer emits at most once per interval, and one last time after the final signal. | `tests/unit/test_coalescer.py::test_storm_is_capped_and_lands_its_tail` |
 | LT-003 | On the real stream, a job event arriving 100 ms after another is announced within each rate's interval, not by the heartbeat. | `tests/integration/test_stream.py::test_second_event_in_a_window_is_announced` (per rate) |
-| LT-004 | After 8 quiet seconds every rate emits, and the stream still starts with its `retry` directive, shares one subscription, stops on disconnect, and ends cleanly when the subscription dies. | the existing `tests/integration/test_stream.py`, extended to the three events |
+| LT-004 | A rate that has sent nothing for 8 seconds emits, whatever the other rates sent since, and the stream still starts with its `retry` directive, shares one subscription, stops on disconnect, and ends cleanly when the subscription dies. | the existing `tests/integration/test_stream.py`, extended to the three events |
 | LT-005 | No live region carries a `throttle` on an `sse:` trigger, and every region that listens to the stream syncs with `queue last`. | `tests/integration/test_markup.py::test_live_regions_use_server_cadence` |
-| LT-006 | In a real browser, two jobs finishing 100 ms apart are both shown as completed, and neither as active, within 2 s of the second finish. | `tests/e2e/test_live.py::test_last_finish_of_a_burst_lands` |
+| LT-006 | In a real browser, a job that finishes after the page has repainted for the previous finish, so inside the closed window, leaves the active list within 2 s, and the sidebar agrees. | `tests/e2e/test_live.py::test_last_finish_of_a_burst_lands` |
 | LT-007 | A region still targets its own stable id and the panel survives a live refresh that fires after navigation. | the existing e2e guards, unchanged and green |
 
 ## Out of scope
@@ -102,6 +103,6 @@ region's own cadence, with the rate limits the dashboard has today.
 | 1 | LT-001, LT-002 | `Coalescer` | `matador/coalescer.py` | unit, fake clock, red first |
 | 2 | LT-003, LT-004 | Drive three coalescers from `event_stream`; keep the heartbeat | `matador/service.py` | the real stream, red first |
 | 3 | LT-005 | Triggers and sync on every live region | templates | a markup test over every `sse:` trigger, red first |
-| 4 | LT-006, LT-007 | Browser behavior | tests only | two real finishes 100 ms apart |
+| 4 | LT-006, LT-007 | Browser behavior | tests only | two real finishes, the second released once the first is painted |
 | 5 | | Docs: `docs/live-updates.md` | docs | review |
 | 6 | | Prove: full suite, mutation audit, the stream measurement rerun, a look at the live dashboard | | evidence captured |

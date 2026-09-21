@@ -31,13 +31,14 @@ def test_sse_refreshes_sidebar_count_on_enqueue(page: Page, base_url, seeded, dr
 
 
 def test_last_finish_of_a_burst_lands(page: Page, base_url, drive):
-    """Two jobs finish 100 ms apart. The refresh the first finish triggers reads the
-    state while the second job is still running, so the second finish has to be
-    announced too, or that job stays listed as active until the 8 s heartbeat."""
+    """A job finishes just after the page repainted for the previous finish. That
+    repaint read the state while this job was still running, and the window it opened
+    is still closed, so the finish has to be announced when the window reopens, or
+    the job stays listed as active until the 8 s heartbeat."""
     state: dict = {}
 
     async def _start():
-        q = await reset_queue()
+        q = state["q"] = await reset_queue()
         gates = [asyncio.Event(), asyncio.Event()]
 
         async def proc(job):
@@ -46,34 +47,38 @@ def test_last_finish_of_a_burst_lands(page: Page, base_url, drive):
         for i in range(2):
             await q.add(f"batch-{i}", {"i": i})
         w = Worker(QUEUE, proc, url=URL, prefix=PREFIX, concurrency=2, stalled_interval=0)
-        state.update(q=q, w=w, gates=gates, task=asyncio.create_task(w.run()))
+        state.update(w=w, gates=gates, task=asyncio.create_task(w.run()))
         for _ in range(300):
             if (await q.counts())["active"] == 2:
                 return
             await asyncio.sleep(0.02)
         raise AssertionError("both jobs should be running")
 
-    async def _finish_both():
-        state["gates"][0].set()
-        await asyncio.sleep(0.1)
-        state["gates"][1].set()
+    async def _finish(i: int):
+        state["gates"][i].set()
 
     async def _stop():
-        await state["w"].stop(grace_period=1)
-        state["task"].cancel()
-        await state["q"].close()
+        if "w" in state:
+            await state["w"].stop(grace_period=1)
+            state["task"].cancel()
+        if "q" in state:
+            await state["q"].close()
 
-    drive(_start())
     try:
+        drive(_start())
         # opened with both already running, so first paint shows them: this test is
         # about a FINISH being announced, not a claim (which toro does not publish)
         page.goto(f"{base_url}/queues/{QUEUE}?state=active")
         rows = page.locator("#jobs .jobs-table > details")
         expect(rows).to_have_count(2)
 
-        drive(_finish_both())
+        drive(_finish(0))
+        # the repaint for the first finish has landed, with the second job still in it:
+        # from here a leading edge alone can never show the second finish
+        expect(rows).to_have_count(1)
+        drive(_finish(1))
 
-        expect(rows).to_have_count(0, timeout=2000)  # neither is still listed as active
+        expect(rows).to_have_count(0, timeout=2000)  # not still listed as active
         expect(page.locator("#sidebar")).to_contain_text(
             "0 active", timeout=2000
         )  # a separate region

@@ -66,5 +66,4 @@ def test_storm_is_capped_and_lands_its_tail():
         if c.due(now):
             emits.append(now)
 
-    assert emits == [0.0, 1.0, 2.0, 3.0, 4.0]
-    assert emits[-1] > 3.5  # the change at 3.50 was announced, not dropped
+    assert emits == [0.0, 1.0, 2.0, 3.0, 4.0]  # 4.0: the change at 3.50, not dropped
