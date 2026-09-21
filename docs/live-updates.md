@@ -115,9 +115,11 @@ after navigation, its id is gone, so htmx raises `htmx:targetError` and
 
 Refreshing a job list while you have a row expanded would yank the detail out
 from under you. A small behavior (`jobs-live.js`) checks for an open
-`<details>` in the table on every refresh attempt and skips the swap while one
-is open; a "live updates paused" notice appears (pure CSS, a `:has()` rule) and
-updates resume the moment you close the row.
+`<details>` in the table twice: before a refresh is requested, and again before
+its response is swapped in, because a refresh already in flight when you open a
+row carries HTML with every row closed. Either way the refresh is dropped while a
+row is open; a "live updates paused" notice appears (pure CSS, a `:has()` rule)
+and updates resume the moment you close the row.
 
 ## Why SSE and not WebSockets
 

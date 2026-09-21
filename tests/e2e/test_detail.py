@@ -1,6 +1,8 @@
 """E2E: the <details> accordion lazy-loads job detail over htmx on first open."""
 
-from playwright.sync_api import Page, expect
+import re
+
+from playwright.sync_api import Page, Route, expect
 from toro import Queue
 
 from .conftest import PREFIX, QUEUE, URL
@@ -78,3 +80,34 @@ def test_paused_banner_shows_while_a_row_is_open(page: Page, base_url, seeded):
     expect(banner).to_contain_text("paused")
     page.keyboard.press("Escape")  # close the row
     expect(banner).to_be_hidden()
+
+
+def test_a_refresh_in_flight_does_not_close_a_row_just_opened(page: Page, base_url, seeded):
+    """The live refresh is skipped while a row is open. One that was ALREADY in flight
+    when the row opened must not land either: the server's HTML has every row closed,
+    so the swap would shut the row under the reader. Held here so the order is exact:
+    request out, row opened, response in."""
+    held: list[Route] = []
+
+    def hold_the_live_refresh(route: Route) -> None:
+        if route.request.headers.get("hx-trigger", "").startswith("jl-"):
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route(re.compile(r"/jobs\?"), hold_the_live_refresh)
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    for _ in range(50):  # the stream beats as soon as it is subscribed
+        if held:
+            break
+        page.wait_for_timeout(100)
+    assert held, "the page never issued its live refresh"
+
+    page.locator("#jobs details.jobs-row summary").first.click()
+    expect(page.locator("#jobs details[open]")).to_have_count(1)
+
+    with page.expect_response(re.compile(r"/jobs\?")) as landed:
+        held[0].continue_()
+    landed.value.finished()
+    page.wait_for_timeout(300)  # a swap, had there been one, has settled by now
+    assert page.locator("#jobs details[open]").count() == 1
