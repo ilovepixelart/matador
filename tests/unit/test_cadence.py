@@ -7,19 +7,20 @@ burst, a heartbeat per rate, a first beat on subscription, and a loop that can n
 spin nor wake once per job event.
 """
 
+import math
 import random
 from itertools import pairwise
 
 import pytest
 
-from matador.coalescer import Cadence, Coalescer
+from matador.cadence import Cadence, Rate
 
 EPS = 1e-9
 
 
-def _opened(interval: float, heartbeat: float = 100.0, at: float = 0.0) -> Coalescer:
+def _opened(interval: float, heartbeat: float = 100.0, at: float = 0.0) -> Rate:
     """A rate whose opening beat has been sent at `at`."""
-    c = Coalescer(interval, heartbeat)
+    c = Rate(interval, heartbeat)
     assert c.poll(at, changed=False) is True
     return c
 
@@ -29,7 +30,7 @@ def _opened(interval: float, heartbeat: float = 100.0, at: float = 0.0) -> Coale
 
 def test_a_new_rate_beats_at_once():
     # a stream that has just subscribed has announced nothing yet
-    assert Coalescer(1.0, 8.0).poll(5.0, changed=False) is True
+    assert Rate(1.0, 8.0).poll(5.0, changed=False) is True
 
 
 def test_a_change_in_an_open_window_emits_at_once():
@@ -76,7 +77,7 @@ def test_a_change_after_a_missed_deadline_emits_once_not_twice():
 def test_storm_is_capped_and_lands_its_tail():
     """A change every 10 ms for 3.5 s, polled every 10 ms: at most one emit per
     interval, and one last emit after the final change."""
-    c = Coalescer(1.0, 100.0)
+    c = Rate(1.0, 100.0)
     emits = [t / 100 for t in range(700) if c.poll(t / 100, changed=t <= 350)]
     assert emits == [0.0, 1.0, 2.0, 3.0, 4.0]  # 4.0: the change at 3.50, not dropped
 
@@ -97,17 +98,10 @@ def test_a_beat_due_behind_a_closed_window_waits_for_it_to_reopen():
     assert c.poll(1.0, changed=False)
 
 
-@pytest.mark.parametrize(("interval", "heartbeat"), [(0.0, 8.0), (-1.0, 8.0), (1.0, 0.0)])
-def test_a_rate_needs_positive_times(interval, heartbeat):
-    # at zero the next wake would not be in the future, and the stream would spin
-    with pytest.raises(ValueError, match="positive"):
-        Coalescer(interval, heartbeat)
-
-
 @pytest.mark.parametrize("seed", range(20))
 def test_the_next_wake_is_always_in_the_future_and_never_wasted(seed):
     rng = random.Random(seed)  # noqa: S311 - reproducible traffic, not a secret
-    c = Coalescer(rng.choice([0.1, 0.4, 1.0, 5.0]), rng.choice([0.3, 2.0, 8.0]))
+    c = Rate(rng.choice([0.1, 0.4, 1.0, 5.0]), rng.choice([0.3, 2.0, 8.0]))
     now = 0.0
     for _ in range(400):
         c.poll(now, changed=rng.random() < 0.5)
@@ -122,22 +116,59 @@ def test_the_next_wake_is_always_in_the_future_and_never_wasted(seed):
 # ---- the whole stream, simulated -----------------------------------------------------
 
 
-def drive(cadence: Cadence, events: list[float], until: float) -> tuple[list, int]:
-    """Be the stream: look, send what is due, sleep until the next wake - or until a
-    change, when the cadence says one could matter. Returns the emits and the looks."""
+class Ideal:
+    """A clock that reads the real time, and a timer that fires exactly on its deadline."""
+
+    def read(self, t: float) -> float:
+        return t
+
+    def fires(self, t: float, delay: float) -> float:
+        return t + max(delay, 0.0)
+
+
+class Millis:
+    """uvloop, which `uvicorn.run` picks whenever it is installed: the clock reads whole
+    milliseconds and a timer waits a whole number of them. `(k + 400) / 1000` can be
+    one float step BELOW `k / 1000 + 0.4`, so the clock reads short of a deadline the
+    timer has just fired for."""
+
+    TURN = 40e-6  # a loop turn, when a timer rounds to zero milliseconds
+
+    def __init__(self, uptime: float) -> None:
+        self.uptime = uptime
+
+    def read(self, t: float) -> float:
+        return math.floor((self.uptime + t) * 1000) / 1000
+
+    def fires(self, t: float, delay: float) -> float:
+        ms = max(0, round(delay * 1000))
+        if ms == 0:
+            return t + self.TURN
+        tick = math.floor((self.uptime + t) * 1000) + ms
+        return tick / 1000 - self.uptime + 1e-7  # just inside that millisecond
+
+
+def drive(cadence: Cadence, events: list[float], until: float, env=None) -> tuple[list, int]:
+    """Be the stream, turn for turn: report the clock, whether a change arrived and
+    whether the last wait ran its course; send what is due; wait as told. Returns the
+    emits (by the clock's reading) and the number of looks."""
+    env = env or Ideal()
     events = sorted(events)
-    i, now, emits, looks = 0, 0.0, [], 0
-    while now <= until:
+    i, t, emits, looks, timed_out = 0, 0.0, [], 0, False
+    while t <= until:
         changed = False
-        while i < len(events) and events[i] <= now:
+        while i < len(events) and events[i] <= t:
             changed, i = True, i + 1
         looks += 1
-        emits += [(now, name) for name in cadence.due(now, changed=changed)]
-        at, hears = cadence.next_wake(now)
-        woken = hears and i < len(events) and events[i] < at
-        nxt = events[i] if woken else at
-        assert nxt > now, "the stream would spin"
-        now = nxt
+        assert looks < 100_000, "the stream spins"
+        now = env.read(t)
+        emits += [(now, name) for name in cadence.due(now, changed=changed, timed_out=timed_out)]
+        wake_at, hears = cadence.next_wake()
+        fires = env.fires(t, wake_at - now)
+        timed_out = not (hears and i < len(events) and events[i] < fires)
+        nxt = fires if timed_out else events[i]
+        assert nxt > t, "the stream would spin"
+        t = nxt
     return emits, looks
 
 
@@ -193,3 +224,45 @@ def test_invariants_hold_for_any_traffic(seed):
         for e in events:  # every change is announced, within the rate's own interval
             assert any(e - EPS <= t <= e + interval + EPS for t in times), f"{name}: lost {e}"
     assert looks <= 2 * len(emits) + 2  # never once per event
+
+
+# ---- clocks that are not ideal --------------------------------------------------------
+
+
+@pytest.mark.parametrize("uptime", [60.0, 3600.0, 21_600.0, 86_400.0, 864_000.0])
+def test_a_millisecond_clock_cannot_make_the_stream_spin(uptime):
+    """At some uptimes (an hour, six hours, ten days) the clock reads one float step
+    short of the deadline its timer fired for. A stream that believed the clock over
+    its own timer would find nothing due and turn at CPU speed until the next tick."""
+    storm = [i / 500 for i in range(5000)]  # 10 s, a change every 2 ms
+    emits, looks = drive(Cadence(SHIPPED, 8.0), storm, until=12.0, env=Millis(uptime))
+    assert looks <= 2 * len(emits) + 2, f"{looks} looks for {len(emits)} emits"
+    fast = _times(emits, "changed-fast")
+    assert all(b - a >= 0.4 - 0.0015 for a, b in pairwise(fast)), "the cap, to the millisecond"
+
+
+def test_a_wait_that_ran_its_course_is_at_its_deadline_whatever_the_clock_reads():
+    c = Cadence({"changed": 1.0}, 8.0)
+    assert c.due(100.0, changed=True, timed_out=False) == ["changed"]
+    c.due(100.5, changed=True, timed_out=False)  # owed for 101.0
+    assert c.next_wake() == (101.0, False)
+    short = math.nextafter(101.0, 0.0)  # the clock, one float step shy
+    assert c.due(short, changed=False, timed_out=False) == []  # woken early by something else
+    assert c.due(short, changed=False, timed_out=True) == ["changed"]
+
+
+def test_due_names_the_rates_in_their_given_order():
+    assert Cadence(SHIPPED, 8.0).due(0.0, changed=False, timed_out=False) == list(SHIPPED)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), 0.0, -1.0])
+def test_times_must_be_positive_and_finite(bad):
+    with pytest.raises(ValueError, match="positive"):
+        Rate(bad, 8.0)
+    with pytest.raises(ValueError, match="positive"):
+        Rate(1.0, bad)
+
+
+def test_a_cadence_needs_a_rate():
+    with pytest.raises(ValueError, match="at least one"):
+        Cadence({}, 8.0)

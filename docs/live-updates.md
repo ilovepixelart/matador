@@ -19,8 +19,9 @@ stream says only that something changed, at three rates:
 | `changed` | 1 s | job list, workers, flow section, Redis bar |
 | `changed-slow` | 5 s | the queue's health strips, the costly reads |
 
-Each rate has a leading and a trailing edge (`matador/coalescer.py`, driven by
-`Service.event_stream`):
+Each rate has a leading and a trailing edge. Every timing decision is made by
+`matador/cadence.py`, a state machine over an injected clock, so each rule below is
+checked exactly and without sleeping; `Service.event_stream` only performs it:
 
 1. A job event arrives with the window open: the rate emits immediately, so the
    common, quiet case pays no latency, and the window closes for its interval.
@@ -34,8 +35,8 @@ limit with only a leading edge drops it: the last job of a batch stays listed as
 active until something else happens.
 
 Under a storm of job events the cost of a refresh is bounded by the HTML render,
-not by queue throughput, and while every window is closed the stream waits on the
-clock rather than waking once per job. Every rate emits as soon as a stream is
+not by queue throughput, and once every rate owes an emit the stream waits on the
+clock rather than waking once per job: another event could alter nothing. Every rate emits as soon as a stream is
 subscribed: pub/sub has no replay, so what changed between the page's render and
 the subscription, or while a dropped connection was reconnecting, was announced to
 nobody, and the page catches up by refreshing once. After that, a rate that has

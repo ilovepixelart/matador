@@ -10,7 +10,7 @@ from typing import cast
 import pytest
 from redis.asyncio.client import PubSub
 
-from matador.coalescer import Cadence
+from matador.cadence import Cadence
 from matador.service import STREAM_RATES as RATES
 from matador.service import Service, _confirm_subscribed
 
@@ -51,6 +51,47 @@ async def test_a_stream_beats_as_soon_as_it_is_subscribed(q):
         await _opened(agen)  # nothing was published
     finally:
         await agen.aclose()
+        await svc.close()
+
+
+async def test_a_change_during_a_slow_send_is_not_lost(q):
+    """The stream clears its change flag BEFORE it sends. A client slow to take a frame
+    parks the stream in the middle of sending; a job event that arrives then must still
+    be announced. Cleared after the sends, it would be wiped unseen and show only with
+    the 8 s heartbeat."""
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    agen = svc.event_stream()
+    try:
+        assert (await asyncio.wait_for(agen.__anext__(), timeout=3)).startswith("retry:")
+        await asyncio.wait_for(agen.__anext__(), timeout=1)  # parked: two frames still to send
+        await q.redis.publish(q.keys.events, '{"event":"completed"}')
+        await asyncio.sleep(0.1)  # the broadcaster has raised the flag by now
+        for _ in list(RATES)[1:]:
+            await asyncio.wait_for(agen.__anext__(), timeout=1)
+        frame = await asyncio.wait_for(agen.__anext__(), timeout=2)
+        assert frame == "event: changed-fast\ndata: 1\n\n"
+    finally:
+        await agen.aclose()
+        await svc.close()
+
+
+async def test_a_cancelled_stream_leaves_no_listener(q):
+    # every open tab is a listener the broadcaster wakes per job event: one that
+    # outlived its stream would be woken forever
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+
+    async def read() -> None:
+        async for _ in svc.event_stream():
+            pass
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(0.3)
+        assert len(svc._listeners) == 1
+        reader.cancel()
+        await asyncio.gather(reader, return_exceptions=True)
+        assert svc._listeners == set()
+    finally:
         await svc.close()
 
 
@@ -300,10 +341,10 @@ async def test_a_beat_behind_a_closed_window_waits_for_it(q, monkeypatch):
     waits = 0
     real_next_wake = Cadence.next_wake
 
-    def counting(self, now):  # the stream asks once per turn of its loop
+    def counting(self):  # the stream asks once per turn of its loop
         nonlocal waits
         waits += 1
-        return real_next_wake(self, now)
+        return real_next_wake(self)
 
     monkeypatch.setattr(Cadence, "next_wake", counting)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
@@ -327,17 +368,17 @@ async def test_a_beat_behind_a_closed_window_waits_for_it(q, monkeypatch):
 
 
 async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
-    """300 job events back to back. While every window is closed an event can only
-    mark one dirty, so the stream has nothing to do until the first reopens: it must
-    wait on the clock, not wake once per event."""
+    """300 job events back to back. Once every rate owes an emit another event alters
+    nothing, so the stream has nothing to do until a window reopens: it must wait on
+    the clock, not wake once per event."""
 
     waits = 0
     real_next_wake = Cadence.next_wake
 
-    def counting(self, now):  # the stream asks once per turn of its loop
+    def counting(self):  # the stream asks once per turn of its loop
         nonlocal waits
         waits += 1
-        return real_next_wake(self, now)
+        return real_next_wake(self)
 
     monkeypatch.setattr(Cadence, "next_wake", counting)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)

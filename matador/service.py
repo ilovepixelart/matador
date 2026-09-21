@@ -15,7 +15,7 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
-from .coalescer import Cadence
+from .cadence import Cadence
 
 # The tabs. A flow is the ROOT job moving through these like any job; its children
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
@@ -60,13 +60,19 @@ STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-
 HEARTBEAT = 8.0
 
 
-async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> None:
-    """Sleep until the cadence's next wake, or until a job event when one could matter."""
+async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
+    """Sleep until the cadence's next wake, or until a job event when one could matter.
+
+    True means the wait ran its course; False, that an event cut it short.
+    """
     if not hears:
         await asyncio.sleep(seconds)
-        return
-    with contextlib.suppress(TimeoutError, asyncio.TimeoutError):
+        return True
+    try:
         await asyncio.wait_for(ev.wait(), timeout=seconds)
+    except (TimeoutError, asyncio.TimeoutError):
+        return True
+    return False
 
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
@@ -537,7 +543,7 @@ class Service:
     ) -> AsyncIterator[str]:
         """SSE stream: tell the page that something changed, at each rate in
         STREAM_RATES. toro publishes one event per job, so under load that is a
-        firehose; WHEN each rate speaks is decided by `Cadence` (matador/coalescer.py),
+        firehose; WHEN each rate speaks is decided by `Cadence` (matador/cadence.py),
         a state machine over an injected clock - this loop only performs it, so every
         timing rule is checked without sleeping. All streams share ONE pubsub via the
         broadcaster.
@@ -553,6 +559,7 @@ class Service:
         self._listeners.add(ev)
         cadence = Cadence(STREAM_RATES, HEARTBEAT)
         clock = asyncio.get_running_loop().time
+        timed_out = False
         try:
             yield "retry: 3000\n\n"
             while True:
@@ -564,11 +571,10 @@ class Service:
                     break  # subscription died: end the stream, the client reconnects
                 changed = ev.is_set()
                 ev.clear()  # before emitting: an event from here on sets it again
-                for name in cadence.due(clock(), changed=changed):
+                for name in cadence.due(clock(), changed=changed, timed_out=timed_out):
                     yield f"event: {name}\ndata: 1\n\n"
-                now = clock()
-                wake_at, hears = cadence.next_wake(now)
-                await _wait(ev, wake_at - now, hears=hears)
+                wake_at, hears = cadence.next_wake()
+                timed_out = await _wait(ev, wake_at - clock(), hears=hears)
         finally:
             self._listeners.discard(ev)
 
