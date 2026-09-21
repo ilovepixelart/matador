@@ -55,7 +55,8 @@ async def _confirm_subscribed(pubsub: PubSub, channels: int) -> None:
 # throttle: htmx's throttle has no trailing edge, so it drops the last change.
 STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-slow": 5.0}
 
-# With nothing sent for this long, every rate emits.
+# A rate that has sent nothing for this long emits. It must exceed every interval
+# above: the stream relies on a rate's window being open when its heartbeat falls due.
 HEARTBEAT = 8.0
 
 
@@ -550,7 +551,7 @@ class Service:
         firehose; each rate emits on the first event, at most once per interval after
         that, and ONCE MORE after the last - the refresh an emit triggers has already
         read the state, so a change later in the window would otherwise be in
-        nobody's repaint. After HEARTBEAT seconds with nothing sent, every rate emits:
+        nobody's repaint. A rate that has sent nothing for HEARTBEAT seconds emits:
         it keeps the connection alive and covers the transitions toro does not
         publish. All streams share ONE pubsub via the broadcaster.
         """
@@ -567,7 +568,9 @@ class Service:
         clock = asyncio.get_running_loop().time
         try:
             yield "retry: 3000\n\n"
-            heartbeat_at = clock() + HEARTBEAT
+            # per rate, from its own last emit: a slow rate's trailing emit must not
+            # postpone the heartbeat of a faster rate that went quiet long before it
+            beat_at = dict.fromkeys(rates, clock() + HEARTBEAT)
             while True:
                 # Exit promptly when the client goes away instead of waiting for the
                 # next yield to raise - drops our listener registration right away.
@@ -575,15 +578,18 @@ class Service:
                     break
                 if self._broadcast_task is None or self._broadcast_task.done():
                     break  # subscription died: end the stream, the client reconnects
-                await _wait_for_work(ev, rates, heartbeat_at, clock())
+                await _wait_for_work(ev, rates, min(beat_at.values()), clock())
                 now = clock()
-                # a heartbeat is a change nobody published: it opens every rate
-                changed = ev.is_set() or now >= heartbeat_at
+                changed = ev.is_set()
                 ev.clear()  # before emitting: an event from here on sets it again
-                names = [n for n, c in rates.items() if (changed and c.signal(now)) or c.due(now)]
-                if names:
-                    heartbeat_at = now + HEARTBEAT
+                names = [
+                    n
+                    for n, c in rates.items()
+                    # a heartbeat is a change nobody published
+                    if ((changed or now >= beat_at[n]) and c.signal(now)) or c.due(now)
+                ]
                 for name in names:
+                    beat_at[name] = now + HEARTBEAT
                     yield f"event: {name}\ndata: 1\n\n"
         finally:
             self._listeners.discard(ev)

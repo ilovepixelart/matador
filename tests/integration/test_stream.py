@@ -223,10 +223,44 @@ async def test_quiet_stream_opens_every_rate_as_its_heartbeat(q, monkeypatch):
     assert all(0.45 <= at <= 0.8 for _, at in seen), seen
 
 
+async def test_each_rate_beats_on_its_own_clock(q, monkeypatch):
+    """A rate's heartbeat counts from ITS last emit. A slow rate's trailing emit lands
+    long after a fast rate went quiet, and must not push the fast rate's beat out:
+    that beat is what bounds how stale a region on the fast rate can be."""
+    monkeypatch.setattr("matador.service.STREAM_RATES", {"changed-fast": 0.1, "changed-slow": 1.2})
+    monkeypatch.setattr("matador.service.HEARTBEAT", 2.0)
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    loop = asyncio.get_running_loop()
+    fast: list[float] = []
+    t0 = 0.0
+
+    async def read() -> None:
+        async for frame in svc.event_stream():
+            if "changed-fast" in frame:
+                fast.append(loop.time() - t0)  # noqa: PERF401 - cancelled mid-stream
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(0.4)  # subscribed
+        t0 = loop.time()
+        await q.redis.publish(q.keys.events, '{"event":"completed"}')
+        await asyncio.sleep(0.05)
+        await q.redis.publish(q.keys.events, '{"event":"completed"}')
+        await asyncio.sleep(2.75)
+    finally:
+        reader.cancel()
+        await svc.close()
+
+    # at once, its tail at 0.1 s, then its beat 2 s after that. Counted from the slow
+    # rate's tail (1.2 s) the beat would fall at 3.2 s, after this test has stopped.
+    assert len(fast) == 3, fast
+    assert 2.0 <= fast[2] <= 2.7, fast
+
+
 async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
-    """300 job events in a third of a second. While every window is closed an event
-    can only mark one dirty, so the stream has nothing to do until the first
-    reopens: it must wait on the clock, not wake once per event."""
+    """300 job events back to back. While every window is closed an event can only
+    mark one dirty, so the stream has nothing to do until the first reopens: it must
+    wait on the clock, not wake once per event."""
     from matador import service
 
     waits = 0
@@ -239,6 +273,7 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
 
     monkeypatch.setattr(service, "_wait_for_work", counting)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    loop = asyncio.get_running_loop()
     frames: list[str] = []
 
     async def read() -> None:
@@ -251,13 +286,17 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
     try:
         await asyncio.sleep(0.4)  # subscribed
         waits = 0
+        started = loop.time()
         for _ in range(300):
             await q.redis.publish(q.keys.events, '{"event":"completed"}')
             await asyncio.sleep(0.001)
         await asyncio.sleep(0.2)
+        elapsed = loop.time() - started
     finally:
         reader.cancel()
         await svc.close()
 
-    assert waits <= 6, f"the stream woke {waits} times for 300 events"
+    # one wake per window that reopened, however long the runner took to publish
+    allowed = 3 + elapsed * sum(1 / interval for interval in RATES.values())
+    assert waits <= allowed, f"the stream woke {waits} times in {elapsed:.2f} s for 300 events"
     assert sum("changed-fast" in f for f in frames) >= 2  # and still announced them
