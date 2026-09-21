@@ -15,7 +15,7 @@ stream says only that something changed, at three rates:
 
 | Event | At most once per | For |
 |---|---|---|
-| `changed-fast` | 400 ms | the hub and the sidebar |
+| `changed-fast` | 400 ms | the sidebar |
 | `changed` | 1 s | job list, workers, flow section, Redis bar |
 | `changed-slow` | 5 s | the queue's health strips, the costly reads |
 
@@ -35,8 +35,8 @@ active until something else happens.
 
 Under a storm of job events the cost of a refresh is bounded by the HTML render,
 not by queue throughput, and while every window is closed the stream waits on the
-clock rather than waking once per job. After 8 seconds with nothing sent, every
-rate emits - a heartbeat that keeps the connection alive through proxies,
+clock rather than waking once per job. A rate that has sent nothing for 8 seconds
+emits - a heartbeat, counted per rate, that keeps the connection alive through proxies,
 refreshes relative times, and covers the transitions toro does not publish
 (below). The stream advertises `retry: 3000`, so a dropped connection reconnects
 on its own - including when Redis itself goes away: the stream ends cleanly and
@@ -74,9 +74,10 @@ No region throttles on the client. htmx's `throttle` fires on the first event of
 a window and returns early for the rest, with no trailing request (the 2.0.10
 source; its documentation reads otherwise), so it would drop exactly the emit the
 stream's trailing edge exists to deliver. Every region also carries
-`hx-sync="this:queue last"`: htmx's default is to *drop* a refresh that arrives
-while one is in flight, which loses the tail again, and `queue last` keeps it, one
-deep. A test reads every template and fails on a client throttle or a missing
+`hx-sync="this:queue last"`: a refresh that arrives while one is in flight is kept,
+one deep. That is what htmx does for an element with no `hx-sync` at all, but an
+`hx-sync` that names no strategy means `drop`, which loses the tail again, so the
+strategy is stated on every region. A test reads every template and fails on a client throttle or a missing
 `queue last`. Swaps use **morph**
 (idiomorph), which patches the DOM in place instead of replacing it - open
 accordions, focus, and scroll positions survive a refresh.
