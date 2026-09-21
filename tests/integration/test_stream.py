@@ -4,11 +4,13 @@ heartbeat backstop so it can never hang (the HTTP stream itself is E2E territory
 """
 
 import asyncio
+import re
 from typing import cast
 
 import pytest
 from redis.asyncio.client import PubSub
 
+from matador.service import STREAM_RATES as RATES
 from matador.service import Service, _confirm_subscribed
 
 from .conftest import PREFIX, QUEUE
@@ -21,10 +23,10 @@ async def test_event_stream_starts_then_signals_change(q):
         first = await asyncio.wait_for(agen.__anext__(), timeout=3)
         assert first.startswith("retry:")  # SSE auto-reconnect directive
 
-        # a published job event should produce a `changed` frame promptly
+        # a published job event opens every rate at once: no latency when quiet
         await q.redis.publish(q.keys.events, '{"event":"completed"}')
-        frame = await asyncio.wait_for(agen.__anext__(), timeout=10)
-        assert "event: changed" in frame  # tells the client to refresh
+        frames = [await asyncio.wait_for(agen.__anext__(), timeout=3) for _ in RATES]
+        assert frames == [f"event: {name}\ndata: 1\n\n" for name in RATES]
     finally:
         await agen.aclose()
         await svc.close()
@@ -158,3 +160,64 @@ async def test_stream_ends_cleanly_if_the_subscription_dies(q):
     finally:
         await agen2.aclose()
         await svc.close()
+
+
+async def test_second_event_in_a_window_is_announced(q):
+    """Two job events 100 ms apart. The refresh the first one triggers has already
+    read the state, so the second must be announced too, at each rate's own
+    cadence. Left to the 8 s heartbeat it would land after this test has ended."""
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    loop = asyncio.get_running_loop()
+    seen: dict[str, list[float]] = {name: [] for name in RATES}
+    t0 = 0.0
+
+    async def read() -> None:
+        async for frame in svc.event_stream():
+            m = re.match(r"event: (\S+)", frame)
+            if m and m.group(1) in seen:
+                seen[m.group(1)].append(loop.time() - t0)
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(0.4)  # subscribed
+        t0 = loop.time()
+        await q.redis.publish(q.keys.events, '{"event":"completed"}')
+        await asyncio.sleep(0.1)
+        await q.redis.publish(q.keys.events, '{"event":"completed"}')
+        await asyncio.sleep(max(RATES.values()) + 0.6)
+    finally:
+        reader.cancel()
+        await svc.close()
+
+    for name, interval in RATES.items():
+        times = seen[name]
+        assert len(times) == 2, f"{name}: {times}"  # the first event, then the tail
+        assert times[0] < 0.15, f"{name}: the first event must emit at once, got {times}"
+        assert interval - 0.05 <= times[1] <= interval + 0.4, f"{name}: {times}"
+
+
+async def test_quiet_stream_opens_every_rate_as_its_heartbeat(q, monkeypatch):
+    """With nothing sent for HEARTBEAT seconds every rate emits: it keeps the
+    connection alive through proxies and covers the transitions toro never
+    publishes. Shortened here; nothing is published at all."""
+    monkeypatch.setattr("matador.service.HEARTBEAT", 0.5)
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    loop = asyncio.get_running_loop()
+    seen: list[tuple[str, float]] = []
+    t0 = loop.time()
+
+    async def read() -> None:
+        async for frame in svc.event_stream():
+            m = re.match(r"event: (\S+)", frame)
+            if m:
+                seen.append((m.group(1), loop.time() - t0))
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(0.9)
+    finally:
+        reader.cancel()
+        await svc.close()
+
+    assert [name for name, _ in seen] == list(RATES)  # one beat, every rate, in order
+    assert all(0.45 <= at <= 0.8 for _, at in seen), seen

@@ -15,6 +15,8 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
+from .coalescer import Coalescer
+
 # The tabs. A flow is the ROOT job moving through these like any job; its children
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
 # `waiting-children`) folds into `active` as in-flight - no separate flows tab.
@@ -46,6 +48,35 @@ async def _confirm_subscribed(pubsub: PubSub, channels: int) -> None:
         reply = await pubsub.get_message(timeout=left)
         if reply is not None and reply["type"] == "subscribe":
             channels -= 1
+
+
+# The refresh rates the stream offers, as SSE event name -> seconds. A live region
+# listens to the one it can afford. The cadence is enforced here, not by a client
+# throttle: htmx's throttle has no trailing edge, so it drops the last change.
+STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-slow": 5.0}
+
+# With nothing sent for this long, every rate emits.
+HEARTBEAT = 8.0
+
+
+async def _wait_for_work(
+    ev: asyncio.Event, rates: dict[str, Coalescer], heartbeat_at: float, now: float
+) -> None:
+    """Sleep until the stream may have something to emit.
+
+    While EVERY window is closed an event can only mark one dirty, so there is
+    nothing to do before the first reopens: waiting on the clock, not on the
+    event, keeps a storm from waking the stream once per job. Otherwise wait for
+    an event, the next owed emit, or the heartbeat, whichever comes first.
+    """
+    reopens = min(c.reopens_at for c in rates.values())
+    if now < reopens:
+        await asyncio.sleep(reopens - now)
+        return
+    owed = [c.deadline for c in rates.values() if c.deadline is not None]
+    wake_at = min([heartbeat_at, *owed])
+    with contextlib.suppress(TimeoutError, asyncio.TimeoutError):
+        await asyncio.wait_for(ev.wait(), timeout=max(0.0, wake_at - now))
 
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
@@ -514,12 +545,14 @@ class Service:
     async def event_stream(
         self, is_disconnected: Callable[[], Awaitable[bool]] | None = None
     ) -> AsyncIterator[str]:
-        """SSE stream: emit a COALESCED `changed` signal whenever any queue publishes
-        a job event. toro publishes one event per job (completed/failed/progress), so
-        under load that's a firehose; we emit on the first event, then let whatever
-        lands in the next ~200ms ride the same repaint - a thousand finishes cost one
-        refresh (~5 `changed`/s ceiling). The same signal doubles as the heartbeat
-        after 8 quiet seconds. All streams share ONE pubsub via the broadcaster.
+        """SSE stream: tell the page that something changed, at each rate in
+        STREAM_RATES. toro publishes one event per job, so under load that is a
+        firehose; each rate emits on the first event, at most once per interval after
+        that, and ONCE MORE after the last - the refresh an emit triggers has already
+        read the state, so a change later in the window would otherwise be in
+        nobody's repaint. After HEARTBEAT seconds with nothing sent, every rate emits:
+        it keeps the connection alive and covers the transitions toro does not
+        publish. All streams share ONE pubsub via the broadcaster.
         """
         try:
             await self._ensure_broadcaster()
@@ -530,8 +563,11 @@ class Service:
             return
         ev = asyncio.Event()
         self._listeners.add(ev)
+        rates = {name: Coalescer(interval) for name, interval in STREAM_RATES.items()}
+        clock = asyncio.get_running_loop().time
         try:
             yield "retry: 3000\n\n"
+            heartbeat_at = clock() + HEARTBEAT
             while True:
                 # Exit promptly when the client goes away instead of waiting for the
                 # next yield to raise - drops our listener registration right away.
@@ -539,12 +575,16 @@ class Service:
                     break
                 if self._broadcast_task is None or self._broadcast_task.done():
                     break  # subscription died: end the stream, the client reconnects
-                with contextlib.suppress(TimeoutError, asyncio.TimeoutError):
-                    await asyncio.wait_for(ev.wait(), timeout=8.0)
-                yield "event: changed\ndata: 1\n\n"  # signal, or heartbeat on timeout
-                if ev.is_set():
-                    await asyncio.sleep(0.2)  # the burst rides this repaint
-                    ev.clear()
+                await _wait_for_work(ev, rates, heartbeat_at, clock())
+                now = clock()
+                # a heartbeat is a change nobody published: it opens every rate
+                changed = ev.is_set() or now >= heartbeat_at
+                ev.clear()  # before emitting: an event from here on sets it again
+                names = [n for n, c in rates.items() if (changed and c.signal(now)) or c.due(now)]
+                if names:
+                    heartbeat_at = now + HEARTBEAT
+                for name in names:
+                    yield f"event: {name}\ndata: 1\n\n"
         finally:
             self._listeners.discard(ev)
 
