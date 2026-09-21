@@ -10,6 +10,7 @@ from typing import cast
 import pytest
 from redis.asyncio.client import PubSub
 
+from matador.coalescer import Cadence
 from matador.service import STREAM_RATES as RATES
 from matador.service import Service, _confirm_subscribed
 
@@ -297,14 +298,14 @@ async def test_a_beat_behind_a_closed_window_waits_for_it(q, monkeypatch):
 
     monkeypatch.setattr(service, "HEARTBEAT", 0.5)  # under the 1 s and 5 s intervals
     waits = 0
-    real_wait = service._wait_for_work
+    real_next_wake = Cadence.next_wake
 
-    async def counting(*args):
+    def counting(self, now):  # the stream asks once per turn of its loop
         nonlocal waits
         waits += 1
-        await real_wait(*args)
+        return real_next_wake(self, now)
 
-    monkeypatch.setattr(service, "_wait_for_work", counting)
+    monkeypatch.setattr(Cadence, "next_wake", counting)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     frames: list[str] = []
 
@@ -329,17 +330,16 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
     """300 job events back to back. While every window is closed an event can only
     mark one dirty, so the stream has nothing to do until the first reopens: it must
     wait on the clock, not wake once per event."""
-    from matador import service
 
     waits = 0
-    real_wait = service._wait_for_work
+    real_next_wake = Cadence.next_wake
 
-    async def counting(*args):
+    def counting(self, now):  # the stream asks once per turn of its loop
         nonlocal waits
         waits += 1
-        await real_wait(*args)
+        return real_next_wake(self, now)
 
-    monkeypatch.setattr(service, "_wait_for_work", counting)
+    monkeypatch.setattr(Cadence, "next_wake", counting)
     svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
     loop = asyncio.get_running_loop()
     frames: list[str] = []
@@ -365,7 +365,8 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
         reader.cancel()
         await svc.close()
 
-    # one wake per window that reopened, however long the runner took to publish
-    allowed = 3 + elapsed * sum(1 / interval for interval in RATES.values())
+    # per window that reopened, however long the runner took to publish: one wake to
+    # emit, and one for the first event after it, which is all it takes to owe the next
+    allowed = 3 + 2 * elapsed * sum(1 / interval for interval in RATES.values())
     assert waits <= allowed, f"the stream woke {waits} times in {elapsed:.2f} s for 300 events"
     assert sum("changed-fast" in f for f in frames[opening:]) >= 2  # and announced them

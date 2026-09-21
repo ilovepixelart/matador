@@ -15,7 +15,7 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
-from .coalescer import Coalescer
+from .coalescer import Cadence
 
 # The tabs. A flow is the ROOT job moving through these like any job; its children
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
@@ -60,24 +60,13 @@ STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-
 HEARTBEAT = 8.0
 
 
-async def _wait_for_work(
-    ev: asyncio.Event, rates: dict[str, Coalescer], heartbeat_at: float, now: float
-) -> None:
-    """Sleep until the stream may have something to emit.
-
-    While EVERY window is closed an event can only mark one dirty, so there is
-    nothing to do before the first reopens: waiting on the clock, not on the
-    event, keeps a storm from waking the stream once per job. Otherwise wait for
-    an event, the next owed emit, or the heartbeat, whichever comes first.
-    """
-    reopens = min(c.reopens_at for c in rates.values())
-    if now < reopens:
-        await asyncio.sleep(reopens - now)
+async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> None:
+    """Sleep until the cadence's next wake, or until a job event when one could matter."""
+    if not hears:
+        await asyncio.sleep(seconds)
         return
-    owed = [c.deadline for c in rates.values() if c.deadline is not None]
-    wake_at = min([heartbeat_at, *owed])
     with contextlib.suppress(TimeoutError, asyncio.TimeoutError):
-        await asyncio.wait_for(ev.wait(), timeout=max(0.0, wake_at - now))
+        await asyncio.wait_for(ev.wait(), timeout=seconds)
 
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
@@ -548,13 +537,9 @@ class Service:
     ) -> AsyncIterator[str]:
         """SSE stream: tell the page that something changed, at each rate in
         STREAM_RATES. toro publishes one event per job, so under load that is a
-        firehose; each rate emits on the first event, at most once per interval after
-        that, and ONCE MORE after the last - the refresh an emit triggers has already
-        read the state, so a change later in the window would otherwise be in
-        nobody's repaint. A rate that has sent nothing for HEARTBEAT seconds emits:
-        it keeps the connection alive and covers the transitions toro does not
-        publish. Every rate also emits as soon as the stream is subscribed, so a page
-        catches up on connect and reconnect. All streams share ONE pubsub via the
+        firehose; WHEN each rate speaks is decided by `Cadence` (matador/coalescer.py),
+        a state machine over an injected clock - this loop only performs it, so every
+        timing rule is checked without sleeping. All streams share ONE pubsub via the
         broadcaster.
         """
         try:
@@ -566,15 +551,10 @@ class Service:
             return
         ev = asyncio.Event()
         self._listeners.add(ev)
-        rates = {name: Coalescer(interval) for name, interval in STREAM_RATES.items()}
+        cadence = Cadence(STREAM_RATES, HEARTBEAT)
         clock = asyncio.get_running_loop().time
         try:
             yield "retry: 3000\n\n"
-            # per rate, from its own last emit: a slow rate's trailing emit must not
-            # postpone the heartbeat of a faster rate that went quiet long before it.
-            # The first beat is due at once: what changed between the page's render
-            # and this subscription, or during a reconnect, was published to nobody.
-            beat_at = dict.fromkeys(rates, clock())
             while True:
                 # Exit promptly when the client goes away instead of waiting for the
                 # next yield to raise - drops our listener registration right away.
@@ -582,22 +562,13 @@ class Service:
                     break
                 if self._broadcast_task is None or self._broadcast_task.done():
                     break  # subscription died: end the stream, the client reconnects
-                # a beat cannot be sent before its rate's window reopens: waking for the
-                # later of the two keeps a beat due behind a closed window from spinning
-                next_beat = min(max(beat_at[n], c.reopens_at) for n, c in rates.items())
-                await _wait_for_work(ev, rates, next_beat, clock())
-                now = clock()
                 changed = ev.is_set()
                 ev.clear()  # before emitting: an event from here on sets it again
-                names = [
-                    n
-                    for n, c in rates.items()
-                    # a heartbeat is a change nobody published
-                    if ((changed or now >= beat_at[n]) and c.signal(now)) or c.due(now)
-                ]
-                for name in names:
-                    beat_at[name] = now + HEARTBEAT
+                for name in cadence.due(clock(), changed=changed):
                     yield f"event: {name}\ndata: 1\n\n"
+                now = clock()
+                wake_at, hears = cadence.next_wake(now)
+                await _wait(ev, wake_at - now, hears=hears)
         finally:
             self._listeners.discard(ev)
 
