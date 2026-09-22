@@ -118,3 +118,25 @@ async def test_acting_on_a_missing_job_returns_a_toast(client, q):
     assert r.status_code == 404
     assert "no longer here" in r.text
     assert 'role="alert"' in r.text
+
+
+async def test_cancelling_a_running_job_from_the_dashboard(client, q):
+    """The active tab is the only place a running job can be acted on, and stopping one
+    is the action people reach for. Removing it leaves the processor running."""
+    job = await q.add("long", {})
+    await q.redis.zrem(q.keys.prioritized, job.id)  # as a worker's claim would
+    await q.redis.rpush(q.keys.active, job.id)
+    await q.redis.hset(q.keys.job(job.id), "state", "active")
+
+    r = await client.post(f"/queues/{QUEUE}/jobs/{job.id}/cancel", headers=hx())
+
+    assert r.status_code == 200
+    assert await q.redis.hget(q.keys.job(job.id), "cancel") == "1"
+
+
+async def test_cancelling_a_job_that_is_gone_says_so(client, q):
+    # response-targets routes this 4xx into #toast instead of failing silently
+    r = await client.post(f"/queues/{QUEUE}/jobs/nope/cancel", headers=hx())
+    assert r.status_code == 404
+    assert "no longer here" in r.text
+    assert 'role="alert"' in r.text

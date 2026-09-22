@@ -465,6 +465,12 @@ class Service:
     async def remove(self, name: str, job_id: str) -> bool:
         return await self._q(name).remove_job(job_id)
 
+    async def cancel(self, name: str, job_id: str) -> bool:
+        """Stop a job. Unlike remove, a RUNNING job's processor is stopped too, so the
+        work actually ends instead of carrying on with nowhere to report.
+        """
+        return await self._q(name).cancel_job(job_id)
+
     async def remove_many(self, name: str, job_ids: list[str]) -> int:
         """Remove a specific set of jobs (multi-select bulk delete). Returns how
         many were ACTUALLY removed - a job that vanished in a race doesn't count.

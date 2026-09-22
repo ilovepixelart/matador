@@ -66,6 +66,7 @@ silently.
 | `POST /queues/{name}/pause` · `/resume` | Pause / resume the queue (in-flight jobs finish). |
 | `POST /queues/{name}/jobs/{job_id}/retry` | Retry one failed job. |
 | `POST /queues/{name}/jobs/{job_id}/promote` | Run a delayed job now. |
+| `POST /queues/{name}/jobs/{job_id}/cancel` | Stop a job. On a RUNNING job the worker cancels its processor where it awaits, so the work actually ends: removing it would leave the processor running. |
 | `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. Flow-aware: removing a flow parent removes its whole subtree (the confirm dialog says so). |
 | `POST /queues/{name}/jobs/bulk-remove` | Remove the checkbox-selected jobs - capped at 1000 per request so one click can't fan out unboundedly. |
 | `POST /queues/{name}/retry-all` | Re-queue every failed job. |

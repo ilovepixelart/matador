@@ -70,3 +70,22 @@ async def test_rows_without_a_key_say_nothing_about_one(client, seeded):
     r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
     assert "alpha" in r.text  # the rows are there
     assert "on key" not in r.text  # and none of them claims a key
+
+
+async def test_active_rows_offer_to_stop_the_job(client, q):
+    """A running job cannot be retried or promoted, so cancel is the action its row
+    has to carry."""
+    job = await q.add("running", {})
+    await q.redis.zrem(q.keys.prioritized, job.id)
+    await q.redis.rpush(q.keys.active, job.id)
+    await q.redis.hset(q.keys.job(job.id), "state", "active")
+
+    r = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
+
+    assert r.status_code == 200
+    assert "Stop this job" in r.text
+
+
+async def test_waiting_rows_do_not_offer_to_stop(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
+    assert "Stop this job" not in r.text  # nothing to stop: remove it instead

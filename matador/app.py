@@ -774,6 +774,14 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
             return _toast(request, "Couldn't remove", f"Job #{job_id} is no longer here.")
         return await _panel(svc, request, name, state, page)
 
+    @router.post("/queues/{name}/jobs/{job_id}/cancel", response_class=HTMLResponse)
+    async def cancel(
+        request: Request, name: str, job_id: str, state: str = "active", page: int = 1
+    ):
+        if not await svc.cancel(name, job_id):
+            return _toast(request, "Couldn't stop", f"Job #{job_id} is no longer here.")
+        return await _panel(svc, request, name, state, page)
+
     @router.post("/queues/{name}/jobs/{job_id}/promote", response_class=HTMLResponse)
     async def promote(request: Request, name: str, job_id: str, page: int = 1):
         if not await svc.promote(name, job_id):

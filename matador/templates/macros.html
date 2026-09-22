@@ -178,6 +178,15 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
               hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}<span class="sr-only">Promote, run now</span></button>
       {% endif %}
+      {% if state == 'active' %}
+      {# A running job cannot be retried or promoted; stopping it is the action its
+         row carries. Removal leaves the processor running, cancellation does not. #}
+      <button class="btn btn-sm btn-warning tip" data-tip="Stop this job"
+              hx-post="{{ url_for('cancel', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
+              hx-target="#queue-panel"
+              hx-confirm="Stop job #{{ j.id }}? Its processor is cancelled where it awaits, so its cleanup runs."
+              data-loading-disable data-loading-aria-busy>{{ icon('pause', 'w-3.5 h-3.5') }}<span class="sr-only">Stop this job</span></button>
+      {% endif %}
       {% if state == 'failed' %}
       {# A failed flow parent re-drives its whole failed subtree, not just itself,
          so the label says so rather than undersell it as "this job". #}
