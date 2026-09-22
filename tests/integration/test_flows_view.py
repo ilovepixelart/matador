@@ -398,3 +398,23 @@ async def test_failed_flow_with_a_retried_child_stays_live_then_stops(client, q)
 async def _is_state(q, jid, state):
     j = await q.get_job(jid)
     return j is not None and j.state == state
+
+
+async def test_a_cancelled_node_shows_as_cancelled_in_the_tree(client, q):
+    """A flow tree spells every node's state out rather than colour-coding it, so a
+    stopped node has to read as stopped and not as a failure."""
+    parent = await q.add_flow(
+        "report", {}, children=[c("fetch", {}, delay=60_000, on_fail="continue")]
+    )
+    leaf = (await q.get_flow(parent.id))["children"][0]["job"].id
+    assert await q.cancel_job(leaf) is True
+
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail", headers=hx())
+
+    assert r.status_code == 200
+    assert "cancelled" in r.text  # the node's own pill, not "failed"
+    # Pinned trade-off: under `on_fail="continue"` toro records a child that will
+    # never deliver in the parent's failure record, whether it failed or was
+    # cancelled, so the fan-in counts it. The node itself still reads cancelled, and
+    # the reason stored is "cancelled". Splitting that record is a post-1.0 question.
+    assert "1 failed" in r.text
