@@ -21,7 +21,9 @@ from .cadence import Cadence
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
 # `waiting-children`) folds into `active` as in-flight - no separate flows tab.
 # `held` does NOT fold into `wait`: a held job waits on its concurrency key, not on
-# a worker, so counting it as backlog would read as work a worker could take.
+# a worker, so counting it as backlog would read as work a worker could take. Nor does
+# `cancelled` fold into `failed`: a job stopped on purpose did not fail, and counting
+# it as one corrupts the failure share, which is what people page on.
 STATES: tuple[JobState, ...] = (
     "active",
     "wait",
@@ -29,6 +31,7 @@ STATES: tuple[JobState, ...] = (
     "delayed",
     "completed",
     "failed",
+    "cancelled",
 )
 
 # How long Redis gets to confirm the shared subscription before a stream gives up

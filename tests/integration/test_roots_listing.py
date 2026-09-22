@@ -149,3 +149,21 @@ async def test_the_held_tab_pages_its_own_roots(svc, q):
     assert [r["id"] for r in rows] == [j.id for j in behind]  # the order they were added
     assert holder.id not in [r["id"] for r in rows]  # it holds the key, it does not wait
     assert (await svc.queue_view(QUEUE))["counts"]["held"] == total
+
+
+async def test_the_cancelled_tab_pages_its_own_roots(svc, q):
+    """A job stopped on purpose is not a failure, so it does not belong in the failed
+    tab, and a queue with nowhere to show it hides deliberate stops entirely."""
+    kept = await q.add("kept", {})
+    stopped = [await q.add(f"c{i}", {}) for i in range(3)]
+    for job in stopped:
+        assert await q.cancel_job(job.id) is True
+
+    rows, total, page = await svc.jobs(QUEUE, "cancelled", page=1, per_page=PER_PAGE)
+
+    assert "cancelled" in STATES, "a state with no tab is a state nobody can see"
+    assert (total, page) == (3, 1)
+    assert sorted(r["id"] for r in rows) == sorted(j.id for j in stopped)
+    assert kept.id not in [r["id"] for r in rows]
+    assert (await svc.queue_view(QUEUE))["counts"]["cancelled"] == total
+    assert (await svc.queue_view(QUEUE))["counts"]["failed"] == 0
