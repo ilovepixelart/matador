@@ -26,6 +26,27 @@ STATES: tuple[JobState, ...] = (
     "failed",
 )
 
+# How long Redis gets to confirm the shared subscription before a stream gives up
+# and leaves the retry to the browser.
+SUBSCRIBE_TIMEOUT = 5.0
+
+
+async def _confirm_subscribed(pubsub: PubSub, channels: int) -> None:
+    """Wait until Redis has confirmed every channel. `subscribe()` returns once the
+    command is WRITTEN, not once it has taken effect: a stream that reported itself
+    started in between would miss a job event published right then.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + SUBSCRIBE_TIMEOUT
+    while channels > 0:
+        left = deadline - loop.time()
+        if left <= 0:
+            msg = "Redis did not confirm the events subscription"
+            raise TimeoutError(msg)
+        reply = await pubsub.get_message(timeout=left)
+        if reply is not None and reply["type"] == "subscribe":
+            channels -= 1
+
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
     """Fold toro's root-only counts into the five display tabs: a parked flow
@@ -461,8 +482,15 @@ class Service:
             if self._broadcast_pubsub is not None:  # a dead broadcaster's leftovers
                 with contextlib.suppress(Exception):
                     await self._broadcast_pubsub.aclose()
+            channels = [q.keys.events for q in self.queues.values()]
             pubsub = next(iter(self.queues.values())).redis.pubsub()
-            await pubsub.subscribe(*[q.keys.events for q in self.queues.values()])
+            try:
+                await pubsub.subscribe(*channels)
+                await _confirm_subscribed(pubsub, len(channels))
+            except BaseException:
+                with contextlib.suppress(Exception):
+                    await pubsub.aclose()  # it owns a connection by now
+                raise
             self._broadcast_pubsub = pubsub
             self._broadcast_task = asyncio.create_task(self._broadcast(pubsub))
 
