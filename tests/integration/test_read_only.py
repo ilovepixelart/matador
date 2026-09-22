@@ -8,6 +8,7 @@ arrives.
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from toro import FlowChild
 
 from matador import create_app
 
@@ -74,6 +75,32 @@ async def test_controls_are_not_drawn(locked, seeded):
 
     assert "Remove this job" not in r.text
     assert "retry all" not in r.text.lower()
+
+
+async def test_the_parked_flow_control_is_not_drawn_either(locked, q, seeded):
+    """The bulk cancel for parked flows sits outside the row controls, on the active
+    tab, which is the tab a read-only viewer lands on: a control drawn there is drawn
+    where it is most likely to be clicked."""
+    client, _ = locked
+    await q.add_flow("publish", {}, children=[FlowChild("a", {}, delay=60_000)])
+    assert (await q.counts())["waiting-children"] == 1
+
+    r = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
+
+    assert "cancel parked flows" not in r.text
+
+
+async def test_a_dashboard_that_may_mutate_draws_them_all(client, q, seeded):
+    """The mirror of every assertion above: absence proves nothing unless the same
+    markup is present when mutating is allowed. Read-only is opt-in."""
+    await q.add_flow("publish", {}, children=[FlowChild("a", {}, delay=60_000)])
+
+    failed = await client.get(f"/queues/{QUEUE}?state=failed", headers=hx())
+    active = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
+
+    assert "Remove this job" in failed.text
+    assert "retry all" in failed.text.lower()
+    assert "cancel parked flows" in active.text
 
 
 async def test_the_predicate_sees_the_request(q, seeded):
