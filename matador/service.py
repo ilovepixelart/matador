@@ -20,9 +20,12 @@ from .cadence import Cadence
 # The tabs. A flow is the ROOT job moving through these like any job; its children
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
 # `waiting-children`) folds into `active` as in-flight - no separate flows tab.
+# `held` does NOT fold into `wait`: a held job waits on its concurrency key, not on
+# a worker, so counting it as backlog would read as work a worker could take.
 STATES: tuple[JobState, ...] = (
     "active",
     "wait",
+    "held",
     "delayed",
     "completed",
     "failed",
@@ -76,13 +79,15 @@ async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
 
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
-    """Fold toro's root-only counts into the five display tabs: a parked flow
+    """Fold toro's root-only counts into the display tabs: a parked flow
     parent (`waiting-children`) reads as in-flight, so it joins `active`, and the
     now-tabless state drops off the tabs. Fed by `roots_counts()`, so each badge
     is the EXACT number of roots the tab pages through - children are hidden from
     both, and the badge can never disagree with the pager.
     """
-    c = dict(counts)
+    # every tab gets a number, whatever toro reported: a badge with nothing behind it
+    # renders blank, and a state toro adds later would arrive here before it has a tab
+    c = dict.fromkeys(STATES, 0) | dict(counts)
     # active reads as active + parked; the raw waiting-children count stays in the
     # dict (no tab renders it) so the active tab can offer "cancel parked flows"
     c["active"] = c.get("active", 0) + c.get("waiting-children", 0)
@@ -611,6 +616,9 @@ class Service:
             "processed_on": j.processed_on,
             "finished_on": j.finished_on,
             "delay": j.opts.delay,
+            # What this job serializes on: why a held row is not running, and what
+            # the held rows behind a running one are waiting for.
+            "concurrency_key": j.opts.concurrency_key,
             # Flow membership: parents show a child count, children a parent link.
             "parent_id": j.parent_id,
             "children_count": len(j.children_ids) if j.children_ids else 0,

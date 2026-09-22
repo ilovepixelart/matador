@@ -72,3 +72,39 @@ def test_stale_jobs_fragment_cannot_eat_the_panel(page: Page, base_url, seeded):
         "data-view",
         f"{QUEUE}:failed",  # the stale wait-view never rendered
     )
+
+
+def test_a_held_job_appears_and_leaves(page: Page, base_url, drive):
+    """HJ-005: the held tab end to end. A job waiting on a key shows there with the key
+    it waits on, and leaves the moment the key frees."""
+
+    async def clear():
+        q = Queue(QUEUE, prefix=PREFIX)
+        keys = await q.redis.keys(q.keys.base + "*")
+        if keys:
+            await q.redis.delete(*keys)
+        await q.close()
+
+    drive(clear())
+    page.goto(f"{base_url}/queues/{QUEUE}?state=held")
+    expect(page.locator("#jobs")).to_contain_text("No held jobs")
+    page.wait_for_timeout(2000)  # let the SSE connection establish
+
+    async def enqueue():
+        q = Queue(QUEUE, prefix=PREFIX)
+        await q.add("holder", {}, concurrency_key="invoice-42")
+        await q.add("behind", {}, concurrency_key="invoice-42")
+        await q.close()
+
+    drive(enqueue())
+    expect(page.locator("#jobs")).to_contain_text("behind", timeout=6000)
+    expect(page.locator("#jobs")).to_contain_text("invoice-42")  # why it is not running
+
+    async def free_the_key():
+        q = Queue(QUEUE, prefix=PREFIX)
+        holder = await q.redis.get(q.keys.concurrency("invoice-42"))
+        await q.remove_job(holder)
+        await q.close()
+
+    drive(free_the_key())
+    expect(page.locator("#jobs")).to_contain_text("No held jobs", timeout=6000)

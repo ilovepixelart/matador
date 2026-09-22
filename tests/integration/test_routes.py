@@ -169,3 +169,31 @@ async def test_static_assets_revalidate_instead_of_pinning(client):
     r = await client.get("/static/js/behaviors/tooltips.js")
     assert r.status_code == 200
     assert r.headers.get("cache-control") == "no-cache"
+
+
+async def test_held_is_a_tab_of_its_own(client, q):
+    """HJ-001: `held` has to survive state coercion, or the tab falls back to active
+    and a held job is invisible."""
+    await q.add("holder", {}, concurrency_key="k")
+    await q.add("waits-on-a-key", {}, concurrency_key="k")
+
+    r = await client.get(f"/queues/{QUEUE}?state=held", headers=hx())
+
+    assert r.status_code == 200
+    assert "waits-on-a-key" in r.text
+    assert "search held" in r.text  # the held view, not a fallback to active
+
+
+async def test_the_detail_shows_a_concurrency_key(client, q):
+    """HJ-003: the key a job serializes on is part of what it is, held or running, so
+    it gets a field of its own rather than only a line in the opts blob."""
+    keyed = await q.add("payment", {}, concurrency_key="order-7")
+    plain = await q.add("newsletter", {})
+
+    r = await client.get(f"/queues/{QUEUE}/jobs/{keyed.id}", headers=hx())
+    bare = await client.get(f"/queues/{QUEUE}/jobs/{plain.id}", headers=hx())
+
+    assert r.status_code == 200
+    assert "order-7" in r.text
+    assert "key</dt>" in r.text  # its own labelled field, not just the opts JSON
+    assert "key</dt>" not in bare.text
