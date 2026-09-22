@@ -308,7 +308,7 @@ def test_failed_flow_updates_live_during_per_node_retry(page: Page, base_url, fl
             return {"ok": job.name}
 
         async def done(qq):
-            return (await qq.flow_progress([flows["parent_b"]]))[flows["parent_b"]] == (2, 0)
+            return (await qq.flow_progress([flows["parent_b"]]))[flows["parent_b"]] == (2, 0, 0)
 
         await work_until(proc, done)
         await q.close()

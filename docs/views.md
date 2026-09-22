@@ -31,10 +31,10 @@ its own: it folds into `active` as in-flight, and the active badge counts
 `active + waiting-children`. `held` does not fold: a held job waits on its
 `concurrency_key`, not on a worker, so counting it as backlog would read as work
 a worker could take. Nor does `cancelled` fold into `failed`: a job stopped on
-purpose did not fail, and counting it as one corrupts the failure share. One
-exception, inherited from toro: a flow child cancelled under `on_fail="continue"`
-is recorded in its parent's failure record, so the parent's fan-in progress counts
-it. The node itself still reads `cancelled`, with "cancelled" as its reason. A bad `state` query value (including the retired
+purpose did not fail, and counting it as one corrupts the failure share. The same
+holds inside a flow: a child somebody stopped is counted as stopped, drawn in the
+muted band of the fan-in bar rather than the red one, and read back from
+`cancelled_children()` rather than `failed_children()`. A bad `state` query value (including the retired
 `waiting-children`) is coerced to `active`, never an error.
 
 Tab badges are exact root-only counts, off toro's children index: the number on

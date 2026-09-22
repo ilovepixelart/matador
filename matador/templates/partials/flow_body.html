@@ -18,6 +18,10 @@
         {% if job.children_failed %}
         <span class="normal-case tracking-normal text-danger">· {{ job.children_failed }} failed</span>
         {% endif %}
+        {% if job.children_cancelled %}
+        {# stopped on purpose: muted, not red, or a flow nobody broke reads as broken #}
+        <span class="normal-case tracking-normal text-muted">· {{ job.children_cancelled }} stopped</span>
+        {% endif %}
       </span>
       {% if job.state == 'failed' %}
       {# one click re-drives the whole subtree: failed parent re-parks, failed
@@ -30,14 +34,16 @@
         {{ icon('retry', 'w-3.5 h-3.5') }} retry flow</button>
       {% endif %}
     </div>
-    {# Segmented fan-in bar (done green, failed red, pending empty); floored so
-       the two segments never sum past 100 and a failed flow never reads green. #}
+    {# Segmented fan-in bar (done green, failed red, stopped muted, pending empty);
+       floored so the segments never sum past 100 and a failed flow never reads green. #}
     {% set done_pct = job.children_done * 100 // job.children_total %}
     {% set failed_pct = job.children_failed * 100 // job.children_total %}
+    {% set stopped_pct = (job.children_cancelled or 0) * 100 // job.children_total %}
     <div class="flex items-center gap-2 mb-2">
       <div class="flex-1 h-1.5 rounded-full bg-ink overflow-hidden flex">
         <div class="h-full bg-success transition-all" style="width: {{ done_pct }}%"></div>
         <div class="h-full bg-danger transition-all" style="width: {{ failed_pct }}%"></div>
+        <div class="h-full bg-muted transition-all" style="width: {{ stopped_pct }}%"></div>
       </div>
       <span class="text-xs text-muted tabular-nums">{{ done_pct }}%</span>
     </div>

@@ -2,6 +2,8 @@
 every row carries a relative timestamp (with the absolute time on hover).
 """
 
+from toro import FlowChild
+
 from .conftest import QUEUE, hx
 
 
@@ -89,3 +91,24 @@ async def test_active_rows_offer_to_stop_the_job(client, q):
 async def test_waiting_rows_do_not_offer_to_stop(client, seeded):
     r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
     assert "Stop this job" not in r.text  # nothing to stop: remove it instead
+
+
+async def test_a_flow_row_separates_stopped_children_from_failed_ones(client, q):
+    """The fan-in bar tells an operator what a flow is doing without opening it. A
+    child somebody stopped is not a child that broke, and a bar that draws them the
+    same way says a flow failed when it did not."""
+    root = await q.add_flow(
+        "report",
+        {},
+        children=[
+            FlowChild("stopped", {}, delay=60_000, on_fail="continue"),
+            FlowChild("waits", {}, delay=60_000, on_fail="continue"),
+        ],
+    )
+    stopped = (await q.get_flow(root.id))["children"][0]["job"].id
+    assert await q.cancel_job(stopped) is True
+
+    r = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
+
+    assert r.status_code == 200
+    assert "0 done, 0 failed, 1 stopped" in r.text

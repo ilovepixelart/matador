@@ -147,11 +147,15 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
          empty) - the same language as the detail's segmented bar. `children_done
          is defined` guards any path that didn't enrich the row. #}
       {% set total = j.children_count %}
+      {% set stopped = j.children_cancelled or 0 %}
+      {# A child somebody stopped is not a child that broke: it gets the muted band,
+         not the red one, or the bar reads as a failing flow when nothing failed. #}
       <span class="w-28 hidden md:flex items-center gap-1.5"
-            title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ total - j.children_done - j.children_failed }} pending">
+            title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ stopped }} stopped, {{ total - j.children_done - j.children_failed - stopped }} pending">
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden flex">
           <span class="block h-full bg-success transition-[width] duration-300" style="width: {{ j.children_done * 100 // total }}%"></span>
           <span class="block h-full bg-danger transition-[width] duration-300" style="width: {{ j.children_failed * 100 // total }}%"></span>
+          <span class="block h-full bg-muted transition-[width] duration-300" style="width: {{ stopped * 100 // total }}%"></span>
         </span>
         <span class="text-muted tabular-nums w-9 text-right">{{ j.children_done }}/{{ total }}</span>
       </span>

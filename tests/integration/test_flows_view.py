@@ -289,7 +289,7 @@ async def test_parked_flow_row_shows_fanin_progress(client, q):
     worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
     task = asyncio.create_task(worker.run())
     for _ in range(200):
-        if (await q.flow_progress([parent.id]))[parent.id] == (1, 1):
+        if (await q.flow_progress([parent.id]))[parent.id] == (1, 1, 0):
             break
         await asyncio.sleep(0.02)
     await worker.stop(grace_period=0)
@@ -413,8 +413,7 @@ async def test_a_cancelled_node_shows_as_cancelled_in_the_tree(client, q):
 
     assert r.status_code == 200
     assert "cancelled" in r.text  # the node's own pill, not "failed"
-    # Pinned trade-off: under `on_fail="continue"` toro records a child that will
-    # never deliver in the parent's failure record, whether it failed or was
-    # cancelled, so the fan-in counts it. The node itself still reads cancelled, and
-    # the reason stored is "cancelled". Splitting that record is a post-1.0 question.
-    assert "1 failed" in r.text
+    # toro keeps the two apart, so the fan-in does too: a child somebody stopped is
+    # counted as stopped, and a flow nobody broke never reads as broken.
+    assert "1 stopped" in r.text
+    assert "failed" not in r.text

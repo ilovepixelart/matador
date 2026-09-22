@@ -389,7 +389,10 @@ class Service:
         if parents:
             prog = await q.flow_progress([r["id"] for r in parents])
             for r in parents:
-                r["children_done"], r["children_failed"] = prog.get(r["id"], (0, 0))
+                done, failed, cancelled = prog.get(r["id"], (0, 0, 0))
+                r["children_done"] = done
+                r["children_failed"] = failed
+                r["children_cancelled"] = cancelled
         return rows
 
     async def search(
@@ -433,8 +436,10 @@ class Service:
                 "children_total": 0,
                 "children_done": 0,
                 "children_failed": 0,
+                "children_cancelled": 0,
                 "children_results": {},
                 "children_failures": {},
+                "children_cancellations": {},
                 "flow_live": False,
             }
         return {
@@ -445,8 +450,10 @@ class Service:
             "children_total": view.total,
             "children_done": view.done,
             "children_failed": view.failed,
+            "children_cancelled": view.cancelled,
             "children_results": view.results,
             "children_failures": view.failures,
+            "children_cancellations": view.cancellations,
             "flow_live": view.live,
         }
 
