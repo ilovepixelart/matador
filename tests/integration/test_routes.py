@@ -197,3 +197,16 @@ async def test_the_detail_shows_a_concurrency_key(client, q):
     assert "order-7" in r.text
     assert "key</dt>" in r.text  # its own labelled field, not just the opts JSON
     assert "key</dt>" not in bare.text
+
+
+async def test_cancelled_is_a_tab_of_its_own(client, q):
+    """A cancellation has to survive state coercion, or the tab falls back to active
+    and a stopped job is invisible."""
+    job = await q.add("stopped-on-purpose", {})
+    assert await q.cancel_job(job.id) is True
+
+    r = await client.get(f"/queues/{QUEUE}?state=cancelled", headers=hx())
+
+    assert r.status_code == 200
+    assert "stopped-on-purpose" in r.text
+    assert "search cancelled" in r.text  # the cancelled view, not a fallback

@@ -21,7 +21,9 @@ from .cadence import Cadence
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
 # `waiting-children`) folds into `active` as in-flight - no separate flows tab.
 # `held` does NOT fold into `wait`: a held job waits on its concurrency key, not on
-# a worker, so counting it as backlog would read as work a worker could take.
+# a worker, so counting it as backlog would read as work a worker could take. Nor does
+# `cancelled` fold into `failed`: a job stopped on purpose did not fail, and counting
+# it as one corrupts the failure share, which is what people page on.
 STATES: tuple[JobState, ...] = (
     "active",
     "wait",
@@ -29,6 +31,7 @@ STATES: tuple[JobState, ...] = (
     "delayed",
     "completed",
     "failed",
+    "cancelled",
 )
 
 # How long Redis gets to confirm the shared subscription before a stream gives up
@@ -386,7 +389,10 @@ class Service:
         if parents:
             prog = await q.flow_progress([r["id"] for r in parents])
             for r in parents:
-                r["children_done"], r["children_failed"] = prog.get(r["id"], (0, 0))
+                done, failed, cancelled = prog.get(r["id"], (0, 0, 0))
+                r["children_done"] = done
+                r["children_failed"] = failed
+                r["children_cancelled"] = cancelled
         return rows
 
     async def search(
@@ -430,8 +436,10 @@ class Service:
                 "children_total": 0,
                 "children_done": 0,
                 "children_failed": 0,
+                "children_cancelled": 0,
                 "children_results": {},
                 "children_failures": {},
+                "children_cancellations": {},
                 "flow_live": False,
             }
         return {
@@ -442,8 +450,10 @@ class Service:
             "children_total": view.total,
             "children_done": view.done,
             "children_failed": view.failed,
+            "children_cancelled": view.cancelled,
             "children_results": view.results,
             "children_failures": view.failures,
+            "children_cancellations": view.cancellations,
             "flow_live": view.live,
         }
 
@@ -461,6 +471,12 @@ class Service:
 
     async def remove(self, name: str, job_id: str) -> bool:
         return await self._q(name).remove_job(job_id)
+
+    async def cancel(self, name: str, job_id: str) -> bool:
+        """Stop a job. Unlike remove, a RUNNING job's processor is stopped too, so the
+        work actually ends instead of carrying on with nowhere to report.
+        """
+        return await self._q(name).cancel_job(job_id)
 
     async def remove_many(self, name: str, job_ids: list[str]) -> int:
         """Remove a specific set of jobs (multi-select bulk delete). Returns how

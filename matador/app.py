@@ -134,7 +134,9 @@ MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out 
 # (a worker holds those) and `waiting-children` (cancel via /flows/clean) are
 # deliberately excluded - clean must never coerce an odd state into a destructive
 # default and delete the wrong jobs.
-CLEANABLE_STATES: frozenset[str] = frozenset({"wait", "held", "delayed", "completed", "failed"})
+CLEANABLE_STATES: frozenset[str] = frozenset(
+    {"wait", "held", "delayed", "completed", "failed", "cancelled"}
+)
 
 # OOB sidebar refresh fragment - re-rendered alongside a panel so the active-queue
 # highlight + badges update in the same response.
@@ -770,6 +772,14 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
     ):
         if not await svc.remove(name, job_id):
             return _toast(request, "Couldn't remove", f"Job #{job_id} is no longer here.")
+        return await _panel(svc, request, name, state, page)
+
+    @router.post("/queues/{name}/jobs/{job_id}/cancel", response_class=HTMLResponse)
+    async def cancel(
+        request: Request, name: str, job_id: str, state: str = "active", page: int = 1
+    ):
+        if not await svc.cancel(name, job_id):
+            return _toast(request, "Couldn't stop", f"Job #{job_id} is no longer here.")
         return await _panel(svc, request, name, state, page)
 
     @router.post("/queues/{name}/jobs/{job_id}/promote", response_class=HTMLResponse)

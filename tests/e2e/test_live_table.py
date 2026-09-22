@@ -126,3 +126,33 @@ def test_a_held_job_appears_and_leaves(page: Page, base_url, drive):
     drive(drain())
     # under the 8s heartbeat, so this proves the finish events drove it, not the backstop
     expect(page.locator("#jobs")).to_contain_text("No held jobs", timeout=6000)
+
+
+def test_a_cancelled_job_appears_on_its_own_tab(page: Page, base_url, drive):
+    """The cancelled tab end to end: a job stopped on purpose shows there, and the
+    failed tab stays empty because a cancellation is not a failure."""
+
+    async def clear():
+        q = Queue(QUEUE, prefix=PREFIX)
+        keys = await q.redis.keys(q.keys.base + "*")
+        if keys:
+            await q.redis.delete(*keys)
+        await q.close()
+
+    drive(clear())
+    page.goto(f"{base_url}/queues/{QUEUE}?state=cancelled")
+    expect(page.locator("#jobs")).to_contain_text("No cancelled jobs")
+    page.wait_for_timeout(2000)  # let the SSE connection establish
+
+    async def add_then_cancel():
+        q = Queue(QUEUE, prefix=PREFIX)
+        job = await q.add("stopped-on-purpose", {})
+        assert await q.cancel_job(job.id) is True
+        await q.close()
+
+    drive(add_then_cancel())
+    # under the 8s heartbeat, so the cancelled event drove it, not the backstop
+    expect(page.locator("#jobs")).to_contain_text("stopped-on-purpose", timeout=6000)
+
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    expect(page.locator("#jobs")).to_contain_text("No failed jobs")

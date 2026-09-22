@@ -22,14 +22,19 @@ fragment mechanics behind these routes are covered in
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
 
-Six job tabs: `active`, `wait`, `held`, `delayed`, `completed`, `failed`. Flows
+Seven job tabs: `active`, `wait`, `held`, `delayed`, `completed`, `failed`,
+`cancelled`. Flows
 are shown root-first - the lists hold flow roots and standalone jobs, while flow
 children (a job with a parentId) are hidden, surfaced only in the parent's tree
 on the detail. toro's `waiting-children` (a parked flow parent) has no tab of
 its own: it folds into `active` as in-flight, and the active badge counts
 `active + waiting-children`. `held` does not fold: a held job waits on its
 `concurrency_key`, not on a worker, so counting it as backlog would read as work
-a worker could take. A bad `state` query value (including the retired
+a worker could take. Nor does `cancelled` fold into `failed`: a job stopped on
+purpose did not fail, and counting it as one corrupts the failure share. The same
+holds inside a flow: a child somebody stopped is counted as stopped, drawn in the
+muted band of the fan-in bar rather than the red one, and read back from
+`cancelled_children()` rather than `failed_children()`. A bad `state` query value (including the retired
 `waiting-children`) is coerced to `active`, never an error.
 
 Tab badges are exact root-only counts, off toro's children index: the number on
@@ -64,6 +69,7 @@ silently.
 | `POST /queues/{name}/pause` · `/resume` | Pause / resume the queue (in-flight jobs finish). |
 | `POST /queues/{name}/jobs/{job_id}/retry` | Retry one failed job. |
 | `POST /queues/{name}/jobs/{job_id}/promote` | Run a delayed job now. |
+| `POST /queues/{name}/jobs/{job_id}/cancel` | Stop a job. On a RUNNING job the worker cancels its processor where it awaits, so the work actually ends: removing it would leave the processor running. |
 | `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. Flow-aware: removing a flow parent removes its whole subtree (the confirm dialog says so). |
 | `POST /queues/{name}/jobs/bulk-remove` | Remove the checkbox-selected jobs - capped at 1000 per request so one click can't fan out unboundedly. |
 | `POST /queues/{name}/retry-all` | Re-queue every failed job. |

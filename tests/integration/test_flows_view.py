@@ -289,7 +289,7 @@ async def test_parked_flow_row_shows_fanin_progress(client, q):
     worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
     task = asyncio.create_task(worker.run())
     for _ in range(200):
-        if (await q.flow_progress([parent.id]))[parent.id] == (1, 1):
+        if (await q.flow_progress([parent.id]))[parent.id] == (1, 1, 0):
             break
         await asyncio.sleep(0.02)
     await worker.stop(grace_period=0)
@@ -398,3 +398,22 @@ async def test_failed_flow_with_a_retried_child_stays_live_then_stops(client, q)
 async def _is_state(q, jid, state):
     j = await q.get_job(jid)
     return j is not None and j.state == state
+
+
+async def test_a_cancelled_node_shows_as_cancelled_in_the_tree(client, q):
+    """A flow tree spells every node's state out rather than colour-coding it, so a
+    stopped node has to read as stopped and not as a failure."""
+    parent = await q.add_flow(
+        "report", {}, children=[c("fetch", {}, delay=60_000, on_fail="continue")]
+    )
+    leaf = (await q.get_flow(parent.id))["children"][0]["job"].id
+    assert await q.cancel_job(leaf) is True
+
+    r = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail", headers=hx())
+
+    assert r.status_code == 200
+    assert "cancelled" in r.text  # the node's own pill, not "failed"
+    # toro keeps the two apart, so the fan-in does too: a child somebody stopped is
+    # counted as stopped, and a flow nobody broke never reads as broken.
+    assert "1 stopped" in r.text
+    assert "failed" not in r.text

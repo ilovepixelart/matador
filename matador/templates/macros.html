@@ -147,11 +147,15 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
          empty) - the same language as the detail's segmented bar. `children_done
          is defined` guards any path that didn't enrich the row. #}
       {% set total = j.children_count %}
+      {% set stopped = j.children_cancelled or 0 %}
+      {# A child somebody stopped is not a child that broke: it gets the muted band,
+         not the red one, or the bar reads as a failing flow when nothing failed. #}
       <span class="w-28 hidden md:flex items-center gap-1.5"
-            title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ total - j.children_done - j.children_failed }} pending">
+            title="{{ j.children_done }} done, {{ j.children_failed }} failed, {{ stopped }} stopped, {{ total - j.children_done - j.children_failed - stopped }} pending">
         <span class="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden flex">
           <span class="block h-full bg-success transition-[width] duration-300" style="width: {{ j.children_done * 100 // total }}%"></span>
           <span class="block h-full bg-danger transition-[width] duration-300" style="width: {{ j.children_failed * 100 // total }}%"></span>
+          <span class="block h-full bg-muted transition-[width] duration-300" style="width: {{ stopped * 100 // total }}%"></span>
         </span>
         <span class="text-muted tabular-nums w-9 text-right">{{ j.children_done }}/{{ total }}</span>
       </span>
@@ -177,6 +181,15 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
               hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>{{ icon('promote', 'w-3.5 h-3.5') }}<span class="sr-only">Promote, run now</span></button>
+      {% endif %}
+      {% if state == 'active' %}
+      {# A running job cannot be retried or promoted; stopping it is the action its
+         row carries. Removal leaves the processor running, cancellation does not. #}
+      <button class="btn btn-sm btn-warning tip" data-tip="Stop this job"
+              hx-post="{{ url_for('cancel', name=name, job_id=j.id).path }}?state={{ state }}&page={{ page }}"
+              hx-target="#queue-panel"
+              hx-confirm="Stop job #{{ j.id }}? Its processor is cancelled where it awaits, so its cleanup runs."
+              data-loading-disable data-loading-aria-busy>{{ icon('pause', 'w-3.5 h-3.5') }}<span class="sr-only">Stop this job</span></button>
       {% endif %}
       {% if state == 'failed' %}
       {# A failed flow parent re-drives its whole failed subtree, not just itself,
