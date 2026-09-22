@@ -4,6 +4,7 @@ heartbeat backstop so it can never hang (the HTTP stream itself is E2E territory
 """
 
 import asyncio
+import math
 import re
 from typing import cast
 
@@ -365,6 +366,64 @@ async def test_a_beat_behind_a_closed_window_waits_for_it(q, monkeypatch):
     # and the beats still land: the fast rate every 0.5 s, the 1 s rate at its interval
     assert sum("changed-fast" in f for f in frames) >= 3
     assert sum(f.startswith("event: changed\n") for f in frames) >= 2
+
+
+def _coarse_timing(loop: asyncio.AbstractEventLoop, quantum: float) -> None:
+    """Time as libuv keeps it, coarsened: the clock reads whole ticks, a timer fires on
+    the tick its deadline falls in, and a wait shorter than a tick fires at once. A
+    timer can so wake the loop while the clock still reads short of the deadline it
+    was set for. uvloop's ticks are milliseconds, and at some uptimes a tick reads
+    one float step short; Windows fires a timer up to 15.6 ms ahead. Ten milliseconds
+    here, wider than the few milliseconds an OS may add to a wait."""
+    real_time, real_call_at = loop.time, loop.call_at
+    ticks = round(1 / quantum)
+
+    def call_at(when, callback, *args, context=None):
+        tick = math.floor(when * ticks) / ticks
+        if tick <= loop.time():
+            return loop.call_soon(callback, *args, context=context)
+        return real_call_at(tick, callback, *args, context=context)
+
+    loop.time = lambda: math.floor(real_time() * ticks) / ticks  # type: ignore[method-assign]
+    loop.call_at = call_at  # type: ignore[method-assign]
+
+
+async def test_a_coarse_clock_cannot_make_the_stream_spin(q, monkeypatch):
+    """Woken by its own timer, the stream reads the clock short of the deadline. Taking
+    the clock's word over the timer's, it would find nothing due and turn at full speed
+    until the next tick: thousands of looks for a dozen beats."""
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "time", loop.time)  # restored afterwards, with call_at
+    monkeypatch.setattr(loop, "call_at", loop.call_at)
+    _coarse_timing(loop, quantum=0.01)
+    monkeypatch.setattr("matador.service.STREAM_RATES", {"changed": 0.105})  # off the grid
+    monkeypatch.setattr("matador.service.HEARTBEAT", 0.105)  # a beat, on a timer, every 105 ms
+    looks = 0
+    real_due = Cadence.due
+
+    def counting(self, *args, **kwargs):
+        nonlocal looks
+        looks += 1
+        return real_due(self, *args, **kwargs)
+
+    monkeypatch.setattr(Cadence, "due", counting)
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    frames: list[str] = []
+
+    async def read() -> None:
+        async for frame in svc.event_stream():
+            frames.append(frame)  # noqa: PERF401 - cancelled mid-stream
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(1.5)  # nothing is published: beats only
+    finally:
+        reader.cancel()
+        await svc.close()
+
+    beats = sum(f.startswith("event:") for f in frames)
+    assert beats >= 10, frames
+    assert looks <= beats + 2, f"the stream looked {looks} times for {beats} beats"
 
 
 async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
