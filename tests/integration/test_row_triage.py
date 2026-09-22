@@ -52,3 +52,21 @@ async def test_detail_reads_chronologically_logs_then_error(client, q, seeded):
     assert r.status_code == 200
     html = r.text.lower()
     assert html.index(">logs<") < html.index(">error<") < html.index(">stack trace<")
+
+
+async def test_a_held_row_names_the_key_it_waits_on(client, q):
+    """HJ-002: "why is this not running" is the only question a held row has to
+    answer, and the key is the answer."""
+    await q.add("holder", {}, concurrency_key="invoice-42")
+    await q.add("behind", {}, concurrency_key="invoice-42")
+
+    r = await client.get(f"/queues/{QUEUE}?state=held", headers=hx())
+
+    assert r.status_code == 200
+    assert "invoice-42" in r.text
+
+
+async def test_rows_without_a_key_say_nothing_about_one(client, seeded):
+    r = await client.get(f"/queues/{QUEUE}?state=wait", headers=hx())
+    assert "alpha" in r.text  # the rows are there
+    assert "on key" not in r.text  # and none of them claims a key

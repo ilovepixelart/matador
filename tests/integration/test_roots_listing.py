@@ -7,7 +7,7 @@ and the pager always agreeing - children hidden from both.
 import pytest
 from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees readable
 
-from matador.service import Service
+from matador.service import STATES, Service
 
 PREFIX = "matadortest"
 QUEUE = "testq"
@@ -134,3 +134,18 @@ async def test_active_tab_clamps_past_the_end(svc, q):
 async def test_empty_state_lists_nothing(svc, q):
     rows, total, page = await svc.jobs(QUEUE, "failed", 1, PER_PAGE)
     assert rows == [] and total == 0 and page == 1
+
+
+async def test_the_held_tab_pages_its_own_roots(svc, q):
+    """HJ-001: a job waiting on a concurrency key is in no other tab, so it needs one
+    of its own, with a badge that is exactly what the tab pages through."""
+    holder = await q.add("holder", {}, concurrency_key="k")
+    behind = [await q.add(f"h{i}", {}, concurrency_key="k") for i in range(3)]
+
+    rows, total, page = await svc.jobs(QUEUE, "held", page=1, per_page=PER_PAGE)
+
+    assert "held" in STATES, "a state with no tab is a state nobody can see"
+    assert (total, page) == (3, 1)
+    assert [r["id"] for r in rows] == [j.id for j in behind]  # the order they were added
+    assert holder.id not in [r["id"] for r in rows]  # it holds the key, it does not wait
+    assert (await svc.queue_view(QUEUE))["counts"]["held"] == total

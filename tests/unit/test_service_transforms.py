@@ -42,6 +42,8 @@ def test_summary_has_exactly_the_list_fields():
         # flow membership: a parent shows its child count, a child its parent link
         "parent_id": None,
         "children_count": 0,
+        # what the job serializes on, if anything
+        "concurrency_key": None,
     }
 
 

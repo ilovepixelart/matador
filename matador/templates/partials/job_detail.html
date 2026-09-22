@@ -43,6 +43,15 @@
     </div>
     {% endif %}
 
+    {% if job.concurrency_key %}
+    {# Jobs sharing a key run one at a time; a held job is waiting for this one. #}
+    <div class="col-span-2 flex items-center gap-2">
+      <dt class="label flex items-center gap-1">
+        {{ icon('key', 'w-3.5 h-3.5') }} key</dt>
+      <dd class="text-sm font-mono">{{ job.concurrency_key }}</dd>
+    </div>
+    {% endif %}
+
     {% if job.flow %}{% include "partials/flow_section.html" %}{% endif %}
 
     <div class="col-span-2"><dt class="label mb-1">data</dt>

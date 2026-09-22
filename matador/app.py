@@ -134,7 +134,7 @@ MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out 
 # (a worker holds those) and `waiting-children` (cancel via /flows/clean) are
 # deliberately excluded - clean must never coerce an odd state into a destructive
 # default and delete the wrong jobs.
-CLEANABLE_STATES: frozenset[str] = frozenset({"wait", "delayed", "completed", "failed"})
+CLEANABLE_STATES: frozenset[str] = frozenset({"wait", "held", "delayed", "completed", "failed"})
 
 # OOB sidebar refresh fragment - re-rendered alongside a panel so the active-queue
 # highlight + badges update in the same response.

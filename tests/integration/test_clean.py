@@ -2,7 +2,7 @@
 
 from matador.service import Service
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, hx
 
 
 async def test_clean_drains_in_batches(q, monkeypatch):
@@ -20,3 +20,15 @@ async def test_clean_drains_in_batches(q, monkeypatch):
     assert total == 2250  # summed across every batch, not capped at 1000
     assert calls["n"] == 3  # looped until a partial (drained) batch
     await svc.close()
+
+
+async def test_held_jobs_can_be_cleaned(client, q):
+    """HJ-004: a held job is removable like any other, and clean is how a tab full of
+    them is drained."""
+    await q.add("holder", {}, concurrency_key="k")
+    await q.add("behind", {}, concurrency_key="k")
+
+    r = await client.post(f"/queues/{QUEUE}/clean?state=held", headers=hx())
+
+    assert r.status_code == 200
+    assert (await q.counts())["held"] == 0
