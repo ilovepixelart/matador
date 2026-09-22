@@ -22,17 +22,18 @@ fragment mechanics behind these routes are covered in
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
 
-Five job tabs: `active`, `wait`, `delayed`, `completed`, `failed`. Flows are
-shown root-first - the lists hold flow roots and standalone jobs, while flow
+Six job tabs: `active`, `wait`, `held`, `delayed`, `completed`, `failed`. Flows
+are shown root-first - the lists hold flow roots and standalone jobs, while flow
 children (a job with a parentId) are hidden, surfaced only in the parent's tree
 on the detail. toro's `waiting-children` (a parked flow parent) has no tab of
 its own: it folds into `active` as in-flight, and the active badge counts
-`active + waiting-children`. A bad `state` query value (including the retired
+`active + waiting-children`. `held` does not fold: a held job waits on its
+`concurrency_key`, not on a worker, so counting it as backlog would read as work
+a worker could take. A bad `state` query value (including the retired
 `waiting-children`) is coerced to `active`, never an error.
 
-Tab badges count total jobs per state, so on a flow-heavy queue a badge can read
-higher than the visible roots (the lists hide children); exact root-only counts
-would need a toro-side index.
+Tab badges are exact root-only counts, off toro's children index: the number on
+a tab is what that tab pages through, children included in neither.
 
 ## Search
 
