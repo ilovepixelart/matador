@@ -67,11 +67,13 @@
 {% if departed %}
 <div class="flex items-center justify-between mt-8 mb-3">
   <div class="label">Recently stopped</div>
+  {% if can_mutate %}
   <button class="btn btn-sm btn-ghost tip" data-tip="Clear stopped-worker history"
           hx-post="{{ url_for('clear_departed').path }}"
           hx-target="#workers-list" hx-swap="morph:innerHTML"
           hx-confirm="Clear the stopped-worker history?"
           data-loading-disable data-loading-aria-busy>{{ icon('trash', 'w-3.5 h-3.5') }} clear<span class="sr-only"> stopped-worker history</span></button>
+  {% endif %}
 </div>
 <div class="card">
   <table class="w-full text-sm">

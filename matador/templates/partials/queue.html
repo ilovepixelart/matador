@@ -9,12 +9,14 @@
       {% endif %}
     </h1>
     <div class="flex gap-2 items-start shrink-0">
+      {% if can_mutate %}
       {% if q.paused %}
       <button class="btn btn-success" hx-post="{{ url_for('resume', name=q.name).path }}?state={{ state }}&page={{ page }}"
               data-loading-disable data-loading-aria-busy>{{ icon('play') }} Resume</button>
       {% else %}
       <button class="btn btn-warning" hx-post="{{ url_for('pause', name=q.name).path }}?state={{ state }}&page={{ page }}"
               data-loading-disable data-loading-aria-busy>{{ icon('pause') }} Pause</button>
+      {% endif %}
       {% endif %}
     </div>
   </div>

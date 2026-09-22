@@ -6,9 +6,11 @@ matador has no identity of its own: the raw request is where the host app's iden
 arrives.
 """
 
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
-from toro import FlowChild
+from toro import FlowChild, Worker
 
 from matador import create_app
 
@@ -37,6 +39,82 @@ def _mutating_routes(app) -> list[tuple[str, str]]:
 
     walk(app.routes)
     return out
+
+
+# Every way the page offers to change something. A control is an htmx verb or a
+# posting form; reading the response for these finds a control nobody listed.
+MUTATING_MARKUP = ("hx-post", "hx-delete", "hx-put", "hx-patch", 'method="post"')
+
+
+class _Params(dict):
+    """Fill any route parameter, including one this test has never heard of."""
+
+    def __missing__(self, key: str) -> str:
+        return "x"
+
+
+def _readable_routes(app) -> list[str]:
+    """Every GET route, derived from the app itself, so a page added later is read
+    without being listed. `/stream` is excluded by hand: it is a stream, not a page,
+    and it never returns.
+    """
+    out: list[str] = []
+
+    def walk(routes) -> None:
+        for route in routes:
+            if type(route).__name__ == "Mount":  # /static is a sub-app, not our routes
+                continue
+            original = getattr(route, "original_router", None)
+            nested = getattr(route, "routes", None) or getattr(original, "routes", None)
+            if nested:
+                walk(nested)
+                continue
+            if "GET" in getattr(route, "methods", set()) and route.path != "/stream":
+                out.append(route.path)
+
+    walk(app.routes)
+    return out
+
+
+async def _controls_drawn(client, app, params: _Params) -> dict[str, list[str]]:
+    """What each readable page offers to change."""
+    found = {}
+    for path in _readable_routes(app):
+        r = await client.get(path.format_map(params), headers=hx(), follow_redirects=True)
+        assert r.status_code == 200, f"{path} -> {r.status_code}"
+        found[path] = [marker for marker in MUTATING_MARKUP if marker in r.text]
+    return found
+
+
+@pytest.fixture
+async def failed_flow(q):
+    """A flow with a failed child: its tree draws a per-node retry and the parent a
+    whole-flow retry, controls that appear on no other page."""
+    parent = await q.add_flow("publish", {}, children=[FlowChild("ok", {}), FlowChild("bad", {})])
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom")
+        return 1
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        job = await q.get_job(parent.id)
+        if job and job.state == "failed":
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+    return parent
+
+
+@pytest.fixture
+async def unlocked(q):
+    """The default dashboard: no predicate, so everything is allowed."""
+    app = create_app([QUEUE], prefix=PREFIX)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c, app
 
 
 @pytest.fixture
@@ -90,16 +168,34 @@ async def test_the_parked_flow_control_is_not_drawn_either(locked, q, seeded):
     assert "cancel parked flows" not in r.text
 
 
-async def test_a_dashboard_that_may_mutate_draws_them_all(client, q, seeded):
-    """The mirror of every assertion above: absence proves nothing unless the same
-    markup is present when mutating is allowed. Read-only is opt-in."""
-    await q.add_flow("publish", {}, children=[FlowChild("a", {}, delay=60_000)])
+async def test_no_page_a_viewer_can_reach_draws_a_control(locked, seeded, failed_flow, q):
+    """OP-008, derived rather than listed: every page is fetched from the app's own
+    route table and read for a control. A hand-listed set of strings only ever finds
+    the controls somebody remembered to list."""
+    client, app = locked
+    params = _Params(name=QUEUE, job_id=failed_flow.id, scheduler_id="nightly")
 
-    failed = await client.get(f"/queues/{QUEUE}?state=failed", headers=hx())
+    drawn = await _controls_drawn(client, app, params)
+
+    offenders = {path: markers for path, markers in drawn.items() if markers}
+    assert not offenders, f"read-only pages still draw controls: {offenders}"
+
+
+async def test_a_dashboard_that_may_mutate_draws_them_all(unlocked, seeded, failed_flow, q):
+    """The mirror, and the reason the crawl above means anything: the same pages,
+    read the same way, with mutating allowed. A page that draws no control either way
+    would let the read-only assertion pass while proving nothing. Read-only is opt-in,
+    so the default dashboard is the mutating one."""
+    client, app = unlocked
+    await q.add_flow("parked", {}, children=[FlowChild("later", {}, delay=60_000)])
+    params = _Params(name=QUEUE, job_id=failed_flow.id, scheduler_id="nightly")
+
+    drawn = await _controls_drawn(client, app, params)
+
+    # the pages the read-only crawl found controls on, before they were guarded
+    for path in ("/queues/{name}", "/workers", "/queues/{name}/jobs/{job_id}"):
+        assert drawn[path], f"{path} draws no control at all, so its absence proves nothing"
     active = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
-
-    assert "Remove this job" in failed.text
-    assert "retry all" in failed.text.lower()
     assert "cancel parked flows" in active.text
 
 
