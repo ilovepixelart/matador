@@ -35,7 +35,7 @@ waits on.
 | HJ-002 | A held row names the key it waits on; a row whose job has no key shows nothing extra. | `tests/integration/test_row_triage.py::test_a_held_row_names_the_key_it_waits_on`, `::test_rows_without_a_key_say_nothing_about_one` |
 | HJ-003 | The job detail shows the concurrency key of any job that has one. | `tests/integration/test_routes.py::test_the_detail_shows_a_concurrency_key` |
 | HJ-004 | `clean("held")` is allowed and removes every held job; bulk select and delete work on the tab. | `tests/integration/test_clean.py::test_held_jobs_can_be_cleaned` |
-| HJ-005 | The held tab renders end to end: a held job is visible in a browser and disappears when its key frees. | `tests/e2e/test_live_table.py::test_a_held_job_appears_and_leaves` |
+| HJ-005 | The held tab renders end to end: a held job is visible in a browser, names its key, and leaves the tab when the key frees and it runs. | `tests/e2e/test_live_table.py::test_a_held_job_appears_and_leaves` |
 
 ## Out of scope
 

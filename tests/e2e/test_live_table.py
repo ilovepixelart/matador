@@ -2,8 +2,10 @@
 (no reload) - the end-to-end proof that enqueue now emits a `changed` signal the table
 reacts to, across every state (not just active)."""
 
+import asyncio
+
 from playwright.sync_api import Page, expect
-from toro import Queue
+from toro import Queue, Worker
 
 from .conftest import PREFIX, QUEUE
 
@@ -100,11 +102,27 @@ def test_a_held_job_appears_and_leaves(page: Page, base_url, drive):
     expect(page.locator("#jobs")).to_contain_text("behind", timeout=6000)
     expect(page.locator("#jobs")).to_contain_text("invoice-42")  # why it is not running
 
-    async def free_the_key():
+    async def drain():
+        # A worker finishing the holder is what frees the key, and the `completed`
+        # events are what the page refreshes on. Removing the holder would free the
+        # key too, but REMOVE_JOB publishes nothing, so the tab would not hear about
+        # it until the heartbeat.
+        async def proc(job):
+            return job.name
+
         q = Queue(QUEUE, prefix=PREFIX)
-        holder = await q.redis.get(q.keys.concurrency("invoice-42"))
-        await q.remove_job(holder)
+        worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+        task = asyncio.create_task(worker.run())
+        for _ in range(500):
+            if (await q.counts())["completed"] >= 2:
+                break
+            await asyncio.sleep(0.02)
+        else:
+            raise AssertionError("the worker never finished both jobs")
+        await worker.stop()
+        task.cancel()
         await q.close()
 
-    drive(free_the_key())
+    drive(drain())
+    # under the 8s heartbeat, so this proves the finish events drove it, not the backstop
     expect(page.locator("#jobs")).to_contain_text("No held jobs", timeout=6000)
