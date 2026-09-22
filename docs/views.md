@@ -21,6 +21,7 @@ fragment mechanics behind these routes are covered in
 | `/sidebar` | The queue nav with counts; usually delivered out-of-band rather than fetched directly. |
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
+| `/metrics` | OpenMetrics for every watched queue, in the scraper's content type. Rendered by toro, so a scraper and this dashboard never disagree. |
 
 Seven job tabs: `active`, `wait`, `held`, `delayed`, `completed`, `failed`,
 `cancelled`. Flows

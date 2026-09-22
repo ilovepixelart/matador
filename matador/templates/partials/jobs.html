@@ -1,6 +1,6 @@
 {% from "macros.html" import icon, bar_color, job_row, jobs_head, empty_state, pglink, state_label with context %}
 {# every state except active is bulk-actionable (a worker holds active jobs) #}
-{% set bulk = state != 'active' %}
+{% set bulk = can_mutate and state != 'active' %}
 {% if bulk and jobs %}
 <div class="flex items-center gap-2 px-4 py-2.5 bg-panel2/40 border-b border-line">
   {# Bulk-action bar - shown by JS only when ≥1 row is selected (persists across pages). #}
@@ -29,7 +29,7 @@
 
 {% endif %}
 
-{% if state == 'active' and q.counts['waiting-children'] %}
+{% if can_mutate and state == 'active' and q.counts['waiting-children'] %}
 {# Parked flows fold into active, which isn't bulk-selectable, so their bulk
    cancel lives here: every waiting-children parent plus its whole subtree. #}
 <div class="flex items-center justify-end px-4 py-2.5 bg-panel2/40 border-b border-line">
