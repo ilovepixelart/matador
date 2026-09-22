@@ -81,7 +81,8 @@ silently.
 | `POST /queues/{name}/schedulers/{id}/trigger` | Run one occurrence of a schedule now. |
 | `DELETE /queues/{name}/schedulers/{id}` | Remove a schedule. |
 
-Every action maps to ordinary public toro API (`retry_job`, `promote_job`,
+In a read-only dashboard (`can_mutate`) none of these are drawn, and all of them
+refuse. Every action maps to ordinary public toro API (`retry_job`, `promote_job`,
 `clean`, `trigger_scheduler`, …) through the shared `Service` - the dashboard
 has no privileged backdoor into the queue. Who may call these routes is your
 auth's decision: see [Integration](integration.md) and [Security](security.md).
