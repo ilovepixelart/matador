@@ -3,7 +3,7 @@
 {% from "macros.html" import sidebar_classes %}
 <aside id="sidebar" hx-swap-oob="morph"
        class="{{ sidebar_classes() }}"
-       hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
-       hx-swap="morph:innerHTML" hx-sync="this:drop">
+       hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed-fast"
+       hx-swap="morph:innerHTML" hx-sync="this:queue last">
   {% include "partials/sidebar.html" %}
 </aside>

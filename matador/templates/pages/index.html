@@ -3,8 +3,8 @@
 {% block body %}
 <div class="flex flex-1 min-h-0">
   <aside id="sidebar" class="{{ sidebar_classes() }}"
-         hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed throttle:400ms"
-         hx-swap="morph:innerHTML" hx-sync="this:drop">
+         hx-get="{{ url_for('sidebar').path }}" hx-trigger="sse:changed-fast"
+         hx-swap="morph:innerHTML" hx-sync="this:queue last">
     {% include "partials/sidebar.html" %}
   </aside>
   {# Controls inside the panel re-render the panel by DEFAULT: hx-target is

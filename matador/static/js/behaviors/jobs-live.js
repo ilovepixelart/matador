@@ -11,6 +11,15 @@ document.body.addEventListener("htmx:beforeRequest", (e) => {
   }
 });
 
+// The same at swap time: a refresh that was already in flight when the row opened
+// carries HTML with every row closed, and landing it would shut the row under the reader.
+document.body.addEventListener("htmx:beforeSwap", (e) => {
+  const live = e.detail.requestConfig?.elt?.matches?.("[data-jobs-live]");
+  if (live && document.querySelector("#jobs details[open]")) {
+    e.detail.shouldSwap = false; // dropped; the next event refreshes once the row closes
+  }
+});
+
 // A jobs fragment may only ever land in #jobs. Rapid queue switching can leave
 // htmx listeners glued to recycled DOM nodes (morph keeps the node, htmx keeps
 // the init-time verb+path closure); when such a node has lost its hx-target

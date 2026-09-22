@@ -15,6 +15,8 @@ from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
 
+from .cadence import Cadence
+
 # The tabs. A flow is the ROOT job moving through these like any job; its children
 # are hidden from the lists (only in the parent's tree). A parked parent (toro's
 # `waiting-children`) folds into `active` as in-flight - no separate flows tab.
@@ -46,6 +48,31 @@ async def _confirm_subscribed(pubsub: PubSub, channels: int) -> None:
         reply = await pubsub.get_message(timeout=left)
         if reply is not None and reply["type"] == "subscribe":
             channels -= 1
+
+
+# The refresh rates the stream offers, as SSE event name -> seconds. A live region
+# listens to the one it can afford. The cadence is enforced here, not by a client
+# throttle: htmx's throttle has no trailing edge, so it drops the last change.
+STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-slow": 5.0}
+
+# A rate that has sent nothing for this long emits. A rate whose interval is longer
+# than this beats at its interval instead: a beat waits for its window to reopen.
+HEARTBEAT = 8.0
+
+
+async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
+    """Sleep until the cadence's next wake, or until a job event when one could matter.
+
+    True means the wait ran its course; False, that an event cut it short.
+    """
+    if not hears:
+        await asyncio.sleep(seconds)
+        return True
+    try:
+        await asyncio.wait_for(ev.wait(), timeout=seconds)
+    except (TimeoutError, asyncio.TimeoutError):
+        return True
+    return False
 
 
 def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
@@ -514,12 +541,12 @@ class Service:
     async def event_stream(
         self, is_disconnected: Callable[[], Awaitable[bool]] | None = None
     ) -> AsyncIterator[str]:
-        """SSE stream: emit a COALESCED `changed` signal whenever any queue publishes
-        a job event. toro publishes one event per job (completed/failed/progress), so
-        under load that's a firehose; we emit on the first event, then let whatever
-        lands in the next ~200ms ride the same repaint - a thousand finishes cost one
-        refresh (~5 `changed`/s ceiling). The same signal doubles as the heartbeat
-        after 8 quiet seconds. All streams share ONE pubsub via the broadcaster.
+        """SSE stream: tell the page that something changed, at each rate in
+        STREAM_RATES. toro publishes one event per job, so under load that is a
+        firehose; WHEN each rate speaks is decided by `Cadence` (matador/cadence.py),
+        a state machine over an injected clock - this loop only performs it, so every
+        timing rule is checked without sleeping. All streams share ONE pubsub via the
+        broadcaster.
         """
         try:
             await self._ensure_broadcaster()
@@ -530,6 +557,9 @@ class Service:
             return
         ev = asyncio.Event()
         self._listeners.add(ev)
+        cadence = Cadence(STREAM_RATES, HEARTBEAT)
+        clock = asyncio.get_running_loop().time
+        timed_out = False
         try:
             yield "retry: 3000\n\n"
             while True:
@@ -539,12 +569,12 @@ class Service:
                     break
                 if self._broadcast_task is None or self._broadcast_task.done():
                     break  # subscription died: end the stream, the client reconnects
-                with contextlib.suppress(TimeoutError, asyncio.TimeoutError):
-                    await asyncio.wait_for(ev.wait(), timeout=8.0)
-                yield "event: changed\ndata: 1\n\n"  # signal, or heartbeat on timeout
-                if ev.is_set():
-                    await asyncio.sleep(0.2)  # the burst rides this repaint
-                    ev.clear()
+                changed = ev.is_set()
+                ev.clear()  # before emitting: an event from here on sets it again
+                for name in cadence.due(clock(), changed=changed, timed_out=timed_out):
+                    yield f"event: {name}\ndata: 1\n\n"
+                wake_at, hears = cadence.next_wake()
+                timed_out = await _wait(ev, wake_at - clock(), hears=hears)
         finally:
             self._listeners.discard(ev)
 
