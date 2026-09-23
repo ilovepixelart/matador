@@ -621,8 +621,26 @@ class Service:
                 timed_out = await _wait(ev, wake_at - clock(), hears=hears)
         finally:
             self._listeners.discard(ev)
+            if not self._listeners:
+                await self._stop_broadcaster()
 
-    async def close(self) -> None:
+    async def _stop_broadcaster(self) -> None:
+        """Give the shared subscription back when the last viewer leaves.
+
+        A mounted sub-app's lifespan never runs, so `close()` never runs either: the
+        broadcaster and the connection under it would live as long as the host
+        process, for a dashboard nobody has open. It starts with the first viewer, so
+        it ends with the last, and there is nothing left to leak either way.
+        """
+        async with self._broadcast_lock:
+            if self._listeners:  # someone connected while we waited for the lock
+                return
+            await self._release_broadcaster()
+
+    async def _release_broadcaster(self) -> None:
+        """Cancel the listener task and close its pubsub. Caller holds the lock (or
+        owns the Service, as `close()` does).
+        """
         if self._broadcast_task is not None:
             self._broadcast_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -632,6 +650,9 @@ class Service:
             with contextlib.suppress(Exception):
                 await self._broadcast_pubsub.aclose()
             self._broadcast_pubsub = None
+
+    async def close(self) -> None:
+        await self._release_broadcaster()
         # Only close connections matador opened; a shared host client is theirs to manage.
         if self._owns_connection:
             for q in self.queues.values():
