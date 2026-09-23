@@ -155,6 +155,27 @@ def seeded_many(run_async):
     run_async(_seed_many(25))
 
 
+@pytest.fixture(autouse=True)
+def no_console_errors(page):
+    """Fail a test whose page logged an error.
+
+    Without this, a thrown exception in the page fails nothing: htmx keeps swapping,
+    the layout still renders, and the broken control is found by a person clicking it.
+    Both halves matter - `console.error` for what the page reports, `pageerror` for
+    what it did not catch.
+    """
+    errors: list[str] = []
+    page.on(
+        "console",
+        lambda msg: errors.append(f"console.error: {msg.text}") if msg.type == "error" else None,
+    )
+    page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
+
+    yield
+
+    assert not errors, "the page logged errors:\n  " + "\n  ".join(errors)
+
+
 @pytest.fixture
 def drive(run_async):
     """Run a coroutine against the same Redis the server reads (for live-update tests)."""
