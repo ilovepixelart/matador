@@ -4,6 +4,10 @@
 // own (sr-only) content - never aria-label, which would fight the visible label.
 const tip = document.createElement("div");
 tip.id = "tip";
+// Announced as a tooltip rather than as an unnamed div. No aria-describedby: the
+// tip text repeats the trigger's own (sr-only) name, so describing with it would
+// have a screen reader read the same words twice.
+tip.setAttribute("role", "tooltip");
 document.body.appendChild(tip);
 let cur = null;
 
@@ -40,4 +44,10 @@ document.addEventListener("focusin", (e) => {
 });
 document.addEventListener("focusout", hide);
 document.addEventListener("click", hide);
+// WCAG 1.4.13: dismissible without moving the pointer or the focus. A tip covers
+// whatever is beneath it, and a keyboard user who cannot dismiss it cannot read
+// what it covers. Not swallowed: other behaviors (dialogs, the popover) see it too.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hide();
+});
 window.addEventListener("scroll", hide, true);
