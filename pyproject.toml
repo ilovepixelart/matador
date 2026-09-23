@@ -1,7 +1,7 @@
 [project]
 # PyPI distribution name - `matador` is taken; the import package stays `matador`.
 name = "matador-dashboard"
-version = "0.10.0"
+version = "0.10.1"
 description = "An async dashboard for toro queues."
 readme = "README.md"
 requires-python = ">=3.10"

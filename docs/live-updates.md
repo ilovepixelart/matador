@@ -122,6 +122,16 @@ row carries HTML with every row closed. Either way the refresh is dropped while 
 row is open; a "live updates paused" notice appears (pure CSS, a `:has()` rule)
 and updates resume the moment you close the row.
 
+## The page says whether the stream is connected
+
+`live-status.js` copies htmx's own stream events onto the root element as
+`data-sse`: `open` once the browser's `EventSource` has connected, `error` when it
+drops, `closed` when it ends. A dashboard that has stopped moving is either quiet or
+disconnected, and nothing else on the page distinguishes the two.
+
+It is also the signal a test waits for before publishing a change: pub/sub has no
+replay, so a change published before the subscription lands reaches nobody.
+
 ## Why SSE and not WebSockets
 
 The data only flows one way - the browser never pushes over the stream
