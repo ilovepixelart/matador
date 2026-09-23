@@ -77,8 +77,12 @@ Job data is arbitrary user content, and the dashboard renders it:
 
 - **Escaping** - everything goes through Jinja autoescaping; job data is
   rendered as highlighted JSON, never interpreted as HTML.
-- **Output bounded** - the `pretty` JSON filter truncates at 20k characters, so
-  a multi-megabyte payload can't hang the highlighter or the page.
+- **Output bounded** - everything a job carries is written by whoever enqueued it,
+  which is often a web app's users, so the page clips it: a row's payload and failure
+  reason at 500 characters, a detail's reason and stack trace at 4,000, the log at the
+  newest 200 lines, and the `pretty` JSON filter at 20,000 characters before it
+  reaches the highlighter. Without those, one fat payload made a listing 18 MB, and
+  the live region re-fetches that listing on every change event.
 - **No regex on attacker-controlled strings** - the sidebar derives the active
   queue from the client-supplied `HX-Current-URL` header with `rfind` + slicing
   rather than a backtracking regex (a ReDoS fix: the old pattern was quadratic

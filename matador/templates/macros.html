@@ -128,9 +128,11 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     {% if state == 'failed' and j.failed_reason %}
     {# Failed rows lead with WHY - the payload is one expand away, the reason
        is what an operator scans for. #}
-    <span class="text-danger"><span class="truncate" title="{{ j.failed_reason }}">{{ j.failed_reason }}</span></span>
+    {# clipped: a row shows what fits on a line, and the row is one of fifty on a
+       fragment the live region re-fetches on every change event #}
+    <span class="text-danger"><span class="truncate" title="{{ j.failed_reason|clip }}">{{ j.failed_reason|clip }}</span></span>
     {% else %}
-    <span class="font-mono text-muted"><span class="truncate">{{ j.data|tojson }}</span></span>
+    <span class="font-mono text-muted"><span class="truncate">{{ j.data|clip }}</span></span>
     {% endif %}
     <span>
       {# progress is an active-job concept: a finished row's 100% bar (or a
