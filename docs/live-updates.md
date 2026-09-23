@@ -9,7 +9,10 @@ be re-rendered.
 A single **broadcaster** per dashboard holds ONE pub/sub subscription across
 every watched queue's toro events channel and fans a wakeup out to each
 connected stream - so N open tabs cost one Redis connection, not N, and idle
-tabs can't starve the action routes' pool. `/stream` does **not** forward job
+tabs can't starve the action routes' pool. It is opened by the first viewer and
+released by the last, so a dashboard nobody is watching holds nothing: a mounted
+sub-app's lifespan never runs, and a subscription that waited for shutdown would
+wait for the host process to end. `/stream` does **not** forward job
 events to the browser. Whatever arrives - one finish or a thousand - each
 stream says only that something changed, at three rates:
 

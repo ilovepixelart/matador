@@ -946,12 +946,13 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     assets themselves need protecting.)
 
     `require_same_origin` rejects state-changing requests (POST/DELETE…) whose
-    `Origin` doesn't match the request host - a stateless CSRF defense. It
-    defaults to ON whenever `dependencies` are configured (auth usually means
-    cookies, and cookies are what make CSRF real) and OFF otherwise; pass an
-    explicit bool to override either way. Behind a reverse proxy, ensure the
-    forwarded Host is correct (uvicorn `--proxy-headers`) so same-origin
-    requests aren't falsely blocked.
+    `Origin` doesn't match the request host - a stateless CSRF defense. It is ON
+    unless you pass `False`: the credential such an attack rides belongs to the host
+    app, whatever matador itself requires, and a host authenticates in more ways than
+    `dependencies=`. Requests with no `Origin` (curl, server-to-server) pass, because
+    the defense is aimed at browsers. Behind a reverse proxy, ensure the forwarded
+    Host is correct (uvicorn `--proxy-headers`) so same-origin requests aren't
+    falsely blocked.
 
     Set `show_stacktraces=False` to omit job stack traces from the UI - they can
     leak source paths, versions, and occasionally secrets from exception messages,

@@ -100,10 +100,11 @@ Job data is arbitrary user content, and the dashboard renders it:
   jobs: removing a flow root removes its whole subtree.
 - The Redis health bar's key count is the whole logical database, not this queue's
   prefix, so on a shared Redis it reflects co-tenants too.
-- A mounted sub-app's lifespan does not run, so `Service.close()` does not either:
-  the event broadcaster and its pub/sub connection live until the process ends. That
-  is the same reason a mounted dashboard should be given a `connection=` it does not
-  own.
+- A mounted sub-app's lifespan does not run, so `Service.close()` does not either.
+  The broadcaster is started by the first viewer and released by the last, so it
+  holds nothing while nobody is watching; what `close()` still does is hand back
+  connections matador opened, which is why a mounted dashboard should be given a
+  `connection=` the host owns.
 
 ## Information exposure
 
