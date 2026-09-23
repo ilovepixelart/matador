@@ -65,8 +65,15 @@ function onSwap() {
   sync();
 }
 // afterSettle fires once the DOM (incl. OOB swaps) is final, so the bar state set
-// here sticks; rAF guards against any late style application.
-document.body.addEventListener("htmx:afterSettle", () => requestAnimationFrame(onSwap));
+// here sticks. Applied SYNCHRONOUSLY: a swap brings back unchecked boxes, and a
+// frame's delay is a frame in which the selection is visibly gone - long enough for
+// a click to toggle a box the page is about to re-tick, and in a background tab,
+// where rAF does not run at all, the selection simply looks lost. The second pass
+// keeps the original guard against a late style application; onSwap is idempotent.
+document.body.addEventListener("htmx:afterSettle", () => {
+  onSwap();
+  requestAnimationFrame(onSwap);
+});
 // Clear once a bulk-remove has been issued - centralised here so it doesn't depend
 // on the triggering button surviving its own swap.
 document.body.addEventListener("htmx:afterRequest", (e) => {
