@@ -13,7 +13,7 @@ from typing import Any
 
 from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
-from toro import Job, JobState, Queue
+from toro import DATA_MODEL_VERSION, IncompatibleDataModelError, Job, JobState, Queue
 from toro.openmetrics import render_all
 
 from .cadence import Cadence
@@ -324,8 +324,28 @@ class Service:
             total += await q.clear_departed()
         return total
 
+    async def _check_data_model(self, q: Queue, name: str) -> None:
+        """Refuse a queue written by a toro newer than the one we read it with.
+
+        toro makes this check where it writes; a dashboard almost never writes, so
+        without this it would render a shape it does not know field by field. Reading
+        the stamp cannot create it: opening a queue is not a claim to have written it.
+        A stamp we cannot parse is not evidence of a newer model, so it reads as
+        unstamped rather than locking an operator out of their own dashboard.
+        """
+        stamped = await q.redis.hget(q.keys.meta, "model")
+        if stamped is None:
+            return
+        try:
+            found = int(stamped)
+        except ValueError:
+            return
+        if found > DATA_MODEL_VERSION:
+            raise IncompatibleDataModelError(name, found, DATA_MODEL_VERSION)
+
     async def queue_view(self, name: str) -> dict[str, Any]:
         q = self._q(name)
+        await self._check_data_model(q, name)
         return {
             "name": name,
             "counts": _fold_counts(await q.roots_counts()),

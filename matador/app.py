@@ -39,7 +39,13 @@ from pygments.lexers import JsonLexer  # ty: ignore[unresolved-import]
 from redis.asyncio import Redis
 from starlette.responses import Response
 
-from .service import STATES, JobState, Service, UnknownQueueError
+from .service import (
+    STATES,
+    IncompatibleDataModelError,
+    JobState,
+    Service,
+    UnknownQueueError,
+)
 
 _JSON_LEXER = JsonLexer()
 _JSON_FMT = HtmlFormatter(nowrap=True)  # token <span>s only; we wrap + style ourselves
@@ -575,6 +581,15 @@ class _RevalidatedStatic(StaticFiles):
         return response
 
 
+def _incompatible_model(request: Request, exc: IncompatibleDataModelError) -> Response:
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "pages/error.html",
+        {"title": "Newer data model", "message": str(exc)},
+        status_code=409,
+    )
+
+
 def _unknown_queue(request: Request, exc: UnknownQueueError) -> Response:
     return _TEMPLATES.TemplateResponse(
         request,
@@ -1013,6 +1028,7 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
         app.middleware("http")(_read_only_guard(can_mutate))
     app.middleware("http")(_security_headers)
     app.exception_handler(UnknownQueueError)(_unknown_queue)
+    app.exception_handler(IncompatibleDataModelError)(_incompatible_model)
 
     app.include_router(_views_router(svc, show_stacktraces=show_stacktraces))
     app.include_router(_actions_router(svc, show_stacktraces=show_stacktraces))
