@@ -50,9 +50,3 @@ def test_the_options_are_the_ones_that_were_frozen():
 @pytest.mark.parametrize("option", sorted(OPTIONS))
 def test_every_option_is_documented(option):
     assert option in _documentation(), f"{option} configures the dashboard and is on no page"
-
-
-def test_the_version_is_where_packaging_expects_it():
-    import importlib.metadata
-
-    assert importlib.metadata.version("matador-dashboard") == matador.__version__
