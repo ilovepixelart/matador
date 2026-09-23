@@ -2,6 +2,17 @@
 
 Breaking changes by release, newest first, each with what to do about it.
 
+## 1.0.2
+
+Nothing breaks.
+
+**A queue written by a newer toro is refused, not rendered.** Each queue carries the
+data-model version that wrote it. toro checks it where it writes, which is almost
+nowhere in a dashboard, so matador read a queue stamped newer than it understands and
+rendered that shape field by field. Workers are upgraded before dashboards, which is
+the ordinary way to arrive here. Opening such a queue now gives a 409 naming both
+version numbers. Opening a queue still never stamps one.
+
 ## 1.0.1
 
 Nothing breaks. Two fixes, both in what a long-lived dashboard does over time.
