@@ -210,3 +210,25 @@ async def test_cancelled_is_a_tab_of_its_own(client, q):
     assert r.status_code == 200
     assert "stopped-on-purpose" in r.text
     assert "search cancelled" in r.text  # the cancelled view, not a fallback
+
+
+async def test_the_api_docs_are_not_served(client):
+    """FastAPI's auto-docs are registered as plain Starlette routes, so `dependencies=`
+    never covered them: mounted behind auth they were the one unauthenticated page,
+    they published the whole route table including every mutating endpoint, and
+    `/docs` loads a third-party script onto the HOST app's origin.
+
+    A dashboard has no API for a human to explore, so it serves none.
+    """
+    for path in ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"):
+        assert (await client.get(path)).status_code == 404, path
+
+
+async def test_a_page_number_from_the_url_bar_cannot_500_the_page(client, seeded):
+    """`?page=9223372036854775807` reached Redis as a ZRANGE bound and came back as
+    "value is not an integer or out of range": any viewer could 500 a page by typing
+    in the URL. The low side was already clamped; the high side was clamped only
+    after the query it broke."""
+    for page in (9223372036854775807, 10**30, -5):
+        r = await client.get(f"/queues/{QUEUE}?state=wait&page={page}", headers=hx())
+        assert r.status_code == 200, f"page={page} -> {r.status_code}"

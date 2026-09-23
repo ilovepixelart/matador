@@ -1133,7 +1133,7 @@ wheels = [
 
 [[package]]
 name = "toro-queue"
-version = "0.10.0"
+version = "0.11.0"
 source = { editable = "../toro" }
 dependencies = [
     { name = "croniter" },
@@ -1155,6 +1155,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5.0" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "ty", specifier = ">=0.0.47" },
+    { name = "uvloop", marker = "sys_platform != 'win32'", specifier = ">=0.21" },
 ]
 
 [[package]]

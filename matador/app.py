@@ -44,6 +44,33 @@ from .service import STATES, JobState, Service, UnknownQueueError
 _JSON_LEXER = JsonLexer()
 _JSON_FMT = HtmlFormatter(nowrap=True)  # token <span>s only; we wrap + style ourselves
 _MAX_JSON_CHARS = 20_000  # job data is user-controlled + unbounded; cap what we lex
+# What one row, one message or one log line may contribute to a page. Everything a job
+# carries is written by whoever enqueued it, which is often a web app's users: a single
+# fat payload made the listing 18 MB, and the live region re-fetches that listing on
+# every change event, about once a second per open tab.
+_MAX_CELL_CHARS = 500
+_MAX_FIELD_CHARS = 4_000
+_MAX_LOG_LINES = 200
+
+
+def _clip(value: object, limit: int = _MAX_CELL_CHARS) -> str:
+    """Render at most `limit` characters of something a stranger wrote."""
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}… ({len(text):,} chars)"
+
+
+def _tail(lines: list[str] | None, limit: int = _MAX_LOG_LINES) -> list[str]:
+    """Return the newest `limit` log lines, each clipped.
+
+    A job that logs in a loop is a job whose last lines are the ones worth reading.
+    """
+    lines = lines or []
+    kept = [_clip(line) for line in lines[-limit:]]
+    if len(lines) > limit:
+        kept.insert(0, f"… {len(lines) - limit:,} earlier lines not shown")
+    return kept
 
 
 def _pretty_json(obj: object) -> Markup:
@@ -321,6 +348,8 @@ _TEMPLATES.env.filters["comma"] = lambda n: f"{n:,}"
 _TEMPLATES.env.filters["compact"] = _compact
 _TEMPLATES.env.filters["dur"] = _dur
 _TEMPLATES.env.filters["pretty"] = _pretty_json
+_TEMPLATES.env.filters["clip"] = _clip
+_TEMPLATES.env.filters["tail"] = _tail
 _TEMPLATES.env.filters["uptime"] = _uptime
 _TEMPLATES.env.filters["ago"] = _ago
 _TEMPLATES.env.filters["due"] = _due
@@ -936,7 +965,13 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     the click and reports a failure that was never one.
     """
     if require_same_origin is None:
-        require_same_origin = bool(dependencies)
+        # On, unless the host says otherwise. The ambient credential a CSRF attack
+        # rides belongs to the HOST app, and a host authenticates in more ways than
+        # `dependencies=`: its own middleware, a session, an authenticating proxy.
+        # Keying this on `dependencies` left every one of those open to a plain
+        # cross-origin form post. Requests with no Origin (curl, a scraper) still
+        # pass: the defense is aimed at browsers, where the cookie is.
+        require_same_origin = True
     if not dependencies:
         logging.getLogger("matador").warning(
             "matador has no auth configured: every route is open to whoever can reach it. "
@@ -954,7 +989,19 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
         yield
         await svc.close()
 
-    app = FastAPI(title="matador", lifespan=lifespan, dependencies=list(dependencies or []))
+    app = FastAPI(
+        title="matador",
+        lifespan=lifespan,
+        dependencies=list(dependencies or []),
+        # No auto-docs. They are registered as plain Starlette routes, so
+        # `dependencies=` never covered them: mounted behind auth they were the one
+        # unauthenticated page, they published every mutating endpoint and its
+        # parameters, and /docs loads a third-party script onto the HOST app's origin.
+        # A dashboard has no API for a human to explore.
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.mount("/static", _RevalidatedStatic(directory=str(_HERE / "static")), name="static")
 
     # Middleware runs outermost-last-registered, so security_headers wraps same_origin:

@@ -11,7 +11,7 @@ def create_app(
     prefix: str = "toro",
     connection: Redis | None = None,
     dependencies: Sequence[params.Depends] | None = None,
-    require_same_origin: bool | None = None,   # None: on when `dependencies` are set
+    require_same_origin: bool | None = None,   # None: on
     show_stacktraces: bool = True,
     can_mutate: Callable[[Request], bool] | None = None,
 ) -> FastAPI: ...
@@ -68,15 +68,18 @@ from `url` and closes it on shutdown.
 A `Sequence[Depends]` applied to every route, so your app's auth gates the whole
 dashboard. One caveat: the `/static` mount is itself a sub-app and is **not**
 covered by these dependencies; if the assets themselves must be protected, wrap
-the entire mount.
+the entire mount. (FastAPI's `/docs`, `/redoc` and `/openapi.json` would be a second
+caveat, since `dependencies=` does not cover them either: matador does not serve
+them.)
 
 ### `require_same_origin=` - CSRF defense
 
-`False` by default. Set `True` to reject state-changing requests (POST/DELETE/…)
-whose `Origin` header doesn't match the request host - a stateless CSRF defense.
-matador ships no auth, so CSRF is moot by default; enable this when you put
-**cookie-based** auth in front (a cross-site form would otherwise carry the
-cookie). Behind a reverse proxy, make sure the forwarded Host is correct
+**On by default.** It rejects state-changing requests (POST/DELETE/…) whose `Origin`
+header doesn't match the request host: a stateless CSRF defense. The credential such
+an attack rides is the host app's, whatever matador itself requires, so the default
+does not wait to be told that auth exists. Requests with no `Origin` (curl,
+server-to-server) pass, because the defense is aimed at browsers.
+`require_same_origin=False` turns it off. Behind a reverse proxy, make sure the forwarded Host is correct
 (uvicorn `--proxy-headers`) so legitimate same-origin requests aren't blocked.
 See [Security](security.md).
 

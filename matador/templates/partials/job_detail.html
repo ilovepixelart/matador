@@ -67,20 +67,20 @@
     <div class="col-span-2">
       <dt class="label mb-1">logs</dt>
       <dd class="font-mono text-xs well max-h-40 space-y-0.5">
-        {% for line in job.logs %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
+        {% for line in job.logs|tail %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
       </dd>
     </div>
     {% endif %}
 
     {% if job.failed_reason %}
     <div class="col-span-2"><dt class="label">error</dt>
-      <dd class="font-mono text-danger break-all">{{ job.failed_reason }}</dd></div>
+      <dd class="font-mono text-danger break-all">{{ job.failed_reason|clip(4000) }}</dd></div>
     {% endif %}
 
     {% if job.stacktrace and show_stacktraces|default(true) %}
     <div class="col-span-2">
       <dt class="label mb-1">stack trace</dt>
-      <dd><pre class="font-mono text-xs well max-h-56 text-danger whitespace-pre-wrap">{{ job.stacktrace }}</pre></dd>
+      <dd><pre class="font-mono text-xs well max-h-56 text-danger whitespace-pre-wrap">{{ job.stacktrace|clip(4000) }}</pre></dd>
     </div>
     {% endif %}
   </dl>
