@@ -177,6 +177,9 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
     {% endif %}
     <span class="text-muted tabular-nums justify-end">{{ j.attempts_made }}×</span>
     <span class="gap-1.5 justify-end" data-no-toggle>
+      {# A control that exists and refuses invites the click and reports a failure
+         that was never one, so read-only draws none of them. #}
+      {% if can_mutate %}
       {% if state == 'delayed' %}
       <button class="btn btn-sm btn-success tip" data-tip="Promote, run now"
               hx-post="{{ url_for('promote', name=name, job_id=j.id).path }}?page={{ page }}"
@@ -209,6 +212,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
               {% endif %}
               data-loading-disable data-loading-aria-busy>
         {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove this job</span></button>
+      {% endif %}
     </span>
   </summary>
   <div class="acc-body"></div>
@@ -282,7 +286,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       {% if node.job.state == 'failed' and node.job.failed_reason %}
       <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
       {% endif %}
-      {% if node.job.state == 'failed' and node.job.id != current_id %}
+      {% if can_mutate and node.job.state == 'failed' and node.job.id != current_id %}
       {# retry just this node, in place. The root parent has its own "retry flow"
          button (whole-flow recovery), so it's excluded here. An interior node is
          itself a sub-parent, so retrying it re-drives its own failed subtree. #}

@@ -14,6 +14,7 @@ from typing import Any
 from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
 from toro import Job, JobState, Queue
+from toro.openmetrics import render_all
 
 from .cadence import Cadence
 
@@ -213,6 +214,17 @@ class Service:
             "keys": keys,
             "ok": ok,  # False → Redis was unreachable; values are placeholders
         }
+
+    async def metrics_text(self) -> str:
+        """OpenMetrics for every queue this dashboard watches, as one exposition.
+
+        Rendered by toro, so the dashboard adds no numbers of its own and a scraper
+        reading this sees exactly what the queue reports.
+        """
+        snapshot = {
+            name: (await q.lifetime_totals(), await q.counts()) for name, q in self.queues.items()
+        }
+        return render_all(snapshot)
 
     async def overview(self) -> list[dict[str, Any]]:
         out = []

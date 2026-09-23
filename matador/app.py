@@ -347,6 +347,9 @@ _TEMPLATES.env.globals["asset_v"] = _asset_version  # ty: ignore[invalid-assignm
 
 
 def _render(request: Request, template: str, **ctx) -> HTMLResponse:
+    # Default True: a dashboard with no predicate configured is fully usable, which
+    # is what every existing deployment expects.
+    ctx.setdefault("can_mutate", getattr(request.state, "can_mutate", True))
     return _TEMPLATES.TemplateResponse(request, template, ctx)
 
 
@@ -365,6 +368,7 @@ def _full_page(request: Request, **ctx) -> HTMLResponse:
 def _render_str(request: Request, template: str, **ctx) -> str:
     # `request` is passed so templates can use `url_for` (root_path-aware, which
     # is what makes the dashboard work mounted at any sub-path).
+    ctx.setdefault("can_mutate", getattr(request.state, "can_mutate", True))
     return _TEMPLATES.get_template(template).render(request=request, **ctx)
 
 
@@ -473,6 +477,35 @@ async def _panel(svc: Service, request: Request, name: str, state: str, page: in
 # ---- cross-cutting middleware + error handling (registered onto the app) ----
 
 
+def _read_only_guard(can_mutate: Callable[[Request], bool]) -> Any:
+    """Refuse every state-changing request the host app does not allow.
+
+    Keyed on the METHOD, not on a list of routes: a route added later is covered by
+    construction, where a list is a list someone forgets. The predicate is handed the
+    raw request because matador has no identity of its own, so whatever the host app
+    authenticates with is what arrives here.
+    """
+
+    async def guard(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        # Answered once per request, for reads too: the templates ask the same
+        # question, so a control is drawn exactly when using it would be allowed.
+        try:
+            allowed = can_mutate(request)
+        except Exception:
+            # Host-app code, so it can break on its own. An unanswerable question
+            # answers no: a dashboard nobody can change beats one nobody can open.
+            logging.getLogger("matador").exception("can_mutate raised; refusing to mutate")
+            allowed = False
+        request.state.can_mutate = allowed
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not allowed:
+            return PlainTextResponse("this dashboard is read-only", status_code=403)
+        return await call_next(request)
+
+    return guard
+
+
 async def _same_origin(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
@@ -541,6 +574,15 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
     @router.get("/redis", response_class=HTMLResponse)
     async def redis_bar(request: Request):
         return _render(request, "partials/redis.html", s=await svc.redis_stats())
+
+    @router.get("/metrics")
+    async def metrics():
+        # A scraper decides how to parse by the content type, so this is not HTML and
+        # not text/plain: it is the exposition format, declared.
+        return PlainTextResponse(
+            await svc.metrics_text(),
+            media_type="application/openmetrics-text; version=1.0.0; charset=utf-8",
+        )
 
     @router.get("/stream")
     async def stream(request: Request):
@@ -860,6 +902,7 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     dependencies: Sequence[params.Depends] | None = None,
     require_same_origin: bool | None = None,
     show_stacktraces: bool = True,
+    can_mutate: Callable[[Request], bool] | None = None,
 ) -> FastAPI:
     """Build the matador FastAPI app watching the given queue `names`.
 
@@ -884,6 +927,13 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     Set `show_stacktraces=False` to omit job stack traces from the UI - they can
     leak source paths, versions, and occasionally secrets from exception messages,
     which matters when the dashboard is reachable by people who shouldn't see them.
+
+    Pass `can_mutate` to make the dashboard read-only for some or all callers. It
+    receives the raw request, because the host app owns identity and matador has none
+    of its own: `lambda request: False` locks it entirely, and anything richer can
+    read the host's own session or header. Every state-changing request is refused,
+    and the controls are not drawn at all: a button that exists and refuses invites
+    the click and reports a failure that was never one.
     """
     if require_same_origin is None:
         require_same_origin = bool(dependencies)
@@ -911,6 +961,8 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     # a blocked cross-origin response still carries the hardening headers.
     if require_same_origin:
         app.middleware("http")(_same_origin)
+    if can_mutate is not None:
+        app.middleware("http")(_read_only_guard(can_mutate))
     app.middleware("http")(_security_headers)
     app.exception_handler(UnknownQueueError)(_unknown_queue)
 

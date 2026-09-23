@@ -16,6 +16,7 @@
         <td class="td font-mono text-muted">{{ s|schedule }}</td>
         <td class="td font-mono text-muted">{{ s.next|clock }}</td>
         <td class="td text-right whitespace-nowrap">
+          {% if can_mutate %}
           <div class="inline-flex gap-1.5">
             <button class="btn btn-sm btn-info" hx-post="{{ url_for('trigger', name=name, scheduler_id=s.id).path }}"
                     hx-target="#schedulers" data-loading-disable data-loading-aria-busy>{{ icon('bolt', 'w-3.5 h-3.5') }} run now</button>
@@ -25,6 +26,7 @@
                     data-loading-disable data-loading-aria-busy>
               {{ icon('trash', 'w-3.5 h-3.5') }}<span class="sr-only">Remove scheduler</span></button>
           </div>
+          {% endif %}
         </td>
       </tr>
     {% endfor %}

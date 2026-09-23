@@ -57,6 +57,11 @@ deep-links all work. It reads straight from Redis through toro's async API.
   dialog (not `window.confirm`).
 - **Numbered pagination**, a **Redis health bar** (memory, clients, eviction
   policy), and a persistent **dark / light** theme.
+- **`/metrics`** for a Prometheus-compatible scraper: every watched queue in one
+  OpenMetrics exposition, rendered by toro rather than by the dashboard. The gauges
+  count every job in the state it is in, which is not what the tab badges count.
+- **Read-only mode** - pass `can_mutate(request)` and every action refuses, with the
+  controls left out of the page rather than drawn and refused.
 
 ## Run it
 
@@ -95,6 +100,9 @@ app.mount(
 - **`dependencies=`** - applied to every route, so your app's auth gates the
   dashboard. (The `/static` mount isn't covered - wrap the whole mount if the assets
   themselves need auth.)
+- **`can_mutate=`** - a predicate handed the raw request (matador has no identity of
+  its own), deciding whether this caller may change anything. Read-only callers get a
+  dashboard with no controls, not controls that refuse.
 - Other stacks (Django, Flask, non-Python): run matador standalone and reverse-proxy.
 
 ## Security

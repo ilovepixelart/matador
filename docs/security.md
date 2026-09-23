@@ -12,6 +12,20 @@ route - pages, fragments, actions, and the SSE stream. The one carve-out is
 the `/static` sub-app (wrap the whole mount if the assets must be private too).
 Wiring details: [Integration](integration.md).
 
+## Read-only: `can_mutate`
+
+Gating who reaches the dashboard is `dependencies=`; gating what they can do once
+there is `can_mutate(request)`, a predicate the host app supplies. It refuses every
+state-changing method with 403 and leaves the controls out of the markup, so a
+viewer sees a dashboard rather than a wall of buttons that refuse. Keyed on the
+method, not on a list of routes, so nothing is exposed by being forgotten, and a
+predicate that raises is logged and refuses rather than taking the page down.
+
+What it does not cover: matador's own housekeeping. Reading a page prunes workers
+whose heartbeat has expired, which writes to the presence keys and the stopped-worker
+log. No operator action is reachable, but read-only is not "this connection never
+writes". Wiring: [Integration](integration.md).
+
 ## CSRF: `require_same_origin`
 
 Off by default - with no auth there's no ambient credential to ride. Turn it on
