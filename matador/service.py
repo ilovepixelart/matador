@@ -13,7 +13,7 @@ from typing import Any
 
 from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
-from toro import Job, JobState, Queue
+from toro import DATA_MODEL_VERSION, IncompatibleDataModelError, Job, JobState, Queue
 from toro.openmetrics import render_all
 
 from .cadence import Cadence
@@ -255,7 +255,7 @@ class Service:
         """Feed the charts: per-minute points plus the headline numbers the strip
         shows (window totals, failure share, mean duration, live queue latency).
         """
-        q = self._q(name)
+        q = await self._queue(name)
         points = await q.metrics(minutes=minutes)
         completed = sum(p["completed"] for p in points)
         failed = sum(p["failed"] for p in points)
@@ -276,14 +276,15 @@ class Service:
 
     async def metrics_names(self, name: str, *, minutes: int = 60, limit: int = 8) -> list[Any]:
         """Per-job-name totals + percentiles, failures first (toro's triage order)."""
-        return list(await self._q(name).metrics_by_name(minutes=minutes))[:limit]
+        q = await self._queue(name)
+        return list(await q.metrics_by_name(minutes=minutes))[:limit]
 
     async def flow_metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
         """Feed the active-tab flow strip: per-minute whole-flow completed/failed points
         plus headline totals, failure share, and end-to-end flow duration
         percentiles (the same shape as metrics(), minus latency).
         """
-        q = self._q(name)
+        q = await self._queue(name)
         points = await q.flow_metrics(minutes=minutes)
         completed = sum(p["completed"] for p in points)
         failed = sum(p["failed"] for p in points)
@@ -324,8 +325,39 @@ class Service:
             total += await q.clear_departed()
         return total
 
-    async def queue_view(self, name: str) -> dict[str, Any]:
+    async def _queue(self, name: str) -> Queue:
+        """Hand back the queue, once its data model is one this version reads.
+
+        Every read and every action reaches its queue through here, so a page added
+        later is covered without being told about it. That matters most for the
+        live-refresh fragment, which re-renders the table about once a second and is
+        where a shape this version does not know would actually be read.
+        """
         q = self._q(name)
+        await self._check_data_model(q, name)
+        return q
+
+    async def _check_data_model(self, q: Queue, name: str) -> None:
+        """Refuse a queue written by a toro newer than the one we read it with.
+
+        toro makes this check where it writes; a dashboard almost never writes, so
+        without this it would render a shape it does not know field by field. Reading
+        the stamp cannot create it: opening a queue is not a claim to have written it.
+        A stamp we cannot parse is not evidence of a newer model, so it reads as
+        unstamped rather than locking an operator out of their own dashboard.
+        """
+        stamped = await q.redis.hget(q.keys.meta, "model")
+        if stamped is None:
+            return
+        try:
+            found = int(stamped)
+        except ValueError:
+            return
+        if found > DATA_MODEL_VERSION:
+            raise IncompatibleDataModelError(name, found, DATA_MODEL_VERSION)
+
+    async def queue_view(self, name: str) -> dict[str, Any]:
+        q = await self._queue(name)
         return {
             "name": name,
             "counts": _fold_counts(await q.roots_counts()),
@@ -346,7 +378,7 @@ class Service:
         pages past any depth with no scan cap and the total matches the tab badge.
         Returns (page rows, total roots, clamped page).
         """
-        q = self._q(name)
+        q = await self._queue(name)
         if state == "active":
             total, found, page = await self._active_roots_page(q, page, per_page)
         else:
@@ -424,7 +456,7 @@ class Service:
         # Search is an explicit lookup, so it still finds children (you may be
         # hunting a specific child id); the list browse is what hides them. The
         # active tab searches both active and parked roots, matching its listing.
-        q = self._q(name)
+        q = await self._queue(name)
         sources: tuple[JobState, ...] = (
             ("active", "waiting-children") if state == "active" else (state,)
         )
@@ -435,7 +467,7 @@ class Service:
         return await self._with_flow_progress(q, rows)
 
     async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
-        q = self._q(name)
+        q = await self._queue(name)
         j = await q.get_job(job_id)
         if not j:
             return None
@@ -481,54 +513,63 @@ class Service:
         }
 
     async def schedulers(self, name: str) -> list[dict[str, Any]]:
-        return await self._q(name).schedulers()
+        q = await self._queue(name)
+        return await q.schedulers()
 
     # ---- actions ----------------------------------------------------------
 
     async def retry(self, name: str, job_id: str) -> bool:
-        return await self._q(name).retry_job(job_id)
+        q = await self._queue(name)
+        return await q.retry_job(job_id)
 
     async def retry_flow(self, name: str, parent_id: str) -> int:
         """Re-drive a whole failed flow; returns how many jobs were retried."""
-        return await self._q(name).retry_flow(parent_id)
+        q = await self._queue(name)
+        return await q.retry_flow(parent_id)
 
     async def remove(self, name: str, job_id: str) -> bool:
-        return await self._q(name).remove_job(job_id)
+        q = await self._queue(name)
+        return await q.remove_job(job_id)
 
     async def cancel(self, name: str, job_id: str) -> bool:
         """Stop a job. Unlike remove, a RUNNING job's processor is stopped too, so the
         work actually ends instead of carrying on with nowhere to report.
         """
-        return await self._q(name).cancel_job(job_id)
+        q = await self._queue(name)
+        return await q.cancel_job(job_id)
 
     async def remove_many(self, name: str, job_ids: list[str]) -> int:
         """Remove a specific set of jobs (multi-select bulk delete). Returns how
         many were ACTUALLY removed - a job that vanished in a race doesn't count.
         """
-        q = self._q(name)
+        q = await self._queue(name)
         removed = 0
         for job_id in job_ids:
             removed += 1 if await q.remove_job(job_id) else 0
         return removed
 
     async def pause(self, name: str) -> None:
-        await self._q(name).pause()
+        q = await self._queue(name)
+        await q.pause()
 
     async def resume(self, name: str) -> None:
-        await self._q(name).resume()
+        q = await self._queue(name)
+        await q.resume()
 
     async def promote(self, name: str, job_id: str) -> bool:
-        return await self._q(name).promote_job(job_id)
+        q = await self._queue(name)
+        return await q.promote_job(job_id)
 
     async def retry_all(self, name: str) -> int:
-        return await self._q(name).retry_all_failed()
+        q = await self._queue(name)
+        return await q.retry_all_failed()
 
     async def clean(self, name: str, state: JobState) -> int:
         """Remove every job in a state. The underlying toro call is bounded (1000 per
         call) so it can't block forever; loop in batches so the dashboard's Clean
         actually drains the state rather than nibbling 1000 off a large backlog.
         """
-        q = self._q(name)
+        q = await self._queue(name)
         total = 0
         while True:
             n = await q.clean(state, limit=1000)
@@ -538,10 +579,12 @@ class Service:
         return total
 
     async def remove_scheduler(self, name: str, scheduler_id: str) -> None:
-        await self._q(name).remove_scheduler(scheduler_id)
+        q = await self._queue(name)
+        await q.remove_scheduler(scheduler_id)
 
     async def trigger_scheduler(self, name: str, scheduler_id: str) -> None:
-        await self._q(name).trigger_scheduler(scheduler_id)
+        q = await self._queue(name)
+        await q.trigger_scheduler(scheduler_id)
 
     async def _ensure_broadcaster(self) -> None:
         """Start the shared events listener (or restart it after a crash)."""

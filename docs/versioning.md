@@ -34,3 +34,10 @@ exist.
 matador is a dashboard for toro and tracks its data model through the dependency:
 the floor in `pyproject.toml` is the oldest toro whose keys this version reads
 correctly. Run them a minor apart if you must, but the floor is what is tested.
+
+The other direction is checked at runtime. Workers are upgraded before dashboards,
+so a queue can be written by a toro newer than the one matador reads it with: each
+queue carries the data-model version that wrote it, and opening a queue stamped
+newer than `toro.DATA_MODEL_VERSION` gives a 409 naming both numbers instead of a
+page rendered from a shape this version does not know. Opening a queue never stamps
+one: matador wrote none of the data.
