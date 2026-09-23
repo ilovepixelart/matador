@@ -3,4 +3,4 @@
 from .app import create_app
 
 __all__ = ["create_app"]
-__version__ = "0.10.1"
+__version__ = "1.0.0"
