@@ -5,7 +5,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from .conftest import QUEUE
+from .conftest import QUEUE, wait_for_live
 
 
 def test_selecting_rows_reveals_the_bulk_bar(page: Page, base_url, seeded_many):
@@ -79,3 +79,31 @@ def test_select_all_on_page_then_clear(page: Page, base_url, seeded_many):
     expect(page.locator("#bulk-count")).to_have_text("20")  # the whole page
     page.get_by_role("button", name="clear").click()
     expect(page.locator("#bulk-bar")).not_to_be_visible()
+
+
+def test_a_selection_is_never_visibly_lost_by_a_refresh(page: Page, base_url, seeded_many):
+    """The server does not know what you have selected, so every live refresh brings
+    back unchecked boxes and the page re-applies the selection. Re-applying it a
+    frame later leaves a window where the ticks are gone: a click landing in it
+    toggles a box the page is about to re-tick, and in a background tab, where
+    requestAnimationFrame does not run at all, the selection simply looks lost.
+
+    Asserted at the instant the swap settles, which is the only moment that matters.
+    """
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    wait_for_live(page)
+    page.locator(".jcheck").first.check()
+    expect(page.locator("#bulk-count")).to_have_text("1")
+
+    page.evaluate("""() => {
+        window.__checkedAtSettle = null;
+        document.body.addEventListener('htmx:afterSettle', () => {
+            const box = document.querySelector('.jcheck');
+            window.__checkedAtSettle = box ? box.checked : null;
+        }, { once: true });
+        htmx.trigger(document.querySelector('[data-jobs-live]'), 'sse:changed');
+    }""")
+    page.wait_for_function("() => window.__checkedAtSettle !== null")
+
+    assert page.evaluate("() => window.__checkedAtSettle") is True
+    expect(page.locator("#bulk-count")).to_have_text("1")
