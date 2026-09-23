@@ -19,10 +19,10 @@ LINK = re.compile(r"\[[^\]]+\]\((?P<target>[^)#]+)(?:#[^)]*)?\)")
 
 
 def _version() -> str:
-    # the module is where the version lives; packaging derives its own from here
-    module = (ROOT / "matador" / "__init__.py").read_text()
-    match = re.search(r'^__version__ = "(?P<v>[^"]+)"', module, re.MULTILINE)
-    assert match, "matador/__init__.py has no __version__"
+    # read, not parsed: tomllib is 3.11+ and this package supports 3.10
+    project = (ROOT / "pyproject.toml").read_text()
+    match = re.search(r'^version = "(?P<v>[^"]+)"', project, re.MULTILINE)
+    assert match, "pyproject has no version"
     return match.group("v")
 
 
@@ -59,16 +59,24 @@ def test_the_current_version_has_an_upgrading_entry():
 
 
 def test_the_version_is_written_down_once():
-    """The same string lived in `pyproject.toml` and `matador/__init__.py`, kept in
-    step by a test that runs after the edit rather than instead of it. Packaging reads
-    it from the module, so the manifest declares it dynamic and carries no literal of
-    its own: a second copy cannot drift if there is no second copy.
+    """The manifest is the one copy. `uv version --bump patch` edits it and the
+    lockfile in a single command, which only works on a static version, and the
+    module asks the installed metadata rather than repeating the number: a second
+    copy cannot drift when there is no second copy. textual and litestar do this.
     """
-    project = (ROOT / "pyproject.toml").read_text()
-    assert re.search(r'^version = "', project, re.MULTILINE) is None, (
-        "pyproject.toml carries a second copy of the version"
+    module = (ROOT / "matador" / "__init__.py").read_text()
+    assert re.search(r'^__version__ = "', module, re.MULTILINE) is None, (
+        "matador/__init__.py carries a second copy of the version"
     )
-    assert 'dynamic = ["version"]' in project
+    assert 'version("matador-dashboard")' in module, "the module should derive it, not omit it"
+
+
+def test_the_module_reports_the_version_the_manifest_declares():
+    """The derivation is only as good as what it reads: an install that went stale
+    reports the old number from a manifest that says otherwise."""
+    import matador
+
+    assert matador.__version__ == _version()
 
 
 def test_the_readme_and_the_docs_agree_on_what_this_is():
