@@ -199,6 +199,25 @@ async def test_a_dashboard_that_may_mutate_draws_them_all(unlocked, seeded, fail
     assert "cancel parked flows" in active.text
 
 
+async def test_a_predicate_that_raises_leaves_a_dashboard_that_reads(q, seeded, caplog):
+    """The predicate is the host app's code and runs on every request, reads included.
+    When it cannot answer, the answer is no: a dashboard nobody can change beats one
+    nobody can open, and the exception is reported rather than swallowed."""
+
+    def boom(request):
+        raise RuntimeError("the session store is down")
+
+    app = create_app([QUEUE], prefix=PREFIX, can_mutate=boom)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        page = await c.get(f"/queues/{QUEUE}", headers=hx())
+        mutating = await c.post(f"/queues/{QUEUE}/pause", headers=hx())
+
+    assert page.status_code == 200, "a broken predicate took the whole dashboard down"
+    assert "hx-post" not in page.text  # and left it read-only, not half-usable
+    assert mutating.status_code == 403
+    assert "can_mutate" in caplog.text
+
+
 async def test_the_predicate_sees_the_request(q, seeded):
     """OP-009: the host app owns identity, so the predicate is handed the request
     rather than a boolean decided at mount time."""

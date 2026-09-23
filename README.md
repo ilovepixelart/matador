@@ -58,7 +58,8 @@ deep-links all work. It reads straight from Redis through toro's async API.
 - **Numbered pagination**, a **Redis health bar** (memory, clients, eviction
   policy), and a persistent **dark / light** theme.
 - **`/metrics`** for a Prometheus-compatible scraper: every watched queue in one
-  OpenMetrics exposition, rendered by toro so a scraper and the page cannot disagree.
+  OpenMetrics exposition, rendered by toro rather than by the dashboard. The gauges
+  count every job in the state it is in, which is not what the tab badges count.
 - **Read-only mode** - pass `can_mutate(request)` and every action refuses, with the
   controls left out of the page rather than drawn and refused.
 

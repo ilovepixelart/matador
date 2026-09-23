@@ -21,7 +21,7 @@ fragment mechanics behind these routes are covered in
 | `/sidebar` | The queue nav with counts; usually delivered out-of-band rather than fetched directly. |
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
-| `/metrics` | OpenMetrics for every watched queue, in the scraper's content type. Rendered by toro, so a scraper and this dashboard never disagree. |
+| `/metrics` | OpenMetrics for every watched queue, in the scraper's content type. Rendered by toro. Its depth gauges count every job in the state it is in, which is not what the tab badges count (roots only, parked parents folded into active). |
 
 Seven job tabs: `active`, `wait`, `held`, `delayed`, `completed`, `failed`,
 `cancelled`. Flows
@@ -79,6 +79,7 @@ silently.
 | `POST /queues/{name}/jobs/{job_id}/retry-flow` | Re-drive a whole failed flow: retry every failed job in the subtree. |
 | `POST /queues/{name}/jobs/{job_id}/retry-node` | Retry one node of a flow in place (re-joins its parent's barrier). |
 | `POST /queues/{name}/schedulers/{id}/trigger` | Run one occurrence of a schedule now. |
+| `POST /workers/departed/clear` | Clear the stopped-worker history. |
 | `DELETE /queues/{name}/schedulers/{id}` | Remove a schedule. |
 
 In a read-only dashboard (`can_mutate`) none of these are drawn, and all of them

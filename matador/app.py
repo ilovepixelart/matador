@@ -491,7 +491,13 @@ def _read_only_guard(can_mutate: Callable[[Request], bool]) -> Any:
     ) -> Response:
         # Answered once per request, for reads too: the templates ask the same
         # question, so a control is drawn exactly when using it would be allowed.
-        allowed = can_mutate(request)
+        try:
+            allowed = can_mutate(request)
+        except Exception:
+            # Host-app code, so it can break on its own. An unanswerable question
+            # answers no: a dashboard nobody can change beats one nobody can open.
+            logging.getLogger("matador").exception("can_mutate raised; refusing to mutate")
+            allowed = False
         request.state.can_mutate = allowed
         if request.method not in ("GET", "HEAD", "OPTIONS") and not allowed:
             return PlainTextResponse("this dashboard is read-only", status_code=403)
