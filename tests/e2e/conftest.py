@@ -176,6 +176,16 @@ def no_console_errors(page):
     assert not errors, "the page logged errors:\n  " + "\n  ".join(errors)
 
 
+def wait_for_live(page, timeout: float = 10_000) -> None:
+    """Wait until the page's event stream is connected.
+
+    A change published before the browser's EventSource has subscribed reaches nobody,
+    and the next periodic refresh is 30 seconds away: long enough that a test which
+    published too early fails on a timeout that looks like a broken feature.
+    """
+    page.wait_for_selector('html[data-sse="open"]', timeout=timeout)
+
+
 @pytest.fixture
 def drive(run_async):
     """Run a coroutine against the same Redis the server reads (for live-update tests)."""

@@ -14,7 +14,7 @@ import pytest
 from playwright.sync_api import Page, expect
 from toro import Worker
 
-from .conftest import PREFIX, QUEUE, URL, reset_queue
+from .conftest import PREFIX, QUEUE, URL, reset_queue, wait_for_live
 
 CAP = 2
 JOBS = 60
@@ -65,6 +65,7 @@ def capped_fleet(drive):
 def test_cap_chip_goes_live(page: Page, base_url, drive, capped_fleet):
     drive(reset_queue())
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
     chip = page.locator("[data-cap-state]")
     expect(chip).to_have_count(0)  # no capped worker yet: no chip
 
@@ -84,6 +85,7 @@ def test_cap_chip_goes_live(page: Page, base_url, drive, capped_fleet):
 def test_cap_chip_is_accessible(page: Page, base_url, drive, capped_fleet):
     drive(reset_queue())
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    wait_for_live(page)
     capped_fleet()
     chip = page.locator('[data-cap-state="full"]')
     expect(chip).to_have_count(1, timeout=20_000)

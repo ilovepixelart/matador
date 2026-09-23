@@ -7,7 +7,7 @@ import asyncio
 from playwright.sync_api import Page, expect
 from toro import Queue, Worker
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, wait_for_live
 
 
 def test_enqueued_job_appears_live_on_empty_tab(page: Page, base_url, drive):
@@ -21,7 +21,7 @@ def test_enqueued_job_appears_live_on_empty_tab(page: Page, base_url, drive):
     drive(clear())
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
     expect(page.locator("#jobs")).to_contain_text("No waiting jobs")
-    page.wait_for_timeout(2000)  # let the SSE connection establish (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def enqueue():
         q = Queue(QUEUE, prefix=PREFIX)
@@ -39,7 +39,7 @@ def test_live_refresh_keeps_rows_inside_the_grid(page: Page, base_url, seeded, d
     # (an intermediate wrapper confused it) - the grid stopped applying and
     # every column collapsed. Assert the structure survives a live morph.
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
-    page.wait_for_timeout(2000)  # let the SSE connection establish
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def enqueue():
         q = Queue(QUEUE, prefix=PREFIX)
@@ -90,7 +90,7 @@ def test_a_held_job_appears_and_leaves(page: Page, base_url, drive):
     drive(clear())
     page.goto(f"{base_url}/queues/{QUEUE}?state=held")
     expect(page.locator("#jobs")).to_contain_text("No held jobs")
-    page.wait_for_timeout(2000)  # let the SSE connection establish
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def enqueue():
         q = Queue(QUEUE, prefix=PREFIX)
@@ -142,7 +142,7 @@ def test_a_cancelled_job_appears_on_its_own_tab(page: Page, base_url, drive):
     drive(clear())
     page.goto(f"{base_url}/queues/{QUEUE}?state=cancelled")
     expect(page.locator("#jobs")).to_contain_text("No cancelled jobs")
-    page.wait_for_timeout(2000)  # let the SSE connection establish
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def add_then_cancel():
         q = Queue(QUEUE, prefix=PREFIX)
