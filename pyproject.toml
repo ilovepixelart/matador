@@ -1,7 +1,9 @@
 [project]
 # PyPI distribution name - `matador` is taken; the import package stays `matador`.
 name = "matador-dashboard"
-version = "1.0.2"
+# One source of truth: hatchling reads it from `matador/__init__.py` (see
+# [tool.hatch.version]), so a release edits the version in exactly one place.
+dynamic = ["version"]
 description = "An async dashboard for toro queues."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,6 +44,9 @@ matador = "matador.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "matador/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 # The sdist is what a distro packager, an auditor, or anyone building from source

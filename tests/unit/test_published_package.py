@@ -16,6 +16,8 @@ import zipfile
 
 import pytest
 
+import matador
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 # Not shipped: they describe how this repository is worked on, not how the package is
 # built, installed or verified. (`.gitignore` is not on this list: hatchling ships it
@@ -72,6 +74,15 @@ def test_the_wheel_carries_what_it_renders(kind: str, wheel: zipfile.ZipFile):
     shipped = [name for name in wheel.namelist() if name.startswith(f"matador/{kind}/")]
     on_disk = [path for path in (ROOT / "matador" / kind).rglob("*") if path.is_file()]
     assert len(shipped) == len(on_disk), f"{len(on_disk) - len(shipped)} {kind} files missing"
+
+
+def test_the_wheel_takes_its_version_from_the_module(wheel: zipfile.ZipFile):
+    """The version is written down once, in `matador/__init__.py`, and the build
+    backend derives the package's from it. This asserts that wiring against the real
+    archive: the two used to agree only because they were edited in step by hand.
+    """
+    metadata = next(name for name in wheel.namelist() if name.endswith("METADATA"))
+    assert f"Version: {matador.__version__}" in wheel.read(metadata).decode()
 
 
 def test_the_wheel_depends_on_the_published_queue(wheel: zipfile.ZipFile):
