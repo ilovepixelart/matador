@@ -1,7 +1,7 @@
 {% from "macros.html" import job_row, jobs_head, empty_state, state_label with context %}
 {# Selection works in search results too (tick here, clear the search, bulk-act);
    same rule as the tab itself - everything but active is bulk-actionable. #}
-{% set bulk = state != 'active' %}
+{% set bulk = can_mutate and state != 'active' %}
 <div class="px-4 py-2.5 bg-panel2/40 border-b border-line text-xs text-muted flex flex-wrap items-center gap-x-2">
   <span>{{ jobs|length }} result{{ '' if jobs|length == 1 else 's' }} for
     “<span class="text-fg font-medium">{{ query }}</span>”</span>

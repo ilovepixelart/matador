@@ -94,3 +94,32 @@ def _completed(q):
         return (await q.counts())["completed"] >= 1
 
     return check
+
+
+MARK = "<xsSmark onx=1>"
+
+
+async def test_nothing_a_job_carries_can_become_markup(client, q):
+    """Autoescape is on, and this is the test that keeps it on. Everything here is
+    written by whoever enqueued the job, and it is rendered in a title attribute, a
+    tooltip, a confirm message, a JSON block and a log line."""
+    await q.add(MARK, {"deep": {"value": MARK}}, job_id=f"id{MARK}", concurrency_key=MARK)
+
+    async def proc(job):
+        await job.log(MARK)
+        raise RuntimeError(MARK)
+
+    await _drain(q, proc, _failed(q))
+
+    pages = [
+        f"/queues/{QUEUE}?state=failed",
+        f"/queues/{QUEUE}/jobs?state=failed",
+        f"/queues/{QUEUE}?state=failed&query=xsS",
+        "/workers",
+        "/sidebar",
+    ]
+    for path in pages:
+        r = await client.get(path, headers=hx())
+        assert r.status_code == 200, path
+        assert "<xsSmark" not in r.text, f"{path} rendered it as markup"
+        assert "&lt;xsSmark" in r.text or "xsS" not in r.text, path

@@ -43,7 +43,16 @@ def _mutating_routes(app) -> list[tuple[str, str]]:
 
 # Every way the page offers to change something. A control is an htmx verb or a
 # posting form; reading the response for these finds a control nobody listed.
-MUTATING_MARKUP = ("hx-post", "hx-delete", "hx-put", "hx-patch", 'method="post"')
+MUTATING_MARKUP = (
+    "hx-post",
+    "hx-delete",
+    "hx-put",
+    "hx-patch",
+    'method="post"',
+    # a checkbox is a control too: it selects rows for a bulk action, and drawing it
+    # where nothing can be done with it is the invitation this feature removes
+    'type="checkbox"',
+)
 
 
 class _Params(dict):
@@ -80,9 +89,17 @@ async def _controls_drawn(client, app, params: _Params) -> dict[str, list[str]]:
     """What each readable page offers to change."""
     found = {}
     for path in _readable_routes(app):
-        r = await client.get(path.format_map(params), headers=hx(), follow_redirects=True)
-        assert r.status_code == 200, f"{path} -> {r.status_code}"
-        found[path] = [marker for marker in MUTATING_MARKUP if marker in r.text]
+        url = path.format_map(params)
+        # every page, and the search variant of the ones that take a query: search
+        # results render from a template of their own, which is how a set of bulk
+        # checkboxes stayed visible in a dashboard that draws no other control
+        urls = [url, f"{url}?query=j"] if "{name}" in path and "job_id" not in path else [url]
+        markers: list[str] = []
+        for one in urls:
+            r = await client.get(one, headers=hx(), follow_redirects=True)
+            assert r.status_code == 200, f"{one} -> {r.status_code}"
+            markers += [marker for marker in MUTATING_MARKUP if marker in r.text]
+        found[path] = sorted(set(markers))
     return found
 
 
