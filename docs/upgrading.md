@@ -2,6 +2,20 @@
 
 Breaking changes by release, newest first, each with what to do about it.
 
+## 1.0.1
+
+Nothing breaks. Two fixes, both in what a long-lived dashboard does over time.
+
+**A live refresh no longer shows a selection as lost.** Selecting rows and then
+letting the page refresh itself could redraw the table with every checkbox clear
+while the selection was still held, so the next bulk action ran on what you could
+no longer see. The table re-applies the selection on the frame after the swap.
+
+**The Redis subscription ends with the last viewer.** A dashboard mounted into a
+host app opened one pub/sub connection for its first live viewer and held it,
+subscribed, for the life of the process. It is released when the last viewer
+disconnects, and a later viewer starts a fresh one.
+
 ## 1.0.0
 
 Two defaults change, both because a security review found the old ones unsafe for a
