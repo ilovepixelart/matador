@@ -6,11 +6,12 @@ import asyncio
 from playwright.sync_api import Page, expect
 from toro import Queue, Worker
 
-from .conftest import PREFIX, QUEUE, URL, reset_queue
+from .conftest import PREFIX, QUEUE, URL, reset_queue, wait_for_live
 
 
 def test_sse_refreshes_sidebar_count_on_enqueue(page: Page, base_url, seeded, drive):
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    wait_for_live(page)
     expect(page.locator("#sidebar")).to_contain_text("3 wait")
 
     async def _enqueue():
@@ -80,3 +81,13 @@ def test_last_finish_of_a_burst_lands(page: Page, base_url, drive):
         )  # a separate region
     finally:
         drive(_stop())
+
+
+def test_the_page_says_whether_its_stream_is_connected(page: Page, base_url, seeded):
+    """A dashboard that has stopped moving is either quiet or disconnected, and
+    nothing on the page said which. It is also what a test waits for before
+    publishing a change: one published before the stream subscribes reaches nobody.
+    """
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+
+    expect(page.locator("html")).to_have_attribute("data-sse", "open")
