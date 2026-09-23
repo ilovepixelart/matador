@@ -936,7 +936,13 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     the click and reports a failure that was never one.
     """
     if require_same_origin is None:
-        require_same_origin = bool(dependencies)
+        # On, unless the host says otherwise. The ambient credential a CSRF attack
+        # rides belongs to the HOST app, and a host authenticates in more ways than
+        # `dependencies=`: its own middleware, a session, an authenticating proxy.
+        # Keying this on `dependencies` left every one of those open to a plain
+        # cross-origin form post. Requests with no Origin (curl, a scraper) still
+        # pass: the defense is aimed at browsers, where the cookie is.
+        require_same_origin = True
     if not dependencies:
         logging.getLogger("matador").warning(
             "matador has no auth configured: every route is open to whoever can reach it. "
@@ -954,7 +960,19 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
         yield
         await svc.close()
 
-    app = FastAPI(title="matador", lifespan=lifespan, dependencies=list(dependencies or []))
+    app = FastAPI(
+        title="matador",
+        lifespan=lifespan,
+        dependencies=list(dependencies or []),
+        # No auto-docs. They are registered as plain Starlette routes, so
+        # `dependencies=` never covered them: mounted behind auth they were the one
+        # unauthenticated page, they published every mutating endpoint and its
+        # parameters, and /docs loads a third-party script onto the HOST app's origin.
+        # A dashboard has no API for a human to explore.
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.mount("/static", _RevalidatedStatic(directory=str(_HERE / "static")), name="static")
 
     # Middleware runs outermost-last-registered, so security_headers wraps same_origin:

@@ -10,6 +10,11 @@ matador deliberately doesn't invent a login: you gate it with your app's
 existing auth via `dependencies=[Depends(...)]`, which applies to **every**
 route - pages, fragments, actions, and the SSE stream. The one carve-out is
 the `/static` sub-app (wrap the whole mount if the assets must be private too).
+
+FastAPI's auto-docs are not served at all. They are registered as plain Starlette
+routes, so `dependencies=` never covered them: mounted behind auth they were the one
+unauthenticated page on the mount, they published every mutating endpoint and its
+parameters, and `/docs` loaded a third-party script onto the host app's origin.
 Wiring details: [Integration](integration.md).
 
 ## Read-only: `can_mutate`
@@ -28,10 +33,13 @@ writes". Wiring: [Integration](integration.md).
 
 ## CSRF: `require_same_origin`
 
-Off by default - with no auth there's no ambient credential to ride. Turn it on
-when you put **cookie-based** auth in front: it rejects state-changing methods
-(anything but GET/HEAD/OPTIONS) whose `Origin` header doesn't match the request
-host, a stateless same-origin check. Requests without an `Origin` (curl,
+**On by default.** The ambient credential a CSRF attack rides belongs to the host
+app, and a host authenticates in more ways than `dependencies=`: its own middleware,
+a session, an authenticating proxy. Keying the default on `dependencies` left all of
+those open to a plain cross-origin form post, which is what this guard exists for.
+It rejects state-changing methods (anything but GET/HEAD/OPTIONS) whose `Origin`
+header doesn't match the request host, a stateless same-origin check.
+`require_same_origin=False` turns it off. Requests without an `Origin` (curl,
 server-to-server) pass - the defense targets browsers, where the cookie is.
 Behind a proxy, forward the real host (`--proxy-headers`) or legitimate
 requests get blocked.

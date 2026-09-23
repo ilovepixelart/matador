@@ -41,10 +41,14 @@ async def test_cross_origin_get_is_not_blocked(guarded_client):
     assert r.status_code != 403
 
 
-async def test_guard_off_by_default(client):
-    # the default app ships no guard - a cross-origin POST is not 403'd by matador
-    r = await client.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
-    assert r.status_code != 403
+async def test_the_guard_can_be_turned_off(q):
+    """Off is one argument away, for a host that fronts matador with something that
+    already rejects cross-origin requests, or one that has no browser near it."""
+    app = create_app([QUEUE], prefix=PREFIX, require_same_origin=False)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
+        assert r.status_code != 403
 
 
 async def test_stacktrace_hidden_when_disabled(q, seeded):
@@ -57,6 +61,36 @@ async def test_stacktrace_hidden_when_disabled(q, seeded):
         )
         assert r.status_code == 200
         assert "stack trace" not in r.text
+
+
+async def test_the_guard_is_on_by_default(q):
+    """The ambient credential belongs to the HOST app, not to matador, and a host
+    authenticates in more ways than `dependencies=`: middleware, a session, a proxy.
+    Keying the default on `dependencies` left every one of those mounts open to a
+    plain cross-origin form post."""
+    app = create_app([QUEUE], prefix=PREFIX)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
+        assert r.status_code == 403
+
+
+async def test_a_form_post_from_another_page_is_blocked(q, seeded):
+    """The shape that matters: an HTML form on an attacker's page, which sends a
+    urlencoded body and needs no preflight. Nothing else in the request says it is
+    hostile."""
+    app = create_app([QUEUE], prefix=PREFIX)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.post(
+            f"/queues/{QUEUE}/jobs/bulk-remove?state=wait",
+            data={"ids": "1,2,3"},
+            headers={
+                "origin": "https://evil.example",
+                "content-type": "application/x-www-form-urlencoded",
+            },
+        )
+    assert r.status_code == 403
 
 
 async def test_guard_auto_enables_when_auth_is_configured(q):
