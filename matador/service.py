@@ -146,6 +146,17 @@ def cap_summary(worker_caps: list[int], active: int, waiting: int) -> dict[str, 
     }
 
 
+# A page number arrives from the URL bar. The low side was clamped and the high side
+# only after the query it had already broken: a ZRANGE bound past a 64-bit integer
+# came back as "value is not an integer or out of range", so any viewer could 500 a
+# page by typing one. Past this, the query returns nothing and the clamp refetches.
+MAX_PAGE = 1_000_000
+
+
+def _clamp_page(page: int) -> int:
+    return max(1, min(int(page), MAX_PAGE))
+
+
 class Service:
     """The dashboard's read/action API over a fixed set of toro queues."""
 
@@ -353,7 +364,7 @@ class Service:
         range. Fetches the requested page, then refetches only if the request fell
         past the last page (the rare clamp).
         """
-        page = max(1, page)
+        page = _clamp_page(page)
         start = (page - 1) * per_page
         total, found = await q.get_jobs_roots(state, start, start + per_page - 1)
         pages = max(1, (total + per_page - 1) // per_page)
@@ -381,7 +392,7 @@ class Service:
             )
             return a_total + wc_total, active_part + (wc_roots[:need] if need > 0 else [])
 
-        page = max(1, page)
+        page = _clamp_page(page)
         total, rows = await slice_at(page)
         pages = max(1, (total + per_page - 1) // per_page)
         if page > pages:  # asked beyond the last page → clamp and re-slice

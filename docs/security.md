@@ -46,8 +46,8 @@ requests get blocked.
 
 ## Always-on response headers
 
-Every response - including error and blocked ones, since the header middleware
-wraps the others - carries:
+Every response matador routes - including the blocked and not-found ones, since the
+header middleware wraps the others - carries:
 
 ```
 X-Frame-Options: DENY                              # no embedding/clickjacking
@@ -83,20 +83,40 @@ Job data is arbitrary user content, and the dashboard renders it:
   newest 200 lines, and the `pretty` JSON filter at 20,000 characters before it
   reaches the highlighter. Without those, one fat payload made a listing 18 MB, and
   the live region re-fetches that listing on every change event.
-- **No regex on attacker-controlled strings** - the sidebar derives the active
-  queue from the client-supplied `HX-Current-URL` header with `rfind` + slicing
-  rather than a backtracking regex (a ReDoS fix: the old pattern was quadratic
-  on long non-matching URLs).
+- **No backtracking regex on attacker-controlled strings** - the sidebar derives the
+  active queue from the client-supplied `HX-Current-URL` header with `rfind` +
+  slicing rather than a quadratic pattern. (One linear `re.search` remains on that
+  header, to tell a workers URL from a queue one.)
 - **Inputs coerced, not trusted** - an unknown `state` value falls back to
   `active`; bulk-remove is capped at 1000 ids per request; search runs toro's
   bounded scan ([Views](views.md)).
 
+## Limits worth knowing
+
+- A 500 from an unhandled error is produced outside matador's middleware, so it
+  carries none of the headers above. Its body is the bare text `Internal Server
+  Error`; a host app that wants headers on it owns that layer.
+- `bulk-remove` caps the number of **ids** in one request at 1000, not the number of
+  jobs: removing a flow root removes its whole subtree.
+- The Redis health bar's key count is the whole logical database, not this queue's
+  prefix, so on a shared Redis it reflects co-tenants too.
+- A mounted sub-app's lifespan does not run, so `Service.close()` does not either:
+  the event broadcaster and its pub/sub connection live until the process ends. That
+  is the same reason a mounted dashboard should be given a `connection=` it does not
+  own.
+
 ## Information exposure
 
-Stack traces are genuinely useful on a jobs dashboard and genuinely leaky
-(paths, versions, the odd secret in an exception message). They're shown by
-default; pass `show_stacktraces=False` when the audience is wider than the
-people who own the code.
+Stack traces are genuinely useful on a jobs dashboard and genuinely leaky (paths,
+versions, dependency internals). They're shown by default; pass
+`show_stacktraces=False` when the audience is wider than the people who own the code.
+
+**It does not hide the exception message.** The message *is* the failure reason a
+dashboard exists to show, and it is rendered on the row, the detail and the job page
+whatever this setting says. A secret interpolated into an exception is a secret in
+your queue, not something a dashboard flag can take back: keep it out of the message
+([toro's security page](https://github.com/ilovepixelart/toro/blob/main/docs/security.md)
+says the same about payloads).
 
 The same reasoning applies to the dashboard as a whole: counts, payloads, and
 worker hostnames are operational intelligence. Treat the mount as an admin
