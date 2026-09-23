@@ -9,6 +9,11 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Nothing here writes to the repository; the publish job asks for the one permission
+# it does need (id-token) for itself.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,4 +40,10 @@ jobs:
           name: dist
           path: dist/
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # Pinned to a release, not to `release/v1`: this job holds the OIDC token
+        # that publishes to PyPI, and a branch is something anyone who can move it
+        # runs code with. NOT a commit SHA: this is a Docker action and the runner
+        # pulls ghcr.io/pypa/gh-action-pypi-publish:<ref>, which has no image for a
+        # bare commit. Keep it current: an old release's twine rejects the metadata
+        # version uv build writes. Both learned from toro's 1.0.0 release.
+        uses: pypa/gh-action-pypi-publish@v1.14.2
