@@ -49,7 +49,8 @@ async def test_every_watched_queue_is_in_one_exposition(q, seeded):
 
 
 async def test_metrics_needs_no_htmx_and_no_session(client, seeded):
-    """A scraper is not a browser: it sends no HX headers and follows no redirect."""
+    """A scraper is not a browser: it sends no HX headers, and what comes back is the
+    exposition rather than a page."""
     r = await client.get("/metrics")
 
     assert r.status_code == 200

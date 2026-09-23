@@ -1149,6 +1149,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "hdrhistogram", specifier = ">=0.10.3" },
+    { name = "prometheus-client", specifier = ">=0.21" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
     { name = "pytest-cov", specifier = ">=5.0" },
