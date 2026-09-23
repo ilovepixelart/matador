@@ -18,5 +18,9 @@ straight from Redis through toro's async API. No JSON API, no SPA, no client sta
   search, workers, the Redis health bar, schedulers.
 - **[Templates](templates.md)** - how the templates are organized
   (layouts / pages / partials) and the macro hub.
+- **[Versioning](versioning.md)** - what is public (one function), what semver
+  means here, and how it tracks toro.
+- **[Upgrading](upgrading.md)** - breaking changes by release, each with what to
+  do about it.
 - **[Security](security.md)** - same-origin CSRF, the always-on security headers,
   and the bounded JSON rendering.
