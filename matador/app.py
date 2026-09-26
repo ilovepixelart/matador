@@ -30,6 +30,7 @@ from fastapi import APIRouter, FastAPI, Form, Request, params
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
 from markupsafe import Markup
 from pygments import highlight
 
@@ -37,6 +38,7 @@ from pygments import highlight
 from pygments.formatters import HtmlFormatter  # ty: ignore[unresolved-import]
 from pygments.lexers import JsonLexer  # ty: ignore[unresolved-import]
 from redis.asyncio import Redis
+from starlette.datastructures import URL
 from starlette.responses import Response
 
 from .service import (
@@ -106,18 +108,33 @@ def _default_state(counts: dict[str, int]) -> JobState:
     return "completed"
 
 
+def _url_for(request: Request, name: str, /, **path_params: Any) -> URL:
+    """Return the URL of one of matador's own routes, wherever matador is mounted.
+
+    Not `request.url_for`: that resolves through `scope["router"]`, which Starlette
+    sets once, at the outermost router, so inside a mount it searches the HOST's
+    routes first and any host route with the same name and parameters wins (a host
+    route named `retry` took matador's Retry button). `request.app` is matador
+    itself, and the mount's prefix is `root_path`; `base_url` would not do, since
+    it deliberately carries the top-level root path.
+    """
+    matador = cast("FastAPI", request.app)  # Starlette types scope["app"] as Any
+    mounted_at = request.base_url.replace(path=request.scope.get("root_path", "") + "/")
+    return matador.url_path_for(name, **path_params).make_absolute_url(mounted_at)
+
+
 def _back_href(request: Request, name: str, job_id: str) -> str:
     """Where a job page's back button goes: the in-app view the reader came from
     (htmx sends it as `HX-Current-URL`), else the queue. Only a same-origin
     `/queues/...` path is honored - never an off-site value, never the job's own
     page (a refresh/in-place action) - so a stale header can't misdirect or loop.
     """
-    fallback = request.url_for("queue_view", name=name).path
+    fallback = _url_for(request, "queue_view", name=name).path
     current = request.headers.get("hx-current-url", "")
     if not current:
         return fallback  # full page load (deep link / bookmark): no back, go to queue
     came_from = urlsplit(current)
-    here = request.url_for("job_page", name=name, job_id=job_id).path
+    here = _url_for(request, "job_page", name=name, job_id=job_id).path
     if came_from.path.startswith("/queues/") and came_from.path != here:
         return came_from.path + (f"?{came_from.query}" if came_from.query else "")
     return fallback
@@ -159,6 +176,14 @@ _TEMPLATES = Jinja2Templates(directory=str(_HERE / "templates"))
 # rendered HTML stays clean without manual {%- -%} trims sprinkled everywhere.
 _TEMPLATES.env.trim_blocks = True
 _TEMPLATES.env.lstrip_blocks = True
+# Replaces Starlette's `url_for` global, which resolves through the host's routes.
+# cast: ty narrows env.globals' value type from jinja's own entries
+_TEMPLATES.env.globals["url_for"] = cast(
+    "Any",
+    pass_context(
+        lambda context, name, /, **path_params: _url_for(context["request"], name, **path_params)
+    ),
+)
 PER_PAGE = 20
 WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
