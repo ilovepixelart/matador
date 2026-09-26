@@ -125,9 +125,10 @@ def _url_for(request: Request, name: str, /, **path_params: Any) -> URL:
 
 def _back_href(request: Request, name: str, job_id: str) -> str:
     """Where a job page's back button goes: the in-app view the reader came from
-    (htmx sends it as `HX-Current-URL`), else the queue. Only a same-origin
-    `/queues/...` path is honored - never an off-site value, never the job's own
-    page (a refresh/in-place action) - so a stale header can't misdirect or loop.
+    (htmx sends it as `HX-Current-URL`), else the queue. Only a path under
+    matador's own `/queues/`, behind whatever prefix it is mounted at, is honored:
+    never an off-site value, never a host page outside the mount, never the job's
+    own page (a refresh/in-place action), so a stale header can't misdirect or loop.
     """
     fallback = _url_for(request, "queue_view", name=name).path
     current = request.headers.get("hx-current-url", "")
@@ -135,7 +136,8 @@ def _back_href(request: Request, name: str, job_id: str) -> str:
         return fallback  # full page load (deep link / bookmark): no back, go to queue
     came_from = urlsplit(current)
     here = _url_for(request, "job_page", name=name, job_id=job_id).path
-    if came_from.path.startswith("/queues/") and came_from.path != here:
+    queues = request.scope.get("root_path", "") + "/queues/"
+    if came_from.path.startswith(queues) and came_from.path != here:
         return came_from.path + (f"?{came_from.query}" if came_from.query else "")
     return fallback
 
