@@ -3,6 +3,7 @@ the selection surviving pagination (ids live in a JS Set across htmx swaps)."""
 
 import re
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from .conftest import QUEUE, wait_for_live
@@ -81,6 +82,57 @@ def test_select_all_on_page_then_clear(page: Page, base_url, seeded_many):
     expect(page.locator("#bulk-bar")).not_to_be_visible()
 
 
+# Follows ONE live refresh of the job list end to end: the first request the list
+# issues after these listeners are attached, identified by its XHR. Filtering on
+# the target is not enough: htmx fires afterSwap and afterSettle once per settled
+# element, all carrying the same target, and a refresh that swapped before the
+# listeners were attached can still settle after, with the box untouched. An
+# action ('x' or 'click'), if any, lands in that request's afterSwap: after the
+# morph, before the settle. The state is read inside the page once the request has
+# settled and two frames have run, so no later refresh can be sampled instead.
+# It starts only once nothing is requesting or settling and two more frames have
+# run, so no callback an earlier refresh queued can land inside this one's swap.
+_ONE_REFRESH = """async (action) => {
+  const frames = (n) => new Promise((done) => {
+    const step = (k) => (k ? requestAnimationFrame(() => step(k - 1)) : done());
+    step(n);
+  });
+  while (document.querySelector('.htmx-request, .htmx-settling')) await frames(1);
+  await frames(2);
+  return await new Promise((resolve) => {
+    const live = document.querySelector('[data-jobs-live]');
+    const box = () => document.querySelector('#jobs .jcheck');
+    const checked = () => document.querySelectorAll('#jobs .jcheck:checked').length;
+    let xhr = null, swapped = false;
+    const onRequest = (e) => { if (!xhr && e.detail.elt === live) xhr = e.detail.xhr; };
+    const onSwap = (e) => {
+        if (swapped || !xhr || e.detail.xhr !== xhr) return;
+        swapped = true;
+        if (action === 'x') {
+            document.dispatchEvent(new KeyboardEvent('keydown', {key: 'x', bubbles: true}));
+        } else if (action === 'click') {
+            box().click();
+        }
+    };
+    const onSettle = (e) => {
+        if (!swapped || e.detail.xhr !== xhr) return;
+        for (const [type, fn] of [['htmx:beforeRequest', onRequest],
+                                  ['htmx:afterSwap', onSwap],
+                                  ['htmx:afterSettle', onSettle]]) {
+            document.body.removeEventListener(type, fn);
+        }
+        const atSettle = box().checked;
+        requestAnimationFrame(() => requestAnimationFrame(
+            () => resolve({atSettle, finalChecked: checked()})));
+    };
+    document.body.addEventListener('htmx:beforeRequest', onRequest);
+    document.body.addEventListener('htmx:afterSwap', onSwap);
+    document.body.addEventListener('htmx:afterSettle', onSettle);
+    htmx.trigger(live, 'sse:changed');
+  });
+}"""
+
+
 def test_a_selection_is_never_visibly_lost_by_a_refresh(page: Page, base_url, seeded_many):
     """The server does not know what you have selected, so every live refresh brings
     back unchecked boxes and the page re-applies the selection. Re-applying it a
@@ -107,3 +159,24 @@ def test_a_selection_is_never_visibly_lost_by_a_refresh(page: Page, base_url, se
 
     assert page.evaluate("() => window.__checkedAtSettle") is True
     expect(page.locator("#bulk-count")).to_have_text("1")
+
+
+@pytest.mark.parametrize("action", ["x", "click"])
+def test_a_row_deselected_during_a_refresh_stays_deselected(
+    page: Page, base_url, seeded_many, action
+):
+    """A live refresh brings back unchecked boxes and the page re-applies the
+    selection. A deselect that lands between the swap and that re-apply must win:
+    the reader unchecked the row, so it may not come back checked and stay in the
+    set the bulk delete will send.
+    """
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    wait_for_live(page)
+    page.keyboard.press("j")
+    page.keyboard.press("x")
+    expect(page.locator("#jobs .jcheck:checked")).to_have_count(1)
+
+    refresh = page.evaluate(_ONE_REFRESH, action)
+
+    assert refresh["finalChecked"] == 0
+    expect(page.locator("#bulk-bar")).to_be_hidden()
