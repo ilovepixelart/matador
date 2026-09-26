@@ -4,6 +4,7 @@ This is the test that proves "easily integratable" - `host.mount("/admin/queues"
 must produce links/assets/SSE under that prefix, with no bare-root URLs left.
 """
 
+import html
 import re
 
 import pytest
@@ -140,6 +141,41 @@ async def test_a_host_route_sharing_a_name_never_takes_a_matador_link(seeded, tm
                 if url.startswith("/") and not url.startswith(f"{MOUNT}/")
             ]
     assert escaped == [], "links that left the mount:\n" + "\n".join(escaped)
+
+
+# The job page's back button: the anchor directly before the job's title.
+_BACK = re.compile(r'<a href="([^"]*)"[^>]*>(?:(?!</a>).)*</a>\s*<h1', re.DOTALL)
+
+
+@pytest.mark.parametrize(
+    ("came_from", "back"),
+    [
+        # the view the reader came from, tab and page included
+        (
+            f"{MOUNT}/queues/{QUEUE}?state=failed&page=2",
+            f"{MOUNT}/queues/{QUEUE}?state=failed&page=2",
+        ),
+        # the job's own page: back to the queue, never a link to itself
+        (f"{MOUNT}/queues/{QUEUE}/jobs/{{job}}", f"{MOUNT}/queues/{QUEUE}"),
+        # a host page outside the mount: not matador's to send the reader back to
+        (f"/queues/{QUEUE}?state=failed", f"{MOUNT}/queues/{QUEUE}"),
+    ],
+    ids=["referring-view", "own-page", "outside-the-mount"],
+)
+async def test_a_mounted_job_page_links_back_to_the_view_it_was_opened_from(
+    seeded, came_from, back
+):
+    job = seeded["failed"]
+    transport = ASGITransport(app=_host())
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.get(
+            f"{MOUNT}/queues/{QUEUE}/jobs/{job}",
+            headers=hx(**{"HX-Current-URL": "http://test" + came_from.format(job=job)}),
+        )
+    assert r.status_code == 200
+    found = _BACK.search(r.text)
+    assert found, "no back link before the job title"
+    assert html.unescape(found.group(1)) == back
 
 
 async def test_dependencies_protect_every_route(seeded):
