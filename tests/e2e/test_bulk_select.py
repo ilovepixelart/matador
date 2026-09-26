@@ -147,17 +147,9 @@ def test_a_selection_is_never_visibly_lost_by_a_refresh(page: Page, base_url, se
     page.locator(".jcheck").first.check()
     expect(page.locator("#bulk-count")).to_have_text("1")
 
-    page.evaluate("""() => {
-        window.__checkedAtSettle = null;
-        document.body.addEventListener('htmx:afterSettle', () => {
-            const box = document.querySelector('.jcheck');
-            window.__checkedAtSettle = box ? box.checked : null;
-        }, { once: true });
-        htmx.trigger(document.querySelector('[data-jobs-live]'), 'sse:changed');
-    }""")
-    page.wait_for_function("() => window.__checkedAtSettle !== null")
+    refresh = page.evaluate(_ONE_REFRESH, None)
 
-    assert page.evaluate("() => window.__checkedAtSettle") is True
+    assert refresh["atSettle"] is True
     expect(page.locator("#bulk-count")).to_have_text("1")
 
 
