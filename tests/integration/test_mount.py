@@ -4,8 +4,13 @@ This is the test that proves "easily integratable" - `host.mount("/admin/queues"
 must produce links/assets/SSE under that prefix, with no bare-root URLs left.
 """
 
+import re
+
+import pytest
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from httpx import ASGITransport, AsyncClient
+from starlette.routing import Mount
 
 from matador import create_app
 
@@ -51,6 +56,90 @@ async def test_mounted_fragment_and_actions_work(seeded):
         )
         assert r2.status_code == 200
         assert "q-active" in r2.text  # active highlight resolved
+
+
+TRAP = "/host-trap"
+# Every attribute that carries a URL the browser will follow, fetch or post to.
+_URL_ATTRS = re.compile(
+    r'\b(?:href|src|action|hx-get|hx-post|hx-delete|hx-put|hx-patch|sse-connect)="([^"]*)"'
+)
+
+
+def _leaves(routes):
+    """Every route in a table, nested routers flattened. FastAPI 0.141 keeps an
+    included router's routes behind `original_router`, so walk by shape rather
+    than by type: a Mount, or anything with `param_convertors` (every route has
+    them, possibly empty), is a leaf."""
+    for route in routes:
+        if isinstance(route, Mount) or hasattr(route, "param_convertors"):
+            yield route
+        else:
+            nested = getattr(route, "original_router", route)
+            yield from _leaves(getattr(nested, "routes", []))
+
+
+def _namesake() -> dict:
+    return {}  # never reached: only its name and parameters matter
+
+
+def _with_namesakes(order: str, trap_dir) -> tuple[FastAPI, set[str]]:
+    """A host app that owns a route under every name matador uses, taking the same
+    path parameters, so each of matador's lookups has a namesake it could resolve to.
+
+    Generated from matador's own route table, so a route matador adds later is
+    covered without touching this test.
+    """
+    dashboard = create_app([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    host = FastAPI()
+    names: set[str] = set()
+
+    def namesakes() -> None:
+        for route in _leaves(dashboard.routes):
+            names.add(route.name)
+            if isinstance(route, Mount):
+                host.mount(f"{TRAP}/{route.name}", StaticFiles(directory=trap_dir), name=route.name)
+                continue
+            params = "".join(f"/{{{p}}}" for p in route.param_convertors)
+            host.add_api_route(f"{TRAP}/{route.name}{params}", _namesake, name=route.name)
+
+    if order == "before":
+        namesakes()
+    host.mount(MOUNT, dashboard)
+    if order == "after":
+        namesakes()
+    return host, names
+
+
+@pytest.mark.parametrize("order", ["before", "after"])
+async def test_a_host_route_sharing_a_name_never_takes_a_matador_link(seeded, tmp_path, order):
+    """matador resolves its links by route name. A host app is free to name its own
+    routes anything, including `static`, `stream` or `retry`, and to register them
+    before or after the mount; none of that may move a link out of the dashboard.
+    A hijacked Retry button posts to the host's endpoint, not matador's.
+    """
+    pages = [
+        (f"{MOUNT}/", {}),
+        (f"{MOUNT}/queues/{QUEUE}?state=failed", {}),  # per-job actions render here
+        (f"{MOUNT}/queues/{QUEUE}/jobs?state=failed", hx()),
+        (f"{MOUNT}/queues/{QUEUE}/jobs/{seeded['failed']}", {}),  # back link built in Python
+        (f"{MOUNT}/sidebar", hx()),
+    ]
+    host, names = _with_namesakes(order, tmp_path)
+    # Without namesakes the test proves nothing, so a table walk that finds no
+    # routes (a FastAPI release moving them again) must fail here, not pass.
+    assert {"static", "stream", "retry", "remove", "job_page"} <= names, names
+    transport = ASGITransport(app=host)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        escaped = []
+        for path, headers in pages:
+            r = await c.get(path, headers=headers)
+            assert r.status_code == 200, path
+            escaped += [
+                f"{path} -> {url}"
+                for url in _URL_ATTRS.findall(r.text)
+                if url.startswith("/") and not url.startswith(f"{MOUNT}/")
+            ]
+    assert escaped == [], "links that left the mount:\n" + "\n".join(escaped)
 
 
 async def test_dependencies_protect_every_route(seeded):
