@@ -74,6 +74,12 @@ document.body.addEventListener("htmx:afterSettle", () => {
   onSwap();
   requestAnimationFrame(onSwap);
 });
+// And in the same task as the swap itself. htmx fires afterSwap straight after the
+// morph and settles from a timer (settleDelay, 20ms by default), so with only the
+// settle pass there is a task boundary in which every box is unchecked: an `x` or
+// a click that deselects a row there toggles it back on, the id is still in the
+// set, and the settle pass keeps it checked.
+document.body.addEventListener("htmx:afterSwap", onSwap);
 // Clear once a bulk-remove has been issued - centralised here so it doesn't depend
 // on the triggering button surviving its own swap.
 document.body.addEventListener("htmx:afterRequest", (e) => {
