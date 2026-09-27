@@ -2,6 +2,28 @@
 
 Breaking changes by release, newest first, each with what to do about it.
 
+## 1.0.3
+
+Nothing breaks. Three fixes, all in a dashboard mounted into a host app or left open
+while it refreshes.
+
+**A host route can no longer take over a dashboard link.** matador resolved its links
+through the host app's routes, so a host route registered before the mount with the
+same name and path parameters won: a host route named `retry` received the per-job
+Retry button's post, and a host mount named `static` served the stylesheet. Links now
+resolve against matador's own routes under the mount's prefix. A host without
+namesakes sees the same links as before.
+
+**A deselect during a live refresh stays deselected.** The table re-applied the
+selection only once a refresh settled, about 20ms after the swap. A row unchecked in
+that gap came back checked and stayed in the set a bulk action sends. The selection is
+now re-applied in the same task as the swap.
+
+**The job page's back link stays inside a mounted dashboard.** Under a prefix, the back
+link dropped the tab and page the job was opened from, and could point at a host page
+outside the mount. It now returns to the view the job was opened from, or to the
+queue page when that view is outside the dashboard.
+
 ## 1.0.2
 
 Nothing breaks.
