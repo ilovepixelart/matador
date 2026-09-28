@@ -176,3 +176,23 @@ async def test_bulk_remove_refuses_a_selection_it_cannot_read(client, q, seeded,
     )
     assert r.status_code == 400
     assert (await q.counts())["wait"] == before
+
+
+async def test_a_scheduler_id_with_a_slash_is_shown_triggered_and_removed(client, q, seeded):
+    """toro accepts "/" in a scheduler id. The routes took the id as one path segment,
+    so building its buttons raised inside url_for and the whole queue page was a 500,
+    and nothing could trigger or remove the scheduler from the dashboard."""
+    await q.add_scheduler("reports/daily", cron="0 0 * * *")
+
+    r = await client.get(f"/queues/{QUEUE}", headers=hx())
+    assert r.status_code == 200
+    assert "reports/daily" in r.text
+
+    before = (await q.counts())["wait"]
+    r = await client.post(f"/queues/{QUEUE}/schedulers/reports/daily/trigger", headers=hx())
+    assert r.status_code == 200
+    assert (await q.counts())["wait"] == before + 1
+
+    r = await client.request("DELETE", f"/queues/{QUEUE}/schedulers/reports/daily", headers=hx())
+    assert r.status_code == 200
+    assert [s["id"] for s in await q.schedulers()] == ["nightly"]
