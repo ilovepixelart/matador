@@ -8,7 +8,7 @@ make the page too big to use.
 
 import asyncio
 
-from toro import Worker
+from toro import FlowChild, Worker
 
 from .conftest import PREFIX, QUEUE, hx
 
@@ -123,3 +123,28 @@ async def test_nothing_a_job_carries_can_become_markup(client, q):
         assert r.status_code == 200, path
         assert "<xsSmark" not in r.text, f"{path} rendered it as markup"
         assert "&lt;xsSmark" in r.text or "xsS" not in r.text, path
+
+
+async def test_a_fat_child_failure_does_not_fill_the_flow_detail(client, q):
+    """A flow parent lists its children's failure reasons twice: in the failures
+    list under `continue`, and on each node of the tree. Both are whatever the child's
+    exception said."""
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom " + "y" * BIG)
+        return 1
+
+    parent = await q.add_flow("report", {}, children=[FlowChild("bad", {}, on_fail="continue")])
+
+    async def parent_done() -> bool:
+        return (await q.counts())["completed"] >= 1
+
+    await _drain(q, proc, parent_done)
+
+    detail = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/detail")
+    flow = await client.get(f"/queues/{QUEUE}/jobs/{parent.id}/flow")
+
+    assert detail.status_code == flow.status_code == 200
+    assert len(detail.content) < BIG, f"{len(detail.content):,} bytes for one flow"
+    assert len(flow.content) < BIG, f"{len(flow.content):,} bytes for one flow"

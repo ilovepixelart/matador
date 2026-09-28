@@ -286,7 +286,7 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
       <span class="text-xs text-muted tabular-nums shrink-0">{{ (node.job.finished_on - node.job.processed_on)|dur }}</span>
       {% endif %}
       {% if node.job.state == 'failed' and node.job.failed_reason %}
-      <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason }}">{{ node.job.failed_reason }}</span>
+      <span class="min-w-0 text-xs text-danger truncate" title="{{ node.job.failed_reason|clip }}">{{ node.job.failed_reason|clip }}</span>
       {% endif %}
       {% if can_mutate and node.job.state == 'failed' and node.job.id != current_id %}
       {# retry just this node, in place. The root parent has its own "retry flow"

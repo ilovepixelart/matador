@@ -62,7 +62,7 @@
       {% for cid, reason in job.children_failures.items() %}
       <div class="flex items-baseline gap-2 text-sm min-w-0">
         {{ job_chip(job.queue or name, cid) }}
-        <span class="font-mono text-xs text-danger break-all">{{ reason }}</span>
+        <span class="font-mono text-xs text-danger break-all">{{ reason|clip }}</span>
       </div>
       {% endfor %}
     </div>

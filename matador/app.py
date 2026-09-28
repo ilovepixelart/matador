@@ -191,7 +191,7 @@ WORKERS_SEL = "__workers__"  # sidebar highlight sentinel for the Workers view
 SCAN_LIMIT = 500  # how many recent jobs a text search scans within a state
 MAX_BULK_REMOVE = 1000  # cap a single bulk-remove so one request can't fan out unboundedly
 # States the bulk "clean" action may target: the history/pending sets. `active`
-# (a worker holds those) and `waiting-children` (cancel via /flows/clean) are
+# (a worker holds those) and `waiting-children` (removed via /flows/clean) are
 # deliberately excluded - clean must never coerce an odd state into a destructive
 # default and delete the wrong jobs.
 CLEANABLE_STATES: frozenset[str] = frozenset(
@@ -945,7 +945,7 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
         # show under active, which isn't bulk-selectable, so this is their bulk action.
         count = await svc.clean(name, "waiting-children")
         panel = await _panel(svc, request, name, "active", 1)
-        return _with_announcement(request, panel, f"{count} parked flows cancelled")
+        return _with_announcement(request, panel, f"{count} parked flows removed")
 
     @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
     async def trigger(request: Request, name: str, scheduler_id: str):
