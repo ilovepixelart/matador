@@ -283,10 +283,10 @@ def test_journey_retry_one_flow_from_its_detail(page: Page, base_url, drive):
     expect(page.locator("#tabcount-failed")).to_have_text("0")
 
 
-# ---- journey: cancel a batch of parked flows outright ----------------------------
+# ---- journey: remove a batch of parked flows outright ----------------------------
 
 
-def test_journey_cancel_parked_flows(page: Page, base_url, drive):
+def test_journey_remove_parked_flows(page: Page, base_url, drive):
     async def seed():
         q = await reset_queue()
         for i in range(3):
@@ -299,8 +299,8 @@ def test_journey_cancel_parked_flows(page: Page, base_url, drive):
 
     page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     expect(page.locator("#tabcount-active")).to_have_text("3")  # three parked flows
-    # the active tab offers a bulk cancel for parked flows (they aren't row-selectable)
-    page.locator('button:has-text("cancel parked flows")').click()
+    # the active tab offers a bulk removal for parked flows (they aren't row-selectable)
+    page.locator('button:has-text("remove parked flows")').click()
     _confirm(page)
 
     # every parked parent AND its subtree is gone - active and wait both drain
