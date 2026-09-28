@@ -7,7 +7,7 @@ import asyncio
 from playwright.sync_api import Page, expect
 from toro import Queue, Worker
 
-from .conftest import PREFIX, QUEUE, wait_for_live
+from .conftest import PREFIX, QUEUE, wait_for_live, wait_until_quiet
 
 
 def test_enqueued_job_appears_live_on_empty_tab(page: Page, base_url, drive):
@@ -59,7 +59,7 @@ def test_stale_jobs_fragment_cannot_eat_the_panel(page: Page, base_url, seeded):
     # stale fragment exactly the way a leftover listener would and assert both
     # defenses hold: the wrong view is dropped, the panel chrome survives.
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
-    page.wait_for_timeout(500)
+    wait_until_quiet(page)
     page.evaluate(
         f"htmx.ajax('GET', '/queues/{QUEUE}/jobs?state=wait&page=1',"
         " {target: '#jobs', swap: 'morph:innerHTML'})"
@@ -68,7 +68,7 @@ def test_stale_jobs_fragment_cannot_eat_the_panel(page: Page, base_url, seeded):
         f"htmx.ajax('GET', '/queues/{QUEUE}/jobs?state=wait&page=1',"
         " {target: '#queue-panel', swap: 'innerHTML'})"
     )
-    page.wait_for_timeout(500)
+    wait_until_quiet(page)  # both stale requests have landed and settled
     expect(page.locator("#queue-panel h1")).to_be_visible()  # chrome intact
     expect(page.locator("#jobs [data-view]")).to_have_attribute(
         "data-view",

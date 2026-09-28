@@ -186,6 +186,29 @@ def wait_for_live(page, timeout: float = 10_000) -> None:
     page.wait_for_selector('html[data-sse="open"]', timeout=timeout)
 
 
+def wait_until_quiet(page, timeout: float = 10_000) -> None:
+    """Wait until no htmx request or settle is in flight, then two frames.
+
+    htmx wires a swapped-in element (its `sse:changed` listener among the rest) while
+    it processes and settles the new content, and a refresh already swapped still
+    settles from a timer. Past this, whatever those swaps were going to do is done.
+    """
+    page.wait_for_function(
+        "() => !document.querySelector('.htmx-request, .htmx-settling')", timeout=timeout
+    )
+    page.evaluate("() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")
+
+
+def count_sse_messages(page) -> None:
+    """Start counting the stream messages the page receives, in `window.__sseMessages`."""
+    page.evaluate(
+        """() => {
+            window.__sseMessages = 0;
+            document.body.addEventListener("htmx:sseMessage", () => window.__sseMessages++);
+        }"""
+    )
+
+
 @pytest.fixture
 def drive(run_async):
     """Run a coroutine against the same Redis the server reads (for live-update tests)."""

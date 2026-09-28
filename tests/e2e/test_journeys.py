@@ -12,7 +12,7 @@ from playwright.sync_api import Page, expect
 from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees readable
 from toro import Worker
 
-from .conftest import PREFIX, QUEUE, URL, reset_queue, work_until
+from .conftest import PREFIX, QUEUE, URL, reset_queue, wait_for_live, wait_until_quiet, work_until
 
 
 def _confirm(page: Page) -> None:
@@ -50,13 +50,13 @@ def test_journey_incident_recovery_to_green(page: Page, base_url, drive):
     expect(row).to_contain_text("RuntimeError")
     # 4. the fix is deployed; retry everything
     row.locator("summary").click()  # close the row so the live table isn't paused
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
     page.locator('button:has-text("retry all")').click()
     _confirm(page)
     expect(page.locator("#tabcount-failed")).to_have_text("0")  # retry emptied failed
     # the swap replaced the live-refresh element; it re-wires its sse:changed
-    # listener on init - give it a beat before background events start firing
-    page.wait_for_timeout(1500)
+    # listener while htmx settles the new content
+    wait_until_quiet(page)
 
     async def fixed():
         async def healthy(job):
@@ -98,7 +98,7 @@ def test_journey_flow_lifecycle_to_results(page: Page, base_url, drive):
     expect(page.locator("#jobs")).not_to_contain_text("collect")  # children hidden
     row.locator("summary").click()
     expect(row).to_contain_text("0/3 children done")
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
     row.locator("summary").click()  # close - live refresh resumes
 
     # 2. workers chew through it; the active list empties on its own
@@ -327,7 +327,7 @@ def test_journey_promote_an_overdue_delayed_job(page: Page, base_url, drive):
     page.get_by_role("button", name="Promote, run now").click()
     expect(page.locator("#tabcount-wait")).to_have_text("1")
     expect(page.locator("#tabcount-delayed")).to_have_text("0")
-    page.wait_for_timeout(1500)  # SSE connect before the background worker fires
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def drain():
         async def proc(job):
