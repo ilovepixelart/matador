@@ -93,7 +93,7 @@ def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
     # renders blank, and a state toro adds later would arrive here before it has a tab
     c = dict.fromkeys(STATES, 0) | dict(counts)
     # active reads as active + parked; the raw waiting-children count stays in the
-    # dict (no tab renders it) so the active tab can offer "remove parked flows"
+    # dict (no tab renders it) so the active tab can offer "cancel parked flows"
     c["active"] = c.get("active", 0) + c.get("waiting-children", 0)
     return c
 
@@ -575,6 +575,22 @@ class Service:
             n = await q.clean(state, limit=1000)
             total += n
             if n < 1000 or total >= 100_000:  # drained, or a sane upper bound
+                break
+        return total
+
+    async def cancel_parked_flows(self, name: str) -> int:
+        """Cancel every parked flow root, each with its subtree, so the flows land in
+        `cancelled` (kept by each job's remove_on_fail retention) instead of being
+        deleted. A cancelled root leaves `waiting-children`, so each batch reads from
+        the start again.
+        """
+        q = await self._queue(name)
+        total = 0
+        while total < 100_000:  # a sane upper bound, as in clean
+            _, roots = await q.get_jobs_roots("waiting-children", 0, 999)
+            cancelled = sum([await q.cancel_job(job.id) for job in roots])
+            total += cancelled
+            if not cancelled:  # drained, or only roots a race already settled
                 break
         return total
 

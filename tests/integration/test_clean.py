@@ -1,5 +1,7 @@
 """Integration: the Clean action drains a state in batches, not just one 1000-cap call."""
 
+from toro import FlowChild
+
 from matador.service import Service
 
 from .conftest import PREFIX, QUEUE, hx
@@ -32,3 +34,16 @@ async def test_held_jobs_can_be_cleaned(client, q):
 
     assert r.status_code == 200
     assert (await q.counts())["held"] == 0
+
+
+async def test_cancel_parked_flows_drains_past_one_batch(q):
+    """A batch reads 1000 parked roots; one more than that must still be cancelled."""
+    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    for i in range(1001):
+        await q.add_flow("import", {"i": i}, children=[FlowChild("page", {})])
+
+    total = await svc.cancel_parked_flows(QUEUE)
+
+    assert total == 1001
+    assert (await q.counts())["waiting-children"] == 0
+    await svc.close()
