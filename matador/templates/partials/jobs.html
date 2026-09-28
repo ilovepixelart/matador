@@ -34,9 +34,9 @@
    cancel lives here: every waiting-children parent plus its whole subtree. #}
 <div class="flex items-center justify-end px-4 py-2.5 bg-panel2/40 border-b border-line">
   <button class="btn btn-sm btn-danger" hx-post="{{ url_for('clean_flows', name=name).path }}"
-          hx-confirm="Remove ALL {{ q.counts['waiting-children'] }} parked flow{{ 's' if q.counts['waiting-children'] != 1 }}? Each parent is removed with its whole subtree - children included, even running ones."
+          hx-confirm="Cancel ALL {{ q.counts['waiting-children'] }} parked flow{{ 's' if q.counts['waiting-children'] != 1 }}? Each parent is cancelled with its whole subtree - children included, even running ones."
           hx-target="#queue-panel" data-loading-disable data-loading-aria-busy>
-    {{ icon('flow', 'w-3.5 h-3.5') }} remove parked flows</button>
+    {{ icon('flow', 'w-3.5 h-3.5') }} cancel parked flows</button>
 </div>
 {% endif %}
 

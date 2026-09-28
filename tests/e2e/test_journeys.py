@@ -283,10 +283,10 @@ def test_journey_retry_one_flow_from_its_detail(page: Page, base_url, drive):
     expect(page.locator("#tabcount-failed")).to_have_text("0")
 
 
-# ---- journey: remove a batch of parked flows outright ----------------------------
+# ---- journey: cancel a batch of parked flows, keeping the record ----------------
 
 
-def test_journey_remove_parked_flows(page: Page, base_url, drive):
+def test_journey_cancel_parked_flows(page: Page, base_url, drive):
     async def seed():
         q = await reset_queue()
         for i in range(3):
@@ -299,14 +299,16 @@ def test_journey_remove_parked_flows(page: Page, base_url, drive):
 
     page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     expect(page.locator("#tabcount-active")).to_have_text("3")  # three parked flows
-    # the active tab offers a bulk removal for parked flows (they aren't row-selectable)
-    page.locator('button:has-text("remove parked flows")').click()
+    # the active tab offers a bulk cancel for parked flows (they aren't row-selectable)
+    page.locator('button:has-text("cancel parked flows")').click()
     _confirm(page)
 
-    # every parked parent AND its subtree is gone - active and wait both drain
+    # every parked parent AND its subtree stops - active and wait both drain
     expect(page.locator("#tabcount-active")).to_have_text("0", timeout=5000)
     expect(page.locator("#tabcount-wait")).to_have_text("0")
     expect(page.locator("#jobs")).to_contain_text("No active jobs")
+    # and the flows are kept, one cancelled root each
+    expect(page.locator("#tabcount-cancelled")).to_have_text("3")
 
 
 # ---- journey: an overdue delayed job needs to run NOW ----------------------------

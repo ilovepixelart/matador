@@ -120,25 +120,24 @@ async def test_tab_counts_oob_has_no_flows_tab(client, q):
     assert 'id="tabcount-active"' in r.text  # parked flows fold into the active badge
 
 
-async def test_clean_flows_removes_parked_roots_and_subtrees_and_says_so(client, q):
-    """The action deletes: the flows are gone, not kept as cancelled, so the button
-    and the announcement say removed. Saying cancelled promised a record that
-    nothing keeps."""
-    await _flow(q)  # one parked flow, two children
-    # the active tab offers the bulk removal while parked flows exist
+async def test_cancel_parked_flows_keeps_each_flow_as_cancelled(client, q):
+    """The action cancels: every parked root and its subtree lands in `cancelled`,
+    where retention keeps the record, instead of being deleted outright."""
+    parent = await _flow(q)  # one parked flow, two children
+    # the active tab offers the bulk cancel while parked flows exist
     r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
-    assert "remove parked flows" in r.text
-    # the action removes the parked root AND its subtree (children included)
+    assert "cancel parked flows" in r.text
     r = await client.post(f"/queues/{QUEUE}/flows/clean", headers=hx())
     assert r.status_code == 200
-    assert "1 parked flows removed" in r.text
+    assert "1 parked flows cancelled" in r.text
     cts = await q.counts()
-    assert cts["waiting-children"] == 0  # the parked root is gone
-    assert cts["wait"] == 0  # its children went with it
-    assert cts["cancelled"] == 0  # deleted, not cancelled
+    assert cts["waiting-children"] == 0  # the parked root left the parked set
+    assert cts["wait"] == 0  # its children did not stay behind to run
+    assert cts["cancelled"] == 3  # root + both children, kept as a record
+    assert (await q.get_job(parent.id)).state == "cancelled"
     # with nothing parked, the button is no longer offered
     r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
-    assert "remove parked flows" not in r.text
+    assert "cancel parked flows" not in r.text
 
 
 async def test_flow_fragment_survives_a_vanished_parent(client, q):

@@ -182,7 +182,7 @@ async def test_the_parked_flow_control_is_not_drawn_either(locked, q, seeded):
 
     r = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
 
-    assert "remove parked flows" not in r.text
+    assert "cancel parked flows" not in r.text
 
 
 async def test_no_page_a_viewer_can_reach_draws_a_control(locked, seeded, failed_flow, q):
@@ -213,7 +213,7 @@ async def test_a_dashboard_that_may_mutate_draws_them_all(unlocked, seeded, fail
     for path in ("/queues/{name}", "/workers", "/queues/{name}/jobs/{job_id}"):
         assert drawn[path], f"{path} draws no control at all, so its absence proves nothing"
     active = await client.get(f"/queues/{QUEUE}?state=active", headers=hx())
-    assert "remove parked flows" in active.text
+    assert "cancel parked flows" in active.text
 
 
 async def test_a_predicate_that_raises_leaves_a_dashboard_that_reads(q, seeded, caplog):

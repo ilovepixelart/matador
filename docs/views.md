@@ -75,7 +75,7 @@ silently.
 | `POST /queues/{name}/jobs/bulk-remove` | Remove the checkbox-selected jobs - capped at 1000 per request so one click can't fan out unboundedly. |
 | `POST /queues/{name}/retry-all` | Re-queue failed jobs, the newest 1000 per click. |
 | `POST /queues/{name}/clean` | Remove every job in the current state, up to 100,000 per request. A flow root cleaned this way takes its whole subtree with it. |
-| `POST /queues/{name}/flows/clean` | Remove every parked flow (waiting-children) and its subtree - the bulk action for parked roots, which fold into the non-selectable active tab. |
+| `POST /queues/{name}/flows/clean` | Cancel every parked flow (waiting-children) and its subtree, up to 100,000 per request; the flows stay in `cancelled`, kept by each job's `remove_on_fail` retention. The bulk action for parked roots, which fold into the non-selectable active tab. |
 | `POST /queues/{name}/jobs/{job_id}/retry-flow` | Re-drive a whole failed flow: retry every failed job in the subtree. |
 | `POST /queues/{name}/jobs/{job_id}/retry-node` | Retry one node of a flow in place (re-joins its parent's barrier). |
 | `POST /queues/{name}/schedulers/{id}/trigger` | Run one occurrence of a schedule now. |
