@@ -56,8 +56,8 @@ jobs:
 
       # matador depends on toro through a local path (../toro), so check it out as a
       # sibling. Paired-branch development: if toro has a branch with the SAME name
-      # as this one, use it (uv.lock embeds the sibling's metadata, so CI must see
-      # the same toro the lock was generated against); otherwise fall back to main.
+      # as this one, use it; otherwise the toro release uv.lock records, since
+      # `uv sync --locked` accepts only that version. The script says why.
       - name: Pick the toro ref
         id: toro-ref
         working-directory: matador
@@ -69,12 +69,7 @@ jobs:
           # `x"; curl ... | sh; #` would be executed rather than looked up.
           BRANCH: ${{ github.head_ref || github.ref_name }}
           OWNER: ${{ github.repository_owner }}
-        run: |
-          if gh api "repos/$OWNER/toro/branches/$BRANCH" --silent 2>/dev/null; then
-            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=main" >> "$GITHUB_OUTPUT"
-          fi
+        run: sh .github/scripts/pick-toro-ref.sh
 
       - name: Check out toro (sibling dependency)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
