@@ -75,7 +75,8 @@ uv run uvicorn scripts.run:app --reload   # http://localhost:8000
 ## Integrate into an existing app
 
 matador is an ASGI app - `mount` it into your FastAPI/Starlette service at any path.
-URLs are `root_path`-aware (Starlette `url_for`), so a sub-path mount just works.
+Links resolve against matador's own routes and carry the mount prefix, so a sub-path
+mount just works, even beside host routes with the same names.
 
 ```python
 from fastapi import Depends
