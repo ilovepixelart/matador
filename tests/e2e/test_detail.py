@@ -5,7 +5,7 @@ import re
 from playwright.sync_api import Page, Route, expect
 from toro import Queue
 
-from .conftest import PREFIX, QUEUE, URL
+from .conftest import PREFIX, QUEUE, URL, wait_for_live, wait_until_quiet
 
 
 def test_accordion_lazy_loads_detail_on_open(page: Page, base_url, seeded):
@@ -50,7 +50,7 @@ def test_reopen_after_live_refresh_still_loads_the_detail(page: Page, base_url, 
     from .conftest import PREFIX
 
     page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
-    page.wait_for_timeout(2000)  # SSE connect
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
     row = page.locator("#jobs details").first
     row.locator("summary").click()
     expect(row).to_contain_text("opts")  # detail loaded
@@ -109,5 +109,5 @@ def test_a_refresh_in_flight_does_not_close_a_row_just_opened(page: Page, base_u
     with page.expect_response(re.compile(r"/jobs\?")) as landed:
         held[0].continue_()
     landed.value.finished()
-    page.wait_for_timeout(300)  # a swap, had there been one, has settled by now
+    wait_until_quiet(page)  # a swap, had there been one, has settled
     assert page.locator("#jobs details[open]").count() == 1

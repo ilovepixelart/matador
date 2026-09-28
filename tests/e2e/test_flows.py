@@ -8,7 +8,16 @@ from playwright.sync_api import Page, expect
 from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees readable
 from toro import Queue
 
-from .conftest import PREFIX, QUEUE, URL, reset_queue, work_until
+from .conftest import (
+    PREFIX,
+    QUEUE,
+    URL,
+    count_sse_messages,
+    reset_queue,
+    wait_for_live,
+    wait_until_quiet,
+    work_until,
+)
 
 
 async def _seed_flows() -> dict:
@@ -132,7 +141,7 @@ def test_keyboard_cursor_works_on_a_flow_row(page: Page, base_url, flows):
 def test_live_refresh_unparks_a_completed_flow(page: Page, base_url, flows, drive):
     page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     expect(page.locator("#jobs details")).to_have_count(1)
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def finish_the_flow():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
@@ -219,7 +228,7 @@ def test_flow_tree_updates_live_while_in_flight(page: Page, base_url, flows, dri
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_a']}")
     panel = page.locator("#queue-panel")
     expect(panel).to_contain_text("1/2 children done")
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def finish():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
@@ -255,7 +264,7 @@ def test_live_update_touches_only_the_flow_section_not_the_chrome(
     expect(page.locator("h1")).to_contain_text("nightly-report")  # the title (the "top")
     expect(panel).to_contain_text("period")  # the parent's data well, sibling of the flow
     expect(page.locator("#flow-section")).to_have_count(1)
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def finish():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
@@ -293,13 +302,13 @@ def test_failed_flow_updates_live_during_per_node_retry(page: Page, base_url, fl
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_b']}")
     panel = page.locator("#queue-panel")
     expect(panel).to_contain_text("1/2 children done")  # transcode failed, thumbnail done
-    page.wait_for_timeout(2000)  # body SSE connect
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     # per-node retry the failed child (the only retry-node button in the tree)
     page.locator('button[hx-post*="retry-node"]').first.click()
-    # the swapped-in detail is now live (the child is in `wait`); let its refresher
-    # wire its SSE listener before any worker event fires (no replay if missed)
-    page.wait_for_timeout(2000)
+    # the swapped-in detail is now live (the child is in `wait`); its refresher wires
+    # its SSE listener while htmx settles it, before any worker event fires
+    wait_until_quiet(page)
 
     async def finish():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
@@ -384,7 +393,7 @@ def test_flow_throughput_climbs_live_when_a_flow_completes(page: Page, base_url,
     page.goto(f"{base_url}/queues/{QUEUE}?state=active")
     strip = page.locator("#flow-metrics")
     expect(strip).to_contain_text("0 flows done")
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def finish():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
@@ -410,7 +419,7 @@ def test_standalone_title_pill_updates_live(page: Page, base_url, flows, drive):
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{flows['parent_a']}")
     pill = page.locator("#job-state-pill")
     expect(pill).to_have_text("waiting-children")  # parked
-    page.wait_for_timeout(2000)  # SSE connect (no replay if we miss it)
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def finish():
         q = Queue(QUEUE, url=URL, prefix=PREFIX)
@@ -441,7 +450,8 @@ def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
     # strip), so the in-panel swap leaves that region's listener behind.
     cid = flows["a_children"][0]
     page.goto(f"{base_url}/queues/{QUEUE}?state=active")  # active tab: metrics strip is live
-    page.wait_for_timeout(2000)  # SSE connect + live region registered
+    wait_for_live(page)  # a change published before the stream subscribes reaches nobody
+    wait_until_quiet(page)  # ...and the live regions it mounted are wired
     page.locator("#jobs details summary").first.click()  # open the parked flow's tree
     page.locator(f'#jobs a[href="/queues/{QUEUE}/jobs/{cid}"]').first.click()  # drill into a child
     panel = page.locator("#queue-panel")
@@ -454,8 +464,10 @@ def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
             await q.add("churn", {})
         await q.close()
 
+    count_sse_messages(page)
     drive(churn())
-    page.wait_for_timeout(2500)
+    page.wait_for_function("() => window.__sseMessages > 0")  # the churn reached the page
+    wait_until_quiet(page)  # ...and every refresh it set off has landed
     # the stale metrics strip must NOT have re-rooted and wiped the detail
     expect(panel).to_contain_text("part of")
     expect(page.locator("#job-state-pill")).to_be_visible()
