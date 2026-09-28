@@ -976,14 +976,18 @@ def _queue_actions_router(svc: Service) -> APIRouter:
         panel = await _panel(svc, request, name, "active", 1)
         return _with_announcement(request, panel, f"{count} parked flows cancelled")
 
-    @router.post("/queues/{name}/schedulers/{scheduler_id}/trigger", response_class=HTMLResponse)
+    # `:path`, since toro admits "/" in a scheduler id (it refuses ":" and control
+    # characters only); a single-segment parameter cannot even be rendered for one.
+    @router.post(
+        "/queues/{name}/schedulers/{scheduler_id:path}/trigger", response_class=HTMLResponse
+    )
     async def trigger(request: Request, name: str, scheduler_id: str):
         await svc.trigger_scheduler(name, scheduler_id)
         return _render(
             request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
         )
 
-    @router.delete("/queues/{name}/schedulers/{scheduler_id}", response_class=HTMLResponse)
+    @router.delete("/queues/{name}/schedulers/{scheduler_id:path}", response_class=HTMLResponse)
     async def remove_scheduler(request: Request, name: str, scheduler_id: str):
         await svc.remove_scheduler(name, scheduler_id)
         return _render(

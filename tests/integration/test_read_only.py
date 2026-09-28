@@ -35,7 +35,7 @@ def _mutating_routes(app) -> list[tuple[str, str]]:
                 walk(nested)
                 continue
             methods = getattr(route, "methods", set()) - {"GET", "HEAD", "OPTIONS"}
-            out.extend((method, route.path) for method in methods)
+            out.extend((method, route.path_format) for method in methods)
 
     walk(app.routes)
     return out
@@ -79,7 +79,7 @@ def _readable_routes(app) -> list[str]:
                 walk(nested)
                 continue
             if "GET" in getattr(route, "methods", set()) and route.path != "/stream":
-                out.append(route.path)
+                out.append(route.path_format)  # convertors stripped, so it formats
 
     walk(app.routes)
     return out
