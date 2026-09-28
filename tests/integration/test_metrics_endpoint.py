@@ -55,3 +55,40 @@ async def test_metrics_needs_no_htmx_and_no_session(client, seeded):
 
     assert r.status_code == 200
     assert "<html" not in r.text
+
+
+async def test_the_exposition_reads_the_queues_together_and_counts_before_totals(q, monkeypatch):
+    """One scrape read the queues one after another, each queue's lifetime totals
+    before its counts. N queues cost N round trips in a row, and a job finishing
+    between a queue's two reads was in neither: gone from the counts, not yet in the
+    totals. The reads now run together, and counts come first, so such a job is in
+    both rather than missing."""
+    import asyncio
+
+    from matador.service import Service
+
+    svc = Service(
+        [QUEUE, "otherq"], url="redis://localhost:6379", prefix=PREFIX, connection=q.redis
+    )
+    calls: list[str] = []
+    gate = asyncio.Event()
+
+    def recording(name, method, real):
+        async def call(*args, **kwargs):
+            calls.append(f"{name}.{method}")
+            await gate.wait()
+            return await real(*args, **kwargs)
+
+        return call
+
+    for name, queue in svc.queues.items():
+        for method in ("counts", "lifetime_totals"):
+            monkeypatch.setattr(queue, method, recording(name, method, getattr(queue, method)))
+
+    rendering = asyncio.create_task(svc.metrics_text())
+    await asyncio.sleep(0.05)
+    assert sorted(calls) == sorted([f"{QUEUE}.counts", "otherq.counts"])  # both begun, counts first
+    gate.set()
+    assert 'queue="otherq"' in await rendering
+    totals = [f"{QUEUE}.lifetime_totals", "otherq.lifetime_totals"]
+    assert sorted(calls[2:]) == sorted(totals)
