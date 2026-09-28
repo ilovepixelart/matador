@@ -114,7 +114,7 @@ def _selected_ids(raw: str) -> list[str] | None:
         return []
     try:
         ids = json.loads(raw)
-    except ValueError:
+    except (ValueError, RecursionError):  # a body nested deeper than the parser can go
         return None
     if not isinstance(ids, list):
         return None
