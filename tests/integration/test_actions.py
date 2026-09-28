@@ -163,7 +163,7 @@ async def test_retrying_or_promoting_a_job_that_is_gone_says_so(client, q, path,
     assert 'role="alert"' in r.text
 
 
-@pytest.mark.parametrize("ids", ["a,b", '{"a": 1}', "[1, 2]", "[unclosed"])
+@pytest.mark.parametrize("ids", ["a,b", '{"a": 1}', "[1, 2]", "[unclosed", "[" * 100_000])
 async def test_bulk_remove_refuses_a_selection_it_cannot_read(client, q, seeded, ids):
     """Anything but a JSON array of ids is refused rather than guessed at: a guess is
     what turned one selected `a,b` into two deleted jobs."""
