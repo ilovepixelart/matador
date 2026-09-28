@@ -63,6 +63,18 @@ def test_main_when_the_locked_version_was_never_tagged(tmp_path):
     assert _pick(tmp_path, existing=[]) == "ref=main\n"
 
 
+def test_a_dependabot_branch_is_not_paired(tmp_path):
+    """Both repos take the same action bumps, so Dependabot opens the same-named branch
+    in each: toro's is toro main plus the bump, which the lock rejects."""
+    branch = "dependabot/github_actions/actions/checkout-7.0.1"
+    out = _pick(
+        tmp_path,
+        existing=[f"repos/acme/toro/branches/{branch}", "repos/acme/toro/git/ref/tags/v1.0.1"],
+        branch=branch,
+    )
+    assert out == "ref=v1.0.1\n"
+
+
 def test_main_builds_against_the_release_the_lock_records(tmp_path):
     """toro has a `main` too, so the same-name rule matched it on every push to
     matador's main. toro's main moves to the next version before matador relocks,

@@ -14,10 +14,12 @@ on:
 permissions:
   contents: read
 
-# A new push to the same branch/PR supersedes the previous run.
+# A new push to the same PR supersedes the previous run. A push to main never cancels
+# the previous merge's run: each merge commit needs a green run of its own, and a
+# release is tagged from one.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:

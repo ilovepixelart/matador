@@ -6,8 +6,11 @@
 set -eu
 : "${DEFAULT_BRANCH:?the workflow passes the default branch of this repo}"
 # Pairing is for feature branches: toro has a `main` too, and toro's main moves to the
-# next version before matador relocks.
-if [ "$BRANCH" != "$DEFAULT_BRANCH" ] && gh api "repos/$OWNER/toro/branches/$BRANCH" --silent 2>/dev/null; then
+# next version before matador relocks. Dependabot opens the same-named branch in both
+# repos for the same action bump, and toro's is toro main plus the bump.
+pair=true
+case "$BRANCH" in "$DEFAULT_BRANCH" | dependabot/*) pair=false ;; esac
+if $pair && gh api "repos/$OWNER/toro/branches/$BRANCH" --silent 2>/dev/null; then
   echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
   exit 0
 fi
