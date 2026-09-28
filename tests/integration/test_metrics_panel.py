@@ -117,3 +117,19 @@ async def test_sparse_percentiles_are_dimmed(client, seeded):
 async def test_percentile_chip_discloses_estimation(client, seeded):
     r = await client.get(f"/queues/{QUEUE}/metrics", headers=hx())
     assert "estimate" in r.text.lower()  # we say it's bucketed, like the big tools do
+
+
+async def test_the_live_jobs_refresh_reads_no_metrics(client, seeded, monkeypatch):
+    """The jobs list refreshes on every job event. It rendered none of the metrics
+    strip's numbers, yet computed all of them: 60 minute buckets, percentiles, the
+    workers' caps and the per-name table, on every refresh."""
+    from matador.service import Service
+
+    async def not_here(*args, **kwargs):
+        raise AssertionError("a metrics read on the jobs refresh")
+
+    monkeypatch.setattr(Service, "metrics", not_here)
+    monkeypatch.setattr(Service, "metrics_names", not_here)
+    monkeypatch.setattr(Service, "flow_metrics", not_here)
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=active", headers=hx())
+    assert r.status_code == 200

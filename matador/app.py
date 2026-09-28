@@ -490,20 +490,29 @@ async def _search_jobs(
 async def _panel_ctx(
     svc: Service, name: str, state: str, page: int, query: str = ""
 ) -> dict[str, Any]:
-    view = await svc.queue_view(name)
-    # No state in the URL → the tab with signal; an explicit one is respected.
-    state = _coerce_state(state) if state else _default_state(view["counts"])
-    query = query.strip()
+    """Build the jobs context plus the metrics strip.
+
+    The panel renders both; the jobs list, refreshed on every job event, renders the
+    first alone (`_jobs_ctx`).
+    """
+    ctx = await _jobs_ctx(svc, name, state, page, query)
     # metrics render inline with the panel (a lazy load would pop in a beat late)
     m = await svc.metrics(name)
     names = await svc.metrics_names(name)
     # the flow-throughput strip rides the active tab (where in-flight flows live)
-    fm = await svc.flow_metrics(name) if state == "active" else None
+    fm = await svc.flow_metrics(name) if ctx["state"] == "active" else None
+    return {**ctx, "m": m, "fm": fm, "names": names}
+
+
+async def _jobs_ctx(
+    svc: Service, name: str, state: str, page: int, query: str = ""
+) -> dict[str, Any]:
+    view = await svc.queue_view(name)
+    # No state in the URL → the tab with signal; an explicit one is respected.
+    state = _coerce_state(state) if state else _default_state(view["counts"])
+    query = query.strip()
     base = {
         "q": view,
-        "m": m,
-        "fm": fm,
-        "names": names,
         "states": STATES,
         "state": state,
         "scan_limit": SCAN_LIMIT,
@@ -769,7 +778,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # No query → the normal paginated list (this is the live-refresh path). Emit the
         # tab counts from the SAME snapshot as the table so the badges and the list can't
         # disagree on a fast-churning state - this refresh is their single source.
-        ctx = await _panel_ctx(svc, name, state, page)
+        ctx = await _jobs_ctx(svc, name, state, page)
         html = _render_str(request, "partials/jobs.html", name=name, **ctx)
         html += _render_str(
             request, "partials/tab_counts_oob.html", states=STATES, counts=ctx["q"]["counts"]
