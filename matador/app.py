@@ -24,7 +24,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, cast
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import APIRouter, FastAPI, Form, Request, params
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
@@ -120,7 +120,12 @@ def _url_for(request: Request, name: str, /, **path_params: Any) -> URL:
     """
     matador = cast("FastAPI", request.app)  # Starlette types scope["app"] as Any
     mounted_at = request.base_url.replace(path=request.scope.get("root_path", "") + "/")
-    return matador.url_path_for(name, **path_params).make_absolute_url(mounted_at)
+    # Starlette puts a path parameter in as-is, and toro allows `?`, `#` and `%` in a
+    # job id: `order?x=1` became the path `/jobs/order`. Encoded here, the router
+    # decodes it back to the id before the route sees it. `/` stays: it separates the
+    # segments of a static asset's path, and toro refuses it in a job id.
+    encoded = {key: quote(str(value), safe="/") for key, value in path_params.items()}
+    return matador.url_path_for(name, **encoded).make_absolute_url(mounted_at)
 
 
 def _back_href(request: Request, name: str, job_id: str) -> str:
