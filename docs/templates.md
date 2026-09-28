@@ -21,8 +21,8 @@ the UI: `queue.html` (the panel), `jobs.html` (the table + pager),
 `job_detail.html` (the accordion body), `job_page.html`, `search_results.html`,
 `workers.html` / `workers_list.html`, `schedulers.html`, `sidebar.html`,
 `redis.html`, `toast.html` - plus the out-of-band wrappers
-(`sidebar_oob.html`, `tab_counts_oob.html`) that let one response update
-several regions ([Live updates](live-updates.md)).
+(`sidebar_oob.html`, `tab_counts_oob.html`, `job_state_oob.html`,
+`announce_oob.html`) that let one response update several regions ([Live updates](live-updates.md)).
 
 ## Macros
 
@@ -31,7 +31,7 @@ several regions ([Live updates](live-updates.md)).
 | Macro | Renders |
 |---|---|
 | `icon(name)` | An inline-SVG Heroicon (outline set, self-hosted - no icon font, no CDN). |
-| `job_row(name, j, state, page, bulk)` | One job row: a native `<details>` accordion with checkbox (bulk states only), id chip, flow glyphs (branch + child count on parents, turn-arrow on children), data preview, progress bar (active jobs), attempts, and the state-appropriate action buttons. The body lazy-loads via `hx-get` on first open. |
+| `job_row(name, j, state, page, bulk)` | One job row: a native `<details>` accordion with checkbox (bulk states only), id chip, flow glyphs (branch + child count on parents, turn-arrow on children), data preview, progress bar (active jobs), attempts, and the state-appropriate action buttons. The body loads via `hx-get` each time the row is opened. |
 | `flow_tree(queue, nodes, current_id, cls)` | A flow tree (recursive): emits its own `<ul cls>` over a list of sibling nodes, each an `<li>` with id chip, status pill, name, duration, failure reason and a per-node retry button on failed children; the current job's row is lifted. Recurses on each node's children. |
 | `job_chip(queue, jid)` | A clickable job-id chip linking to the standalone job page. |
 | `state_token(s)` / `state_color(s)` | Map a job state to a semantic token (`info`/`success`/`danger`/`warning`/`muted`) and its badge classes. |
@@ -46,9 +46,9 @@ math:
 | Filter | Example |
 |---|---|
 | `clock` / `clockms` | `12:34:56` / `12:34:56.789` (local time) |
-| `dur` | `850ms`, `45.2s`, `1h 23m` |
+| `dur` | `850ms`, `45.2s`, `83m 20s` |
 | `uptime` | `3h 45m` from a started-at timestamp |
-| `comma` / `compact` | `1,234` / `12.3K`, `5.2M` |
+| `comma` / `compact` | `1,234` / `12K`, `5.2M` (below 10,000 unchanged) |
 | `schedule` | `every 5s` or `cron */5 * * * *` |
 | `pretty` | Pygments-highlighted JSON, truncated at 20k chars ([Security](security.md)) |
 
@@ -62,13 +62,13 @@ The CSS is built by the **standalone Tailwind CLI** - no Node, no npm:
 
 `styles/input.css` defines the design tokens as CSS custom properties - panel,
 line, ink, and the status colors (`--info`, `--success`, `--warning`,
-`--danger`, `--accent`) - with a light and a dark set; dark mode is
-`darkMode: 'class'`, toggled by a small behavior and remembered in
-localStorage. Component classes (`.btn*`, `.card`, `.chip`, `.input`, `.th`,
+`--danger`, `--accent`) - with a light and a dark set; dark mode is a
+class-strategy `@custom-variant dark`, toggled by a small behavior and remembered
+in localStorage (Tailwind v4, configured in CSS; there is no `tailwind.config.js`). Component classes (`.btn*`, `.card`, `.chip`, `.input`, `.th`,
 `.td`, `.pg*`) live in `@layer components`, and the status utilities built from
-tokens are safelisted since they're composed in macros, out of the content
-scanner's sight.
+tokens are pinned with `@source inline(...)`, since they're composed in macros,
+out of the content scanner's sight.
 
 The built `app.css` is committed to `matador/static/` (a pip install needs no
-build step) and served with a cache-busting `?v=` derived from the file's
-mtime, so a redeploy can't pin a stale stylesheet.
+build step) and served with a cache-busting `?v=`: the newest mtime of any file under `static/`,
+shared by every asset tag, so a redeploy can't pin a stale stylesheet or script.

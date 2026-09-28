@@ -52,7 +52,7 @@ subscribe again.
 
 ### What the stream cannot announce
 
-toro publishes `added`, `completed`, `failed` and `progress`. A claim, a retry, a
+toro publishes `added`, `completed`, `failed`, `cancelled` and `progress`. A claim, a retry, a
 delayed job's promotion and a stalled job's recovery publish nothing, so they
 reach the page with the heartbeat: a job moving from waiting to active can take
 up to 8 seconds to show.
@@ -85,9 +85,11 @@ stream's trailing edge exists to deliver. Every region also carries
 one deep. That is what htmx does for an element with no `hx-sync` at all, but an
 `hx-sync` that names no strategy means `drop`, which loses the tail again, so the
 strategy is stated on every region. A test reads every template and fails on a client throttle or a missing
-`queue last`. Swaps use **morph**
-(idiomorph), which patches the DOM in place instead of replacing it - open
-accordions, focus, and scroll positions survive a refresh.
+`queue last`. The job table and
+the other regions a reader interacts with swap with **morph** (idiomorph), which
+patches the DOM in place instead of replacing it - open accordions, focus, and
+scroll positions survive a refresh. The two health strips hold nothing to keep and
+swap with `innerHTML`.
 
 Tab counts ride along as out-of-band fragments (`tab_counts_oob.html`) on the
 list refresh, so one response updates the table *and* the numbers on the tabs.

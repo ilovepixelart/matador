@@ -37,9 +37,10 @@ It serves **HTML** (an HTMX UI), not a JSON API - point a browser at it.
 
 ## Mount into an existing app
 
-matador is an ASGI app, so `mount` it at any path. URLs are `root_path`-aware
-(Starlette `url_for`), so a sub-path mount just works - links, static assets, and
-the SSE stream all carry the prefix.
+matador is an ASGI app, so `mount` it at any path. Links resolve against matador's
+own routes, never the host's, and carry the mount's `root_path`, so a sub-path mount
+just works - links, static assets, and the SSE stream all carry the prefix, even
+when the host has routes with the same names.
 
 ```python
 from fastapi import Depends

@@ -55,8 +55,9 @@ same round trip. Live updates over SSE use the same idea. See
 ## Request → HTML, end to end
 
 1. The browser issues `hx-get` / `hx-post` to a real URL.
-2. **Middleware** runs: an optional same-origin CSRF check, then always-on
-   security headers (registered so the headers wrap even a blocked response). See
+2. **Middleware** runs: the same-origin CSRF check (on unless turned off), the
+   read-only guard when `can_mutate=` is set, and always-on security headers
+   (registered last, so the headers wrap even a blocked response). See
    [Security](security.md).
 3. A **route** handler (in the views or actions router) calls the **`Service`**,
    which reads/writes Redis through toro's async API and returns plain dicts.
@@ -81,4 +82,5 @@ attributes) rather than in a separate JS layer (Locality of Behavior). The clien
 JavaScript is just htmx plus a few vendored extensions (idiomorph for morphing,
 SSE, response-targets, loading-states) and a handful of small
 progressive-enhancement behaviors: theme, tooltips, bulk-select, confirm dialogs,
-toasts, the live-table pause, and the row-toggle guards.
+toasts, the live-table pause, the row-toggle guards, the connection status, the
+phone sidebar drawer, and keyboard shortcuts.
