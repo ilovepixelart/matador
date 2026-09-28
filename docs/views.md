@@ -8,7 +8,7 @@ fragment mechanics behind these routes are covered in
 
 | Route | Shows |
 |---|---|
-| `/` | The hub: redirects you into the first queue, or an empty state when no queues are configured. |
+| `/` | The hub: renders the first queue's panel in place, or an empty state when no queues are configured. |
 | `/queues/{name}?state=<tab>&page=<n>&query=<q>` | The queue panel: state tabs with counts, the job list (paginated), schedulers, pause/resume. The canonical URL - tabs and pagination push it into history. |
 | `/queues/{name}/jobs` | Just the job table + tab-count OOB pieces; what the [SSE refresh](live-updates.md) re-fetches. |
 | `/queues/{name}/jobs/{job_id}/detail` | The lazy accordion body for one row: data, options, result, logs, stack trace - and, for flow jobs, the flow tree, fan-in progress and children results/failures. Loaded only when a row is opened. |
@@ -18,7 +18,7 @@ fragment mechanics behind these routes are covered in
 | `/queues/{name}/flow-metrics` | The active tab's flow-throughput strip: whole flows completed/failed over the last hour with end-to-end flow-duration percentiles. |
 | `/workers` | Live workers (from their heartbeats) and the departed-workers history. |
 | `/workers/list` | Just the worker table, for the periodic refresh. |
-| `/sidebar` | The queue nav with counts; usually delivered out-of-band rather than fetched directly. |
+| `/sidebar` | The queue nav with counts; the sidebar re-fetches it on each fast change signal, and some actions also deliver it out-of-band. |
 | `/redis` | The Redis health bar: version, memory, clients, ops/s, eviction policy. |
 | `/stream` | The SSE endpoint ([Live updates](live-updates.md)). |
 | `/metrics` | OpenMetrics for every watched queue, in the scraper's content type. Rendered by toro. Its depth gauges count every job in the state it is in, which is not what the tab badges count (roots only, parked parents folded into active). |
@@ -61,8 +61,8 @@ survive reload and back/forward.
 ## Actions (the actions router)
 
 Mutations are `POST`/`DELETE` routes; each re-renders the affected panel, and
-queue-level actions also ship the sidebar out-of-band so counts update in the
-same round trip. Failures (4xx/5xx) render into a toast instead of failing
+pause, resume and retry-node also ship the sidebar out-of-band so its counts
+update in the same round trip; the others reach it through the live refresh. Failures (4xx/5xx) render into a toast instead of failing
 silently.
 
 | Route | Does |
@@ -70,12 +70,12 @@ silently.
 | `POST /queues/{name}/pause` · `/resume` | Pause / resume the queue (in-flight jobs finish). |
 | `POST /queues/{name}/jobs/{job_id}/retry` | Retry one failed job. |
 | `POST /queues/{name}/jobs/{job_id}/promote` | Run a delayed job now. |
-| `POST /queues/{name}/jobs/{job_id}/cancel` | Stop a job. On a RUNNING job the worker cancels its processor where it awaits, so the work actually ends: removing it would leave the processor running. |
+| `POST /queues/{name}/jobs/{job_id}/cancel` | Stop a job. On a RUNNING job the worker cancels its processor where it awaits, and the job ends in `cancelled` instead of disappearing as it would on removal. |
 | `DELETE /queues/{name}/jobs/{job_id}` | Remove one job. Flow-aware: removing a flow parent removes its whole subtree (the confirm dialog says so). |
 | `POST /queues/{name}/jobs/bulk-remove` | Remove the checkbox-selected jobs - capped at 1000 per request so one click can't fan out unboundedly. |
-| `POST /queues/{name}/retry-all` | Re-queue every failed job. |
-| `POST /queues/{name}/clean` | Remove every job in the current state. A flow root cleaned this way takes its whole subtree with it. |
-| `POST /queues/{name}/flows/clean` | Cancel every parked flow (waiting-children) and its subtree - the bulk action for parked roots, which fold into the non-selectable active tab. |
+| `POST /queues/{name}/retry-all` | Re-queue failed jobs, the newest 1000 per click. |
+| `POST /queues/{name}/clean` | Remove every job in the current state, up to 100,000 per request. A flow root cleaned this way takes its whole subtree with it. |
+| `POST /queues/{name}/flows/clean` | Remove every parked flow (waiting-children) and its subtree - the bulk action for parked roots, which fold into the non-selectable active tab. |
 | `POST /queues/{name}/jobs/{job_id}/retry-flow` | Re-drive a whole failed flow: retry every failed job in the subtree. |
 | `POST /queues/{name}/jobs/{job_id}/retry-node` | Retry one node of a flow in place (re-joins its parent's barrier). |
 | `POST /queues/{name}/schedulers/{id}/trigger` | Run one occurrence of a schedule now. |

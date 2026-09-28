@@ -39,7 +39,7 @@ deep-links all work. It reads straight from Redis through toro's async API.
   tabs** (active / waiting / held / delayed / completed / failed / cancelled)
   that swap the job list over HTMX.
 - **Health chips** per queue: latency (age of the next job in line, warns past
-  30s), completed/failed counts with failure share, and average duration over
+  30s), completed/failed counts with failure share, and p50/p95 duration over
   the last hour - server-rendered SVG, no chart library.
 - **Flows** - toro's parent/child job trees, shown root-first: a flow is its
   root job moving through the normal tabs (parked roots fold into active), with
@@ -53,8 +53,8 @@ deep-links all work. It reads straight from Redis through toro's async API.
 - **Search** within a state by job id or a name/data substring.
 - **Live updates** over SSE - counts refresh as jobs complete, no reload.
 - **Actions**: pause/resume a queue, retry/remove/promote a job, retry-all,
-  clean a state, and schedulers (run-now / remove) - each behind a styled confirm
-  dialog (not `window.confirm`).
+  clean a state, and schedulers (run-now / remove). Destructive and bulk actions
+  ask first, in a styled confirm dialog (not `window.confirm`).
 - **Numbered pagination**, a **Redis health bar** (memory, clients, eviction
   policy), and a persistent **dark / light** theme.
 - **`/metrics`** for a Prometheus-compatible scraper: every watched queue in one
@@ -113,9 +113,9 @@ matador ships no auth of its own - it inherits the host app's via
 without `dependencies` logs a warning at startup, because every route
 (including delete/retry/pause) is open to whoever can reach it.
 
-- **CSRF**: the same-origin guard turns on automatically when `dependencies`
-  are configured (auth usually means cookies, and cookies are what make CSRF
-  real). Pass `require_same_origin=` explicitly to override.
+- **CSRF**: the same-origin guard is on unless you turn it off, whatever the
+  host authenticates with (a cookie is what makes CSRF real, and `dependencies=`
+  is only one way a host sets one). Pass `require_same_origin=` explicitly to override.
 - **Stack traces** are shown in job detail by default and can leak source
   paths or secrets from exception messages - `show_stacktraces=False` hides
   them when the audience shouldn't see internals.
