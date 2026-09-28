@@ -62,3 +62,37 @@ async def test_a_viewer_after_the_last_one_left_gets_a_stream(q: Queue):
     assert await _first_chunk(second) == "retry: 3000\n\n"
     assert svc._broadcast_task is not None
     await second.aclose()
+
+
+async def test_a_viewer_arriving_as_the_last_one_leaves_keeps_its_stream(q: Queue, monkeypatch):
+    """The last viewer's leave releases the broadcaster under the lock. A viewer arriving
+    meanwhile saw the listener task still alive, skipped the lock, and registered on a
+    broadcaster about to be released: its stream ended at once, and the page sat out
+    the client's reconnect delay right after opening."""
+    svc = Service([QUEUE], url=URL, prefix=PREFIX, connection=q.redis)
+    releasing = asyncio.Event()
+    proceed = asyncio.Event()
+    real_release = svc._release_broadcaster
+
+    async def held_release():
+        releasing.set()
+        await proceed.wait()  # the leave holds the lock here, mid-release
+        await real_release()
+
+    monkeypatch.setattr(svc, "_release_broadcaster", held_release)
+    first = svc.event_stream()
+    await _first_chunk(first)
+    leaving = asyncio.create_task(first.aclose())
+    await asyncio.wait_for(releasing.wait(), 5)
+
+    second = svc.event_stream()
+    arriving = asyncio.create_task(_first_chunk(second))
+    await asyncio.sleep(0.1)  # an arrival that skips the lock is through by now
+    proceed.set()
+    await leaving
+    assert await arriving == "retry: 3000\n\n"
+
+    assert svc._broadcast_task is not None, "the newcomer is registered on no broadcaster"
+    assert await q.redis.pubsub_channels(q.keys.events) != []
+    await second.aclose()
+    assert svc._broadcast_task is None
