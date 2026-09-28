@@ -199,13 +199,21 @@ def wait_until_quiet(page, timeout: float = 10_000) -> None:
     page.evaluate("() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")
 
 
-def count_sse_messages(page) -> None:
-    """Start counting the stream messages the page receives, in `window.__sseMessages`."""
+def count_sse_messages(page, event: str | None = None) -> None:
+    """Start counting the stream messages the page receives, in `window.__sseMessages`.
+
+    `event` counts one rate only (`changed-fast`, `changed`, `changed-slow`): a test
+    that waits for "some message" is satisfied by the fastest rate, before the slower
+    refresh it guards against has fired.
+    """
     page.evaluate(
-        """() => {
+        """(event) => {
             window.__sseMessages = 0;
-            document.body.addEventListener("htmx:sseMessage", () => window.__sseMessages++);
-        }"""
+            document.body.addEventListener("htmx:sseMessage", (e) => {
+                if (!event || e.detail.type === event) window.__sseMessages++;
+            });
+        }""",
+        event,
     )
 
 

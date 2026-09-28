@@ -464,9 +464,12 @@ def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
             await q.add("churn", {})
         await q.close()
 
-    count_sse_messages(page)
+    # The jobs region refreshes on `changed`, and that refresh is what once re-rooted
+    # the panel. The sidebar's `changed-fast` arrives first: waiting for any message
+    # let the assertion run before the refresh it guards against.
+    count_sse_messages(page, "changed")
     drive(churn())
-    page.wait_for_function("() => window.__sseMessages > 0")  # the churn reached the page
+    page.wait_for_function("() => window.__sseMessages > 0", timeout=10_000)
     wait_until_quiet(page)  # ...and every refresh it set off has landed
     # the stale metrics strip must NOT have re-rooted and wiped the detail
     expect(panel).to_contain_text("part of")
