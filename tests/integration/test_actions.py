@@ -1,5 +1,7 @@
 """Integration: action routes mutate queue state and return 200 + the panel."""
 
+import pytest
+
 from .conftest import QUEUE, hx
 
 
@@ -139,4 +141,21 @@ async def test_cancelling_a_job_that_is_gone_says_so(client, q):
     r = await client.post(f"/queues/{QUEUE}/jobs/nope/cancel", headers=hx())
     assert r.status_code == 404
     assert "no longer here" in r.text
+    assert 'role="alert"' in r.text
+
+
+@pytest.mark.parametrize(
+    ("path", "title"),
+    [
+        ("retry", "Couldn&#39;t retry"),
+        ("retry-node?parent=p1", "Couldn&#39;t retry"),
+        ("promote", "Couldn&#39;t promote"),
+    ],
+)
+async def test_retrying_or_promoting_a_job_that_is_gone_says_so(client, q, path, title):
+    # the job vanished between render and click: a toast, not a 500 or a blank swap
+    r = await client.post(f"/queues/{QUEUE}/jobs/nope/{path}", headers=hx())
+    assert r.status_code == 404
+    assert title in r.text
+    assert "Job #nope is no longer here." in r.text
     assert 'role="alert"' in r.text
