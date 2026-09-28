@@ -920,6 +920,13 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
             return _toast(request, "Couldn't promote", f"Job #{job_id} is no longer here.")
         return await _panel(svc, request, name, "delayed", page)
 
+    return router
+
+
+def _queue_actions_router(svc: Service) -> APIRouter:
+    """Build the queue-wide write routes: bulk removal, retry-all, clean, schedulers."""
+    router = APIRouter()
+
     @router.post("/queues/{name}/jobs/bulk-remove", response_class=HTMLResponse)
     async def bulk_remove(
         request: Request,
@@ -1081,4 +1088,5 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
 
     app.include_router(_views_router(svc, show_stacktraces=show_stacktraces))
     app.include_router(_actions_router(svc, show_stacktraces=show_stacktraces))
+    app.include_router(_queue_actions_router(svc))
     return app
