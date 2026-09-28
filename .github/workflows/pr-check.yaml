@@ -68,6 +68,7 @@ jobs:
           # substituted into this shell before it runs, so a branch called
           # `x"; curl ... | sh; #` would be executed rather than looked up.
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           OWNER: ${{ github.repository_owner }}
         run: sh .github/scripts/pick-toro-ref.sh
 

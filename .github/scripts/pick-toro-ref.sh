@@ -4,7 +4,10 @@
 # without a same-named toro branch the build uses the release the lock was made
 # against, not toro main: main moves to the next version before matador relocks.
 set -eu
-if gh api "repos/$OWNER/toro/branches/$BRANCH" --silent 2>/dev/null; then
+: "${DEFAULT_BRANCH:?the workflow passes the default branch of this repo}"
+# Pairing is for feature branches: toro has a `main` too, and toro's main moves to the
+# next version before matador relocks.
+if [ "$BRANCH" != "$DEFAULT_BRANCH" ] && gh api "repos/$OWNER/toro/branches/$BRANCH" --silent 2>/dev/null; then
   echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
   exit 0
 fi

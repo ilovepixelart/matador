@@ -39,6 +39,7 @@ def _pick(tmp_path: pathlib.Path, *, existing: list[str], branch: str = "feat/x"
     env = os.environ | {
         "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
         "BRANCH": branch,
+        "DEFAULT_BRANCH": "main",
         "OWNER": "acme",
         "GITHUB_OUTPUT": str(output),
     }
@@ -60,3 +61,11 @@ def test_otherwise_the_release_the_lock_records(tmp_path):
 
 def test_main_when_the_locked_version_was_never_tagged(tmp_path):
     assert _pick(tmp_path, existing=[]) == "ref=main\n"
+
+
+def test_main_builds_against_the_release_the_lock_records(tmp_path):
+    """toro has a `main` too, so the same-name rule matched it on every push to
+    matador's main. toro's main moves to the next version before matador relocks,
+    and `uv sync --locked` then failed every cell. Only a feature branch pairs."""
+    existing = ["repos/acme/toro/branches/main", "repos/acme/toro/git/ref/tags/v1.0.1"]
+    assert _pick(tmp_path, existing=existing, branch="main") == "ref=v1.0.1\n"
