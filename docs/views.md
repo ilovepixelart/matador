@@ -58,7 +58,7 @@ The search box does two things in one query:
 ellipses - and every page link is a real URL (`hx-push-url`), so deep pages
 survive reload and back/forward.
 
-## Actions (the actions router)
+## Actions (the actions routers)
 
 Mutations are `POST`/`DELETE` routes; each re-renders the affected panel, and
 pause, resume and retry-node also ship the sidebar out-of-band so its counts

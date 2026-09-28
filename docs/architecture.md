@@ -59,7 +59,7 @@ same round trip. Live updates over SSE use the same idea. See
    read-only guard when `can_mutate=` is set, and always-on security headers
    (registered last, so the headers wrap even a blocked response). See
    [Security](security.md).
-3. A **route** handler (in the views or actions router) calls the **`Service`**,
+3. A **route** handler (in the views router or one of the actions routers) calls the **`Service`**,
    which reads/writes Redis through toro's async API and returns plain dicts.
 4. The handler renders a **Jinja template** to HTML - a full page or a fragment,
    per `wants_fragment`.
@@ -69,8 +69,10 @@ same round trip. Live updates over SSE use the same idea. See
 ## Server-side shape
 
 - **Routers** - `create_app` includes a *views* router (read: pages and
-  fragments) and an *actions* router (mutations: pause/resume, retry, remove,
-  promote, clean, schedulers, …). All rendering goes through a shared `Service`.
+  fragments) and two *actions* routers: `_actions_router` for pause/resume and
+  the single-job mutations (retry, remove, cancel, promote), `_queue_actions_router`
+  for the queue-wide ones (bulk remove, retry-all, clean, schedulers). All
+  rendering goes through a shared `Service`.
 - **Templates** - organized as `layouts/` (the page skeleton), `pages/` (full
   documents that extend the layout), and `partials/` (the HTMX swap fragments),
   with reusable bits in `macros.html`. See [Templates](templates.md).
