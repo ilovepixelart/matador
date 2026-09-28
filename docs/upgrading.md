@@ -2,6 +2,19 @@
 
 Breaking changes by release, newest first, each with what to do about it.
 
+## 1.0.5
+
+Nothing breaks in the API, and one action changes what it does.
+
+**"Cancel parked flows" cancels instead of deleting.** The bulk action on the active
+tab deleted every parked flow (a parent in `waiting-children`) and its subtree, so
+nothing was left to see what had been stopped. It now calls toro's `cancel_job` on
+each parked root: the root and its children land in `cancelled`, kept by each job's
+`remove_on_fail` retention, as a cancel from the job page already did. The button,
+its confirmation and the announcement say cancel. Anyone relying on the action to
+free the space those jobs took should expect them in the cancelled tab until their
+retention trims them.
+
 ## 1.0.4
 
 Nothing breaks. Two fixes, both in what the flow views show.
