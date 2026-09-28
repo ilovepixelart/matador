@@ -232,10 +232,15 @@ class Service:
         Rendered by toro, so the dashboard adds no numbers of its own and a scraper
         reading this sees exactly what the queue reports.
         """
-        snapshot = {
-            name: (await q.lifetime_totals(), await q.counts()) for name, q in self.queues.items()
-        }
-        return render_all(snapshot)
+
+        async def read(q: Queue) -> tuple[Any, Any]:
+            # counts first: a job finishing between the two reads is then in both
+            # (still counted, already totalled) rather than in neither
+            counts = await q.counts()
+            return await q.lifetime_totals(), counts
+
+        pairs = await asyncio.gather(*(read(q) for q in self.queues.values()))
+        return render_all(dict(zip(self.queues, pairs, strict=True)))
 
     async def overview(self) -> list[dict[str, Any]]:
         out = []
