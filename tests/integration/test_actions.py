@@ -1,5 +1,7 @@
 """Integration: action routes mutate queue state and return 200 + the panel."""
 
+import json
+
 import pytest
 
 from .conftest import QUEUE, hx
@@ -14,7 +16,7 @@ async def test_clear_departed_workers(client, q):
 
 
 async def test_bulk_remove_caps_count(client, q, seeded):
-    too_many = ",".join(str(i) for i in range(1, 1002))  # 1001 > MAX_BULK_REMOVE
+    too_many = json.dumps([str(i) for i in range(1, 1002)])  # 1001 > MAX_BULK_REMOVE
     r = await client.post(
         f"/queues/{QUEUE}/jobs/bulk-remove?state=wait", data={"ids": too_many}, headers=hx()
     )
@@ -95,7 +97,7 @@ async def test_bulk_remove_deletes_only_the_selected_ids(client, q, seeded):
     before = (await q.counts())["wait"]
     r = await client.post(
         f"/queues/{QUEUE}/jobs/bulk-remove?state=wait",
-        data={"ids": f"{a},{b}"},  # the comma-joined client selection
+        data={"ids": json.dumps([a, b])},  # the client selection, a JSON array
         headers=hx(),
     )
     assert r.status_code == 200
@@ -159,3 +161,15 @@ async def test_retrying_or_promoting_a_job_that_is_gone_says_so(client, q, path,
     assert title in r.text
     assert "Job #nope is no longer here." in r.text
     assert 'role="alert"' in r.text
+
+
+@pytest.mark.parametrize("ids", ["a,b", '{"a": 1}', "[1, 2]", "[unclosed"])
+async def test_bulk_remove_refuses_a_selection_it_cannot_read(client, q, seeded, ids):
+    """Anything but a JSON array of ids is refused rather than guessed at: a guess is
+    what turned one selected `a,b` into two deleted jobs."""
+    before = (await q.counts())["wait"]
+    r = await client.post(
+        f"/queues/{QUEUE}/jobs/bulk-remove?state=wait", data={"ids": ids}, headers=hx()
+    )
+    assert r.status_code == 400
+    assert (await q.counts())["wait"] == before

@@ -3,6 +3,8 @@ pre-declared in the shell (the attribute must exist BEFORE content changes),
 and bulk actions swap their result message INTO it out-of-band.
 """
 
+import json
+
 from .conftest import QUEUE, hx
 
 
@@ -26,6 +28,6 @@ async def test_clean_announces_its_outcome(client, seeded):
 
 
 async def test_bulk_remove_announces_the_actual_count(client, seeded):
-    ids = "nope-1,nope-2"  # jobs that don't exist
+    ids = json.dumps(["nope-1", "nope-2"])  # jobs that don't exist
     r = await client.post(f"/queues/{QUEUE}/jobs/bulk-remove", data={"ids": ids}, headers=hx())
     assert "0 jobs removed" in r.text  # actual count, not submitted count

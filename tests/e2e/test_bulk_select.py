@@ -6,7 +6,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from .conftest import QUEUE, wait_for_live
+from .conftest import QUEUE, reset_queue, wait_for_live
 
 
 def test_selecting_rows_reveals_the_bulk_bar(page: Page, base_url, seeded_many):
@@ -172,3 +172,27 @@ def test_a_row_deselected_during_a_refresh_stays_deselected(
 
     assert refresh["finalChecked"] == 0
     expect(page.locator("#bulk-bar")).to_be_hidden()
+
+
+def test_bulk_delete_removes_exactly_the_ids_selected(page: Page, base_url, drive):
+    """A job id may contain a comma. Sent as a comma-joined string, selecting only
+    `a,b` deleted the jobs `a` and `b` and left `a,b` in place."""
+
+    async def seed():
+        q = await reset_queue()
+        for job_id in ("a", "b", "a,b"):
+            await q.add("job", {}, job_id=job_id)
+        await q.close()
+
+    drive(seed())
+    page.goto(f"{base_url}/queues/{QUEUE}?state=wait")
+    page.locator('.jcheck[value="a,b"]').check()
+    expect(page.locator("#bulk-count")).to_have_text("1")
+
+    page.locator("#bulk-delete").click()
+    page.locator("dialog[open] #confirm-ok").click()
+    expect(page.locator("#bulk-count")).to_have_text("0")
+
+    expect(page.locator(".jcheck")).to_have_count(2)
+    ids = {el.get_attribute("value") for el in page.locator(".jcheck").all()}
+    assert ids == {"a", "b"}, f"left on the page: {ids}"
