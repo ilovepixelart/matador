@@ -13,7 +13,7 @@ from typing import Any
 
 from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
-from toro import DATA_MODEL_VERSION, IncompatibleDataModelError, Job, JobState, Queue
+from toro import DATA_MODEL_VERSION, IncompatibleDataModelError, Job, JobState, MetricsPoint, Queue
 from toro.openmetrics import render_all
 
 from .cadence import Cadence
@@ -65,6 +65,9 @@ STREAM_RATES: dict[str, float] = {"changed-fast": 0.4, "changed": 1.0, "changed-
 # A rate that has sent nothing for this long emits. A rate whose interval is longer
 # than this beats at its interval instead: a beat waits for its window to reopen.
 HEARTBEAT = 8.0
+# The sidebar sparkline's window, and how many of its newest minutes a refresh re-reads.
+SPARK_MINUTES = 60
+SPARK_OPEN_MINUTES = 2
 
 
 async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
@@ -177,6 +180,9 @@ class Service:
         self._broadcast_pubsub: PubSub | None = None
         self._broadcast_task: asyncio.Task[None] | None = None
         self._broadcast_lock = asyncio.Lock()
+        # Sidebar sparklines: per queue, the points of the minutes that have closed. A
+        # refresh re-reads the open minutes only (see _sparkline).
+        self._spark_cache: dict[str, dict[int, MetricsPoint]] = {}
 
     def _q(self, name: str) -> Queue:
         q = self.queues.get(name)
@@ -243,18 +249,41 @@ class Service:
         return render_all(dict(zip(self.queues, pairs, strict=True)))
 
     async def overview(self) -> list[dict[str, Any]]:
-        out = []
-        for name, q in self.queues.items():
-            out.append(
-                {
-                    "name": name,
-                    "counts": _fold_counts(await q.roots_counts()),
-                    "paused": await q.is_paused(),
-                    # last hour of per-minute activity - the sidebar sparkline
-                    "spark": await q.metrics(minutes=60),
-                }
-            )
-        return out
+        rows = await asyncio.gather(*(self._overview_row(n, q) for n, q in self.queues.items()))
+        return list(rows)
+
+    async def _overview_row(self, name: str, q: Queue) -> dict[str, Any]:
+        counts, paused, spark = await asyncio.gather(
+            q.roots_counts(), q.is_paused(), self._sparkline(name, q)
+        )
+        return {"name": name, "counts": _fold_counts(counts), "paused": paused, "spark": spark}
+
+    async def _sparkline(self, name: str, q: Queue) -> list[MetricsPoint]:
+        """Read the last hour of per-minute activity for the sidebar, oldest first.
+
+        A minute that has closed does not change, so its point is kept from the last
+        refresh and only the open minutes are read again: the sidebar refreshes up to
+        2.5 times a second for every viewer, and each refresh read every queue's 60
+        buckets. The minute before the current one stays open for a finish landing
+        just past the boundary.
+        """
+        cache = self._spark_cache.setdefault(name, {})
+        fresh = await self._points(q, SPARK_OPEN_MINUTES if cache else SPARK_MINUTES)
+        latest = max(fresh)
+        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
+        closed = wanted[:-SPARK_OPEN_MINUTES]
+        if not all(ts in cache or ts in fresh for ts in closed):
+            fresh = await self._points(q, SPARK_MINUTES)  # the minute rolled over meanwhile
+        for ts in closed:
+            if ts in fresh:
+                cache[ts] = fresh[ts]
+        for ts in [ts for ts in cache if ts < wanted[0]]:
+            del cache[ts]
+        return [fresh[ts] if ts in fresh else cache[ts] for ts in wanted]
+
+    @staticmethod
+    async def _points(q: Queue, minutes: int) -> dict[int, MetricsPoint]:
+        return {p["timestamp"]: p for p in await q.metrics(minutes=minutes)}
 
     async def metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
         """Feed the charts: per-minute points plus the headline numbers the strip
