@@ -2,7 +2,8 @@
 
 ## What is public
 
-**`matador.create_app` and its keyword options, and nothing else.**
+**`matador.create_app` and its keyword options, and the `matador serve` command's
+options, and nothing else.**
 
 ```python
 from matador import create_app     # the whole contract
@@ -25,7 +26,7 @@ pages work today; scraping them is scraping a UI.
 | An option removed, a default changed, a page removed | major |
 | A fix, a template change, a dependency bump | patch |
 
-A default that changes is a major change even when the new default is safer: 0.11.0
+A default that changes is a major change even when the new default is safer: 1.0.0
 turning the same-origin guard on is exactly that, and it is why the upgrading notes
 exist.
 
