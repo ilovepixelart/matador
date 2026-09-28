@@ -1,12 +1,13 @@
 // Multi-select bulk actions. Selected job ids live in a Set that survives htmx swaps
 // (so the selection persists as you paginate); it resets when the queue/state view
-// changes. The delete submits the WHOLE set via hx-vals="js:{ids: Matador.bulk.ids()}".
+// changes. The delete submits the WHOLE set via hx-vals="js:{ids: Matador.bulk.ids()}",
+// as a JSON array: a job id may contain a comma, so a joined string cannot carry it.
 const selected = new Set();
 let view = null;
 
 globalThis.Matador = globalThis.Matador || {};
 globalThis.Matador.bulk = {
-  ids: () => [...selected].join(","),
+  ids: () => JSON.stringify([...selected]),
   clear: () => {
     selected.clear();
     sync();

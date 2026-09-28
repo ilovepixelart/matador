@@ -108,6 +108,20 @@ def _default_state(counts: dict[str, int]) -> JobState:
     return "completed"
 
 
+def _selected_ids(raw: str) -> list[str] | None:
+    """Parse the bulk selection: a JSON array of job ids, or None if it is not one."""
+    if not raw:
+        return []
+    try:
+        ids = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(ids, list):
+        return None
+    strings = [str(i) for i in ids if isinstance(i, str)]
+    return strings if len(strings) == len(ids) else None
+
+
 def _url_for(request: Request, name: str, /, **path_params: Any) -> URL:
     """Return the URL of one of matador's own routes, wherever matador is mounted.
 
@@ -906,6 +920,13 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
             return _toast(request, "Couldn't promote", f"Job #{job_id} is no longer here.")
         return await _panel(svc, request, name, "delayed", page)
 
+    return router
+
+
+def _queue_actions_router(svc: Service) -> APIRouter:
+    """Build the queue-wide write routes: bulk removal, retry-all, clean, schedulers."""
+    router = APIRouter()
+
     @router.post("/queues/{name}/jobs/bulk-remove", response_class=HTMLResponse)
     async def bulk_remove(
         request: Request,
@@ -914,9 +935,12 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
         page: int = 1,
         ids: Annotated[str, Form()] = "",
     ):
-        # `ids` is a comma-joined set submitted by the client (persists across pages).
-        # Stripped defensively: a hand-crafted " id" must not silently no-op.
-        selected = [i.strip() for i in ids.split(",") if i.strip()]
+        # `ids` is the selected set as a JSON array (it persists across pages). Not a
+        # comma-joined string: a job id may contain a comma, and splitting one
+        # selected `a,b` into the jobs `a` and `b` deleted two jobs nobody selected.
+        selected = _selected_ids(ids)
+        if selected is None:
+            return _toast(request, "Couldn't remove", "The selection was not readable.", status=400)
         if len(selected) > MAX_BULK_REMOVE:
             return _toast(
                 request,
@@ -1064,4 +1088,5 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
 
     app.include_router(_views_router(svc, show_stacktraces=show_stacktraces))
     app.include_router(_actions_router(svc, show_stacktraces=show_stacktraces))
+    app.include_router(_queue_actions_router(svc))
     return app
