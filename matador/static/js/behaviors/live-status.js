@@ -3,7 +3,9 @@
 // that stops moving is either quiet or disconnected, and nothing on the page said
 // which; this is also what a test waits for before publishing a change, since a change
 // published before the subscription lands is delivered to nobody.
-const mark = (state) => document.documentElement.setAttribute("data-sse", state);
+const mark = (state) => {
+  document.documentElement.dataset.sse = state;
+};
 document.body.addEventListener("htmx:sseOpen", () => mark("open"));
 document.body.addEventListener("htmx:sseError", () => mark("error"));
 document.body.addEventListener("htmx:sseClose", () => mark("closed"));
