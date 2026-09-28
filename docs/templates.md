@@ -71,4 +71,5 @@ out of the content scanner's sight.
 
 The built `app.css` is committed to `matador/static/` (a pip install needs no
 build step) and served with a cache-busting `?v=`: the newest mtime of any file under `static/`,
-shared by every asset tag, so a redeploy can't pin a stale stylesheet or script.
+shared by every stylesheet and script tag (the favicon link carries none), so a redeploy
+can't pin a stale stylesheet or script.
