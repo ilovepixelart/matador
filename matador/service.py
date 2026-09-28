@@ -603,12 +603,15 @@ class Service:
         await q.trigger_scheduler(scheduler_id)
 
     async def _ensure_broadcaster(self) -> None:
-        """Start the shared events listener (or restart it after a crash)."""
-        if self._broadcast_task is not None and not self._broadcast_task.done():
-            return
+        """Start the shared events listener (or restart it after a crash).
+
+        Always under the lock: the last viewer's leave releases the listener under it,
+        and a viewer arriving meanwhile would otherwise see the task still alive,
+        register on it, and lose its stream the moment the release lands.
+        """
         async with self._broadcast_lock:
             if self._broadcast_task is not None and not self._broadcast_task.done():
-                return  # someone else won the race while we awaited the lock
+                return  # alive, or another arrival started it while we awaited the lock
             if self._broadcast_pubsub is not None:  # a dead broadcaster's leftovers
                 with contextlib.suppress(Exception):
                     await self._broadcast_pubsub.aclose()
