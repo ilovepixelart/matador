@@ -2,6 +2,21 @@
 
 Breaking changes by release, newest first, each with what to do about it.
 
+## 1.0.4
+
+Nothing breaks. Two fixes, both in what the flow views show.
+
+**A child's failure reason is clipped in the flow views.** The failures list and each
+node of the flow tree rendered a child's exception message in full, so one child failing
+with a long message made its parent's detail page hundreds of kilobytes. Both now clip it
+at 500 characters, like the job rows.
+
+**The parked-flows bulk action says what it does.** "Cancel parked flows" deleted the
+flows and their subtrees, leaving nothing in `cancelled`. The button, its confirm and the
+announcement now say remove.
+
+The package is now marked `Development Status :: 5 - Production/Stable`.
+
 ## 1.0.3
 
 Nothing breaks. Three fixes, all in a dashboard mounted into a host app or left open
