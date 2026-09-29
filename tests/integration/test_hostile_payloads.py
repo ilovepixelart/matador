@@ -152,6 +152,31 @@ async def test_a_fat_child_failure_does_not_fill_the_flow_detail(client, q):
     assert len(flow.content) < BIG, f"{len(flow.content):,} bytes for one flow"
 
 
+async def test_a_malformed_origin_is_refused_not_a_crash(client, q):
+    """The origin check split the Origin header with urlsplit, which raises on a
+    bracket that opens no IPv6 literal: a sender's own bad header answered 500."""
+    r = await client.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://["})
+    assert r.status_code == 403
+
+
+async def test_a_malformed_current_url_falls_back_to_the_queue(client, q, seeded):
+    """The job page's back link came from HX-Current-URL through the same urlsplit."""
+    r = await client.get(
+        f"/queues/{QUEUE}/jobs/{seeded['completed']}", headers=hx(**{"HX-Current-URL": "http://["})
+    )
+    assert r.status_code == 200
+    assert f"/queues/{QUEUE}" in r.text
+
+
+async def test_a_search_under_an_unknown_state_renders_the_coerced_state(client, q, seeded):
+    """The search branch scanned the coerced state and rendered the raw one: the label
+    read "scanned the most recent 500 bogus jobs", the results drew bulk checkboxes
+    the active tab never allows, and their delete posted state=bogus."""
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=bogus&query=alph", headers=hx())
+    assert r.status_code == 200
+    assert "bogus" not in r.text
+
+
 async def test_a_flood_of_log_lines_is_read_bounded(client, q, monkeypatch):
     """The detail read every log line (LRANGE 0 -1) and cut the tail afterwards: a job
     that logs in a loop made every render, and every event-driven refresh of an open
