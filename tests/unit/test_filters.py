@@ -108,6 +108,13 @@ def test_at():
     assert re.fullmatch(r"\d\d \w\w\w \d{4} \d\d:\d\d:\d\d", _at(1700000000000))
 
 
+def test_at_past_the_calendar_is_blank():
+    """A delay is any non-negative int, so a row's due moment can lie past year 9999,
+    where fromtimestamp raises: the delayed tab, its live refresh and the landing
+    page answered 500 for one such job. No moment to show is a blank title."""
+    assert _at(10**16) == ""
+
+
 def test_asset_version_is_evaluated_per_render():
     # A live server with assets rebuilt underneath it (tailwind --watch, deploys
     # without restart) must hand out fresh ?v= values - an import-time int goes
