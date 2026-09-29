@@ -1046,9 +1046,11 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     unless you pass `False`: the credential such an attack rides belongs to the host
     app, whatever matador itself requires, and a host authenticates in more ways than
     `dependencies=`. Requests with no `Origin` (curl, server-to-server) pass, because
-    the defense is aimed at browsers. Behind a reverse proxy, ensure the forwarded
-    Host is correct (uvicorn `--proxy-headers`) so same-origin requests aren't
-    falsely blocked.
+    the defense is aimed at browsers. Behind a reverse proxy, the proxy must pass the
+    browser's `Host` header through unchanged (nginx: `proxy_set_header Host $host`),
+    or every same-origin request is blocked; uvicorn's `--proxy-headers` does not
+    help, it sets only the client address and scheme from `X-Forwarded-For` and
+    `X-Forwarded-Proto`.
 
     Set `show_stacktraces=False` to omit job stack traces from the UI - they can
     leak source paths, versions, and occasionally secrets from exception messages,

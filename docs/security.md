@@ -41,8 +41,9 @@ It rejects state-changing methods (anything but GET/HEAD/OPTIONS) whose `Origin`
 header doesn't match the request host, a stateless same-origin check.
 `require_same_origin=False` turns it off. Requests without an `Origin` (curl,
 server-to-server) pass - the defense targets browsers, where the cookie is.
-Behind a proxy, forward the real host (`--proxy-headers`) or legitimate
-requests get blocked.
+Behind a proxy, the browser's `Host` header must reach matador unchanged (nginx:
+`proxy_set_header Host $host`) or every legitimate request is blocked; uvicorn's
+`--proxy-headers` does not do that, it sets only the client address and scheme.
 
 ## Always-on response headers
 
