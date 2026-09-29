@@ -13,10 +13,12 @@ which toro does not reconcile, are flagged.
 
 ## Design
 
-- **Source.** toro reports `global_concurrency` per worker in `Queue.workers()`
-  (0 when unset). The cap is a worker option, so the queue's cap is whatever its
-  live workers agree on. `Service.metrics()` gains a `cap` entry built from the
-  live workers, `counts.active`, and `counts.wait`.
+- **Source.** A queue with limits of its own (`Queue.set_limits()`, toro 1.0.3)
+  has the cap `Queue.limits()` names, and its workers' arguments do not apply.
+  Otherwise toro reports `global_concurrency` per worker in `Queue.workers()`
+  (0 when unset), and the queue's cap is whatever its live workers agree on.
+  `Service.metrics()` gains a `cap` entry built from the queue's limits, the live
+  workers, `counts.active`, and `counts.wait`.
 - **One chip, in the existing strip.** It sits directly after latency, the number
   it explains. It renders only when some live worker reports a cap, the same way
   the failed chip renders only when something failed.
@@ -52,10 +54,12 @@ which toro does not reconcile, are flagged.
 | CV-006 | The workers list shows a worker's cap when set and nothing when unset. | `::test_workers_list_shows_the_cap` |
 | CV-007 | In a real browser the chip appears once a capped worker is live and the queue fills, without a reload, and the panel stays intact after the live swap. | `tests/e2e/test_cap_view.py::test_cap_chip_goes_live` |
 | CV-008 | The state is conveyed in the chip's visible words, not by color or by the tip alone, and the tip's explanation reaches screen readers from text that is really hidden. The chip is not a tab stop. | `tests/e2e/test_cap_view.py::test_cap_chip_is_accessible` |
+| CV-009 | A queue with limits of its own reports the cap they name whatever its workers carry, and no cap when they set none. | `tests/integration/test_cap_view.py::test_service_reports_the_queues_own_cap` |
 
 ## Out of scope
 
-- Setting or changing the cap from the dashboard. toro has no runtime cap.
+- Setting or changing the cap from the dashboard. toro 1.0.3 has
+  `Queue.set_limits()`; a control for it is a spec of its own.
 - A per-job "held by the cap" marker in the jobs table. The cap holds back
   whatever is next in line, not particular jobs.
 - The view for jobs held on a `concurrency_key`. toro does not have it yet.

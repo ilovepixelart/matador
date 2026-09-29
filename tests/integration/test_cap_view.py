@@ -67,6 +67,19 @@ async def test_service_reports_cap_states(q, svc):
         assert (cap["state"], cap["limit"], cap["caps"]) == ("mixed", None, [0, 3])
 
 
+async def test_service_reports_the_queues_own_cap(q, svc):
+    """A queue with limits of its own has the cap they name, whatever its workers
+    were started with: set, it is the cap, and set to none it is no cap at all."""
+    await q.set_limits(global_concurrency=2)
+    async with live(q, worker(global_concurrency=3), worker(global_concurrency=5)):
+        cap = (await svc.metrics(QUEUE))["cap"]
+        assert (cap["state"], cap["limit"], cap["caps"]) == ("open", 2, [2])
+
+    await q.set_limits()
+    async with live(q, worker(global_concurrency=3)):
+        assert (await svc.metrics(QUEUE))["cap"] is None
+
+
 class _CapChip(HTMLParser):
     """Pull the cap chip out of the strip: its attributes, its VISIBLE text, what
     it says to a screen reader, and every class inside it. Asserting on the whole

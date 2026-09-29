@@ -23,7 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "toro-queue>=1.0.0",
+    "toro-queue>=1.0.3",
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "jinja2>=3.1",

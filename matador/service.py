@@ -13,7 +13,15 @@ from typing import Any
 
 from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
-from toro import DATA_MODEL_VERSION, IncompatibleDataModelError, Job, JobState, MetricsPoint, Queue
+from toro import (
+    DATA_MODEL_VERSION,
+    IncompatibleDataModelError,
+    Job,
+    JobState,
+    Limits,
+    MetricsPoint,
+    Queue,
+)
 from toro.openmetrics import render_all
 
 from .cadence import Cadence
@@ -118,23 +126,32 @@ class UnknownQueueError(KeyError):
     """
 
 
-def cap_summary(worker_caps: list[int], active: int, waiting: int) -> dict[str, Any] | None:
-    """Summarize the queue's global concurrency cap, as its live workers report it.
+def cap_summary(
+    worker_caps: list[int], active: int, waiting: int, queue: Limits | None = None
+) -> dict[str, Any] | None:
+    """Summarize the queue's global concurrency cap.
 
-    toro's cap is a WORKER option, so a queue has no cap of its own: it has
-    whatever its live workers agree on. `None` when no live worker sets one.
+    A queue with limits of its own (`Queue.set_limits`) has the cap they name, and
+    its workers' arguments do not apply: `None` when those limits set no cap. A queue
+    whose limits were never set has whatever its live workers agree on; `None` when
+    no live worker sets one.
 
     `state` is one of:
-      * ``mixed`` - workers disagree. Each enforces its own value, which toro does
-        not reconcile. `caps` holds every distinct one (0 = a worker with no cap)
-        and `limit` is None.
+      * ``mixed`` - workers disagree, on a queue with no limits of its own. Each
+        enforces its own value, which toro does not reconcile. `caps` holds every
+        distinct one (0 = a worker with no cap) and `limit` is None.
       * ``full``  - every slot is taken and jobs are waiting: they wait on a free
         slot, not on a worker, so latency grows by design.
       * ``open``  - a cap exists and has room, or nothing is waiting on it.
     """
-    caps = sorted(set(worker_caps))
-    if not any(caps):
-        return None
+    if queue is not None:
+        if queue["global_concurrency"] is None:
+            return None
+        caps = [queue["global_concurrency"]]
+    else:
+        caps = sorted(set(worker_caps))
+        if not any(caps):
+            return None
     if len(caps) > 1:
         state, limit = "mixed", None
     else:
@@ -294,13 +311,17 @@ class Service:
         completed = sum(p["completed"] for p in points)
         failed = sum(p["failed"] for p in points)
         finished = completed + failed
+        limits = await q.limits()
         worker_caps = [w["global_concurrency"] for w in await q.workers()]
+        capped = (
+            limits["global_concurrency"] is not None if limits is not None else any(worker_caps)
+        )
         # most queues set no cap: only then is the occupancy worth a second read
-        counts = await q.counts() if any(worker_caps) else {"active": 0, "wait": 0}
+        counts = await q.counts() if capped else {"active": 0, "wait": 0}
         return {
             "points": points,
             "latency": await q.latency(),
-            "cap": cap_summary(worker_caps, counts["active"], counts["wait"]),
+            "cap": cap_summary(worker_caps, counts["active"], counts["wait"], limits),
             "completed": completed,
             "failed": failed,
             "fail_pct": round(failed * 100 / finished, 1) if finished else 0.0,
