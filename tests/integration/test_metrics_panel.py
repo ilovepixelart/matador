@@ -79,10 +79,12 @@ async def test_failure_share_is_rendered(client, seeded):
 
 
 async def test_latency_chip_warns_past_threshold(client, q, seeded):
-    # age the head-of-line job >30s: the chip must switch to the warning color
+    # age the head-of-line job >30s: the chip must switch to the warning color. toro
+    # counts latency from the enqueue stamp (`enqueuedOn`) and, for a hash without
+    # one, from the add timestamp: both are aged, so the seed reads the same either way.
     waits = await q.get_jobs("wait", 0, 1)
     aged = str(int(time.time() * 1000) - 40_000)
-    await q.redis.hset(q.keys.job(waits[0].id), "timestamp", aged)
+    await q.redis.hset(q.keys.job(waits[0].id), mapping={"timestamp": aged, "enqueuedOn": aged})
     r = await client.get(f"/queues/{QUEUE}/metrics", headers=hx())
     assert "text-warning" in r.text  # latency >= 30s renders as a warning
 
