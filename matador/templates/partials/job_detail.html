@@ -67,7 +67,7 @@
     <div class="col-span-2">
       <dt class="label mb-1">logs</dt>
       <dd class="font-mono text-xs well max-h-40 space-y-0.5">
-        {% for line in job.logs|tail %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
+        {% for line in job.logs|tail(job.logs_total) %}<div class="text-muted"><span class="text-accent/60 select-none">›</span> {{ line }}</div>{% endfor %}
       </dd>
     </div>
     {% endif %}

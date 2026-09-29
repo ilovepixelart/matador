@@ -8,7 +8,9 @@ make the page too big to use.
 
 import asyncio
 
-from toro import FlowChild, Worker
+from toro import FlowChild, Queue, Worker
+
+from matador.service import MAX_LOG_LINES
 
 from .conftest import PREFIX, QUEUE, hx
 
@@ -173,3 +175,31 @@ async def test_a_search_under_an_unknown_state_renders_the_coerced_state(client,
     r = await client.get(f"/queues/{QUEUE}/jobs?state=bogus&query=alph", headers=hx())
     assert r.status_code == 200
     assert "bogus" not in r.text
+
+
+async def test_a_flood_of_log_lines_is_read_bounded(client, q, monkeypatch):
+    """The detail read every log line (LRANGE 0 -1) and cut the tail afterwards: a job
+    that logs in a loop made every render, and every event-driven refresh of an open
+    flow page, read the whole list. The read is bounded to the lines shown, and the
+    count of earlier lines comes from the list's length."""
+    asked: list[tuple[int, int]] = []
+    real = Queue.get_logs
+
+    async def spy(self, job_id, start=0, end=-1):
+        asked.append((start, end))
+        return await real(self, job_id, start, end)
+
+    monkeypatch.setattr(Queue, "get_logs", spy)
+
+    async def proc(job):
+        for i in range(MAX_LOG_LINES + 100):
+            await job.log(f"line {i}")
+        return 1
+
+    job = await q.add("chatty", {}, remove_on_complete=False)
+    await _drain(q, proc, _completed(q))
+
+    detail = await client.get(f"/queues/{QUEUE}/jobs/{job.id}/detail", headers=hx())
+    assert asked == [(-MAX_LOG_LINES, -1)], asked
+    assert "100 earlier lines not shown" in detail.text
+    assert f"line {MAX_LOG_LINES + 99}" in detail.text

@@ -76,6 +76,8 @@ HEARTBEAT = 8.0
 # The sidebar sparkline's window, and how many of its newest minutes a refresh re-reads.
 SPARK_MINUTES = 60
 SPARK_OPEN_MINUTES = 2
+# The newest log lines a job detail reads and shows; the rest is counted, not read.
+MAX_LOG_LINES = 200
 
 
 async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
@@ -286,11 +288,12 @@ class Service:
         """
         cache = self._spark_cache.setdefault(name, {})
         fresh = await self._points(q, SPARK_OPEN_MINUTES if cache else SPARK_MINUTES)
-        latest = max(fresh)
-        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
-        closed = wanted[:-SPARK_OPEN_MINUTES]
+        wanted, closed = self._window(fresh)
         if not all(ts in cache or ts in fresh for ts in closed):
-            fresh = await self._points(q, SPARK_MINUTES)  # the minute rolled over meanwhile
+            # The minute rolled over meanwhile, or the cache is stale: read it all, and
+            # place the window on that read, or its oldest minute is in neither.
+            fresh = await self._points(q, SPARK_MINUTES)
+            wanted, closed = self._window(fresh)
         for ts in closed:
             if ts in fresh:
                 cache[ts] = fresh[ts]
@@ -301,6 +304,15 @@ class Service:
     @staticmethod
     async def _points(q: Queue, minutes: int) -> dict[int, MetricsPoint]:
         return {p["timestamp"]: p for p in await q.metrics(minutes=minutes)}
+
+    @staticmethod
+    def _window(fresh: dict[int, MetricsPoint]) -> tuple[list[int], list[int]]:
+        """Place the 60 minutes a sparkline shows, ending at the newest one read, and
+        name the closed ones among them (all but the open minutes at the end).
+        """
+        latest = max(fresh)
+        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
+        return wanted, wanted[:-SPARK_OPEN_MINUTES]
 
     async def metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
         """Feed the charts: per-minute points plus the headline numbers the strip
@@ -521,13 +533,20 @@ class Service:
         rows = [{**self._summary(j), "queue": name} for j in jobs]
         return await self._with_flow_progress(q, rows)
 
-    async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
+    async def job(self, name: str, job_id: str, *, logs: bool = True) -> dict[str, Any] | None:
+        """One job's detail. `logs=False` skips the log lines: the flow fragment,
+        refreshed on every job event while a flow is open, never shows them.
+        """
         q = await self._queue(name)
         j = await q.get_job(job_id)
         if not j:
             return None
         detail = self._detail(j)
-        detail["logs"] = await q.get_logs(job_id)
+        if logs:
+            # The newest lines only, the ones shown: a processor in a loop makes the
+            # list unbounded. The count of the rest comes from the list's length.
+            detail["logs"] = await q.get_logs(job_id, -MAX_LOG_LINES, -1)
+            detail["logs_total"] = await q.redis.llen(q.keys.logs(job_id))
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         if j.children_ids:
             detail |= await self._flow_detail(q, j)

@@ -42,6 +42,7 @@ from starlette.datastructures import URL
 from starlette.responses import Response
 
 from .service import (
+    MAX_LOG_LINES,
     STATES,
     IncompatibleDataModelError,
     JobState,
@@ -58,7 +59,6 @@ _MAX_JSON_CHARS = 20_000  # job data is user-controlled + unbounded; cap what we
 # every change event, about once a second per open tab.
 _MAX_CELL_CHARS = 500
 _MAX_FIELD_CHARS = 4_000
-_MAX_LOG_LINES = 200
 
 
 def _clip(value: object, limit: int = _MAX_CELL_CHARS) -> str:
@@ -69,15 +69,19 @@ def _clip(value: object, limit: int = _MAX_CELL_CHARS) -> str:
     return f"{text[:limit]}… ({len(text):,} chars)"
 
 
-def _tail(lines: list[str] | None, limit: int = _MAX_LOG_LINES) -> list[str]:
-    """Return the newest `limit` log lines, each clipped.
+def _tail(
+    lines: list[str] | None, total: int | None = None, limit: int = MAX_LOG_LINES
+) -> list[str]:
+    """Return the newest `limit` log lines, each clipped, headed by how many earlier
+    lines there are: `total` is the list's length when `lines` is a bounded read.
 
     A job that logs in a loop is a job whose last lines are the ones worth reading.
     """
     lines = lines or []
     kept = [_clip(line) for line in lines[-limit:]]
-    if len(lines) > limit:
-        kept.insert(0, f"… {len(lines) - limit:,} earlier lines not shown")
+    hidden = (len(lines) if total is None else total) - len(kept)
+    if hidden > 0:
+        kept.insert(0, f"… {hidden:,} earlier lines not shown")
     return kept
 
 
@@ -825,7 +829,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         # Just the flow body - the #flow-section live region morphs this into itself
         # on each job event (same as #workers-list <- workers_list.html). The wrapper
         # and the rest of the detail never move.
-        job = await svc.job(name, job_id)
+        job = await svc.job(name, job_id, logs=False)
         html = _render_str(request, "partials/flow_body.html", name=name, job=job)
         # the standalone job page asks (?title=1) to keep its title pill in sync
         if job and request.query_params.get("title"):

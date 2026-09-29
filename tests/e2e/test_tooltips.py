@@ -2,6 +2,8 @@
 element's own (sr-only) content, never aria-label (which would fight the
 visible label; Sonar S6853/S7927)."""
 
+import re
+
 from playwright.sync_api import Page, expect
 
 from .conftest import QUEUE
@@ -71,3 +73,20 @@ def test_the_tip_says_what_it_is(page: Page, base_url, seeded):
     page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
 
     expect(page.locator("#tip")).to_have_attribute("role", "tooltip")
+
+
+def test_tooltips_survive_a_history_restore(page: Page, base_url, seeded):
+    """The tooltip node is created once, when the page's scripts load. Back after an
+    htmx push restores the page by replacing the body's children, so the node was
+    gone and no tooltip showed for the rest of the session."""
+    page.goto(f"{base_url}/queues/{QUEUE}?state=failed")
+    page.locator('a[hx-push-url="true"][href$="state=wait"]').first.click()  # a tab: htmx push
+    expect(page).to_have_url(re.compile(r"state=wait"))
+    page.go_back()
+    expect(page).to_have_url(re.compile(r"state=failed"))
+    expect(page.locator("#jobs")).to_be_visible()
+    btn = page.locator('#jobs button[data-tip="Retry this job"]').first
+    btn.hover()
+    tip = page.locator("#tip")
+    expect(tip).to_have_css("opacity", "1")
+    expect(tip).to_have_text("Retry this job")
