@@ -421,3 +421,62 @@ async def test_a_cancelled_node_shows_as_cancelled_in_the_tree(client, q):
     # counted as stopped, and a flow nobody broke never reads as broken.
     assert "1 stopped" in r.text
     assert "failed" not in r.text
+
+
+async def test_a_failed_flow_row_counts_the_child_that_failed_it(client, q):
+    """Under the default on_fail a child's failure fails the parent at once and writes
+    no per-child failure record, so the row's fan-in progress read the broken child
+    as pending ("0 failed, 1 pending") while the detail for the same flow said
+    "1 failed"."""
+    parent = await q.add_flow("report", {}, children=[c("good", {}), c("bad", {})])
+
+    async def proc(job):
+        if job.name == "bad":
+            raise RuntimeError("boom")
+        return 1
+
+    async def parent_failed(q):
+        p = await q.get_job(parent.id)
+        return p is not None and p.state == "failed"
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        if await parent_failed(q):
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+    assert await parent_failed(q)
+
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=failed", headers=hx())
+    assert r.status_code == 200
+    assert "1 done, 1 failed, 0 stopped, 0 pending" in r.text
+
+
+async def test_a_cancelled_flow_row_counts_the_child_that_stopped_it(client, q):
+    """The same under a cancellation: a child stopped under the default on_fail
+    cancels the parent and records nothing per child, so the cancelled tab's row
+    read the stopped child as pending. It counts as stopped, not as failed."""
+    parent = await q.add_flow("report", {}, children=[c("good", {}), c("later", {}, delay=600_000)])
+
+    async def proc(job):
+        return 1
+
+    worker = Worker(QUEUE, proc, prefix=PREFIX, stalled_interval=0)
+    task = asyncio.create_task(worker.run())
+    for _ in range(200):
+        if (await q.counts())["completed"] == 1:
+            break
+        await asyncio.sleep(0.02)
+    await worker.stop(grace_period=0)
+    task.cancel()
+    later = next(
+        n["job"].id for n in (await q.get_flow(parent.id))["children"] if n["job"].name == "later"
+    )
+    assert await q.cancel_job(later) is True
+    assert (await q.get_job(parent.id)).state == "cancelled"
+
+    r = await client.get(f"/queues/{QUEUE}/jobs?state=cancelled", headers=hx())
+    assert r.status_code == 200
+    assert "1 done, 0 failed, 1 stopped, 0 pending" in r.text
