@@ -112,3 +112,13 @@ async def test_a_flow_row_separates_stopped_children_from_failed_ones(client, q)
 
     assert r.status_code == 200
     assert "0 done, 0 failed, 1 stopped" in r.text
+
+
+async def test_a_due_time_past_the_calendar_does_not_break_the_tab(client, q):
+    """toro caps no delay, so one job delayed past year 9999 made the delayed tab, its
+    live refresh and the landing page answer 500 for everyone. The row shows with no
+    absolute moment on hover."""
+    await q.add("forever", {}, delay=10**15)
+    r = await client.get(f"/queues/{QUEUE}?state=delayed", headers=hx())
+    assert r.status_code == 200
+    assert "forever" in r.text

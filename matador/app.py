@@ -229,14 +229,25 @@ def _schedule_label(s: dict[str, Any]) -> str:
     return f"every {every / 1000:g}s" if every < 60000 else f"every {every / 60000:g}m"
 
 
-_TEMPLATES.env.filters["clock"] = lambda ms: (
-    # local time on purpose - the dashboard shows timestamps in the viewer's zone
-    datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S") if ms else "-"  # noqa: DTZ006
-)
+def _moment(ms: int | None, fmt: str, missing: str) -> str:
+    """Format an epoch-ms value in local time (the viewer's zone, on purpose).
+
+    A delay is any non-negative int, so a job's due moment can lie past what the
+    calendar holds; a moment that cannot be formatted shows as missing rather than
+    failing the page for one row.
+    """
+    if not ms:
+        return missing
+    try:
+        moment = datetime.fromtimestamp(ms / 1000)  # noqa: DTZ006
+    except (OverflowError, OSError, ValueError):
+        return missing
+    return moment.strftime(fmt)
+
+
+_TEMPLATES.env.filters["clock"] = lambda ms: _moment(ms, "%H:%M:%S", "-")
 _TEMPLATES.env.filters["clockms"] = (
-    lambda ms: (  # millisecond precision (job timings)
-        datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S.%f")[:-3] if ms else "-"  # noqa: DTZ006
-    )
+    lambda ms: _moment(ms, "%H:%M:%S.%f", "-")[:-3] if ms else "-"  # millisecond precision
 )
 
 
@@ -277,9 +288,7 @@ def _due(due_ms: int | None) -> str:
 
 def _at(ms: int | None) -> str:
     # The absolute moment, for hover titles - relative times age, this doesn't.
-    if not ms:
-        return ""
-    return datetime.fromtimestamp(ms / 1000).strftime("%d %b %Y %H:%M:%S")  # noqa: DTZ006
+    return _moment(ms, "%d %b %Y %H:%M:%S", "")
 
 
 def _compact(n: int) -> str:
