@@ -941,6 +941,19 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
     return router
 
 
+async def _trigger_scheduler(
+    svc: Service, request: Request, name: str, scheduler_id: str
+) -> HTMLResponse:
+    """Queue one run now and redraw the list, or toast for a scheduler that is gone:
+    the same answer retry, remove and cancel give for a gone job.
+    """
+    if not await svc.trigger_scheduler(name, scheduler_id):
+        return _toast(request, "Couldn't trigger", f"Scheduler {scheduler_id} is no longer here.")
+    return _render(
+        request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
+    )
+
+
 def _queue_actions_router(svc: Service) -> APIRouter:
     """Build the queue-wide write routes: bulk removal, retry-all, clean, schedulers."""
     router = APIRouter()
@@ -1000,10 +1013,7 @@ def _queue_actions_router(svc: Service) -> APIRouter:
         "/queues/{name}/schedulers/{scheduler_id:path}/trigger", response_class=HTMLResponse
     )
     async def trigger(request: Request, name: str, scheduler_id: str):
-        await svc.trigger_scheduler(name, scheduler_id)
-        return _render(
-            request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
-        )
+        return await _trigger_scheduler(svc, request, name, scheduler_id)
 
     @router.delete("/queues/{name}/schedulers/{scheduler_id:path}", response_class=HTMLResponse)
     async def remove_scheduler(request: Request, name: str, scheduler_id: str):

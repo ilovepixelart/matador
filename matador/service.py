@@ -653,9 +653,10 @@ class Service:
         q = await self._queue(name)
         await q.remove_scheduler(scheduler_id)
 
-    async def trigger_scheduler(self, name: str, scheduler_id: str) -> None:
+    async def trigger_scheduler(self, name: str, scheduler_id: str) -> bool:
+        """Queue one run of a scheduler now; False when it no longer exists."""
         q = await self._queue(name)
-        await q.trigger_scheduler(scheduler_id)
+        return await q.trigger_scheduler(scheduler_id)
 
     async def _ensure_broadcaster(self) -> None:
         """Start the shared events listener (or restart it after a crash).
