@@ -13,7 +13,7 @@ which toro does not reconcile, are flagged.
 
 ## Design
 
-- **Source.** A queue with limits of its own (`Queue.set_limits()`, toro 1.0.3)
+- **Source.** A queue with limits of its own (`Queue.set_limits()`, toro 1.1.0)
   has the cap `Queue.limits()` names, and its workers' arguments do not apply.
   Otherwise toro reports `global_concurrency` per worker in `Queue.workers()`
   (0 when unset), and the queue's cap is whatever its live workers agree on.
@@ -41,7 +41,7 @@ which toro does not reconcile, are flagged.
   be traced to the worker.
 - **Cost.** One `Queue.limits()` read and one `Queue.workers()` read per strip
   refresh (pipelined, throttled to 5 s by the existing trigger).
-- **Dependency.** `toro-queue>=1.0.3` (`Queue.limits()`).
+- **Dependency.** `toro-queue>=1.1.0` (`Queue.limits()`).
 
 ## Acceptance clauses
 
@@ -59,7 +59,7 @@ which toro does not reconcile, are flagged.
 
 ## Out of scope
 
-- Setting or changing the cap from the dashboard. toro 1.0.3 has
+- Setting or changing the cap from the dashboard. toro 1.1.0 has
   `Queue.set_limits()`; a control for it is a spec of its own.
 - A per-job "held by the cap" marker in the jobs table. The cap holds back
   whatever is next in line, not particular jobs.
@@ -100,5 +100,5 @@ which toro does not reconcile, are flagged.
 | 4 | CV-005 | Mixed caps | same, `matador/service.py` | two workers, two caps, red first |
 | 5 | CV-006 | Cap in the workers list | `matador/templates/partials/workers_list.html` | integration, red first |
 | 6 | CV-007, CV-008 | Browser behavior | tests only | Playwright against a real capped workload: live swap, hidden text, tab order |
-| 7 | | `toro-queue>=1.0.3`, docs (`docs/views.md`), rebuilt CSS if a utility is new | `pyproject.toml`, docs | the CSS freshness gate |
+| 7 | | `toro-queue>=1.1.0`, docs (`docs/views.md`), rebuilt CSS if a utility is new | `pyproject.toml`, docs | the CSS freshness gate |
 | 8 | | Prove: full suite, mutation audit, a live demo against a capped fleet | | evidence captured |

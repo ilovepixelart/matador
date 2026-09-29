@@ -4,13 +4,13 @@ Breaking changes by release, newest first, each with what to do about it.
 
 ## 1.0.6
 
-Nothing breaks. Requires `toro-queue` 1.0.3.
+Nothing breaks. Requires `toro-queue` 1.1.0.
 
 **The cap chip reads the queue's own limits.** A queue whose limits were set with
 toro's `Queue.set_limits()` shows the cap they name whatever its workers were started
 with, and no cap when they set none; the "mixed" warning is left for a queue with no
 limits of its own whose workers disagree. The service reads `Queue.limits()`, which
-toro added in 1.0.3.
+toro added in 1.1.0.
 
 ## 1.0.5
 
