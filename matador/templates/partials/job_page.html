@@ -1,4 +1,4 @@
-{% from "macros.html" import icon, state_color %}
+{% from "macros.html" import icon, state_color, state_pill %}
 <div class="p-5">
   <div class="flex items-center gap-3 mb-5 min-w-0">
     {# Back to wherever the reader came from (server-derived from HX-Current-URL),
@@ -12,7 +12,7 @@
       {% if job %}
       <span class="truncate">{{ job.name }}</span>
       {# annotations ride inside the title group: badge-gap rule is gap-2 #}
-      <span id="job-state-pill" class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(job.state) }}">{{ job.state }}</span>
+      {{ state_pill(job.state) }}
       <span class="text-xs text-muted tabular-nums shrink-0">{{ job.attempts_made }}×</span>
       {% endif %}
     </h1>
