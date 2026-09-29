@@ -231,6 +231,33 @@ text-xs px-1.5 py-0.5 rounded-md bg-{{ tone }}/10 text-{{ tone }} {{ extra }}
 
 {# state -> display label. `waiting-children` (a flow parent parked on its kids)
    reads as "parked"; it has no tab of its own - such a root shows under active. #}
+{# The state-tab count badge - ONE definition for the tab strip and its OOB twin
+   (tab_counts_oob.html), so a live refresh cannot morph the badge styling out from
+   under the tab. tabular-nums: no reflow as digits change. #}
+{% macro tabcount(s, n, oob=false) -%}
+<span id="tabcount-{{ s }}"{% if oob %} hx-swap-oob="true"{% endif %} title="{{ n|comma }}" class="text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md {{ state_color(s) }}">{{ n|compact }}</span>
+{%- endmacro %}
+
+{# The standalone job page's title state pill and its OOB twin (job_state_oob.html). #}
+{% macro state_pill(state, oob=false) -%}
+<span id="job-state-pill"{% if oob %} hx-swap-oob="true"{% endif %} class="text-xs px-1.5 py-0.5 rounded-md shrink-0 {{ state_color(state) }}">{{ state }}</span>
+{%- endmacro %}
+
+{# The one chart anywhere in the app: an hour of per-minute bars, neutral ink for
+   done and danger for failed, the open minute dimmed. Shared by the sidebar's
+   per-queue sparkline and the flow strip. #}
+{% macro spark(bars, label, cls) -%}
+<svg viewBox="0 0 120 20" width="120" height="20" class="q-spark {{ cls }}"
+     role="img" shape-rendering="crispEdges" preserveAspectRatio="none"
+     aria-label="{{ label }}">
+  <line x1="0" y1="19.5" x2="120" y2="19.5" class="stroke-line"/>
+  {% for b in bars %}
+  {% if b.dh %}<rect x="{{ b.x }}" y="{{ b.y_done }}" width="3" height="{{ b.dh }}" class="fill-muted/40{{ ' opacity-40' if loop.last }}"/>{% endif %}
+  {% if b.fh %}<rect x="{{ b.x }}" y="{{ b.y_fail }}" width="3" height="{{ b.fh }}" class="fill-danger{{ ' opacity-40' if loop.last }}"/>{% endif %}
+  {% endfor %}
+</svg>
+{%- endmacro %}
+
 {% macro state_label(s) -%}
 {%- if s == 'waiting-children' -%}parked{%- else -%}{{ s }}{%- endif -%}
 {%- endmacro %}

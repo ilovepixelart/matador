@@ -1,4 +1,4 @@
-{% from "macros.html" import badge, icon, state_color, state_label %}
+{% from "macros.html" import badge, icon, state_color, state_label, tabcount %}
 <div class="p-5">
   <div class="flex items-center justify-between mb-5 gap-3">
     <h1 class="text-lg font-semibold flex items-center gap-2 min-w-0">
@@ -36,7 +36,7 @@
        hx-get="{{ url_for('queue_view', name=q.name).path }}?state={{ s }}" hx-push-url="true"
        class="relative flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors {{ 'text-fg' if s == state else 'text-muted hover:text-fg' }}">
       {{ state_label(s) }}
-      <span id="tabcount-{{ s }}" title="{{ q.counts[s]|comma }}" class="text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md {{ state_color(s) }}">{{ q.counts[s]|compact }}</span>
+      {{ tabcount(s, q.counts[s]) }}
       {% if s == state %}
       <span class="absolute -bottom-px inset-x-2 h-0.5 rounded-full bg-accent"></span>
       {% endif %}
