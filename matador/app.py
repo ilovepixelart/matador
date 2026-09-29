@@ -153,7 +153,10 @@ def _back_href(request: Request, name: str, job_id: str) -> str:
     current = request.headers.get("hx-current-url", "")
     if not current:
         return fallback  # full page load (deep link / bookmark): no back, go to queue
-    came_from = urlsplit(current)
+    try:
+        came_from = urlsplit(current)
+    except ValueError:
+        return fallback  # not a URL at all: the header is the sender's, the page is not
     here = _url_for(request, "job_page", name=name, job_id=job_id).path
     queues = request.scope.get("root_path", "") + "/queues/"
     if came_from.path.startswith(queues) and came_from.path != here:
@@ -612,9 +615,20 @@ async def _same_origin(
     # Absent Origin (non-browser clients) is allowed through.
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         origin = request.headers.get("origin")
-        if origin and urlsplit(origin).netloc != request.headers.get("host"):
+        if origin and _host_of(origin) != request.headers.get("host"):
             return PlainTextResponse("cross-origin request blocked", status_code=403)
     return await call_next(request)
+
+
+def _host_of(url: str) -> str | None:
+    """Return the host of a URL a sender wrote, or None when it is not one: urlsplit raises
+    on a bracket that opens no IPv6 literal, and a sender's own bad header is a
+    refusal, not a crash.
+    """
+    try:
+        return urlsplit(url).netloc
+    except ValueError:
+        return None
 
 
 async def _security_headers(
@@ -770,10 +784,11 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
     ):
         query = query.strip()
+        state = _coerce_state(state)  # the scan, the label and the row actions agree
         if query:
             # Exact id lookup is O(1) and works for auto AND custom string ids;
             # the bounded substring scan covers name/data within the state.
-            jobs, exact = await _search_jobs(svc, name, _coerce_state(state), query)
+            jobs, exact = await _search_jobs(svc, name, state, query)
             return _render(
                 request,
                 "partials/search_results.html",
