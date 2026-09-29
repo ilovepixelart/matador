@@ -518,7 +518,30 @@ class Service:
                 r["children_done"] = done
                 r["children_failed"] = failed
                 r["children_cancelled"] = cancelled
+            settled = [r for r in parents if r["state"] in ("failed", "cancelled")]
+            await self._count_settled_children(q, settled)
         return rows
+
+    @staticmethod
+    async def _count_settled_children(q: Queue, parents: list[dict[str, Any]]) -> None:
+        """Count a settled parent's failed and cancelled children by their state.
+
+        The per-child failure and cancellation records are written under
+        `on_fail="continue"` only; under the default a child's failure fails the
+        parent at once and records nothing, so the row read the broken child as
+        pending. One pipelined read for the page's settled parents.
+        """
+        if not parents:
+            return
+        pipe = q.redis.pipeline(transaction=False)
+        for r in parents:
+            for cid in r["children_ids"]:
+                pipe.hget(q.keys.job(cid), "state")
+        states = iter(await pipe.execute())
+        for r in parents:
+            mine = [next(states) for _ in r["children_ids"]]
+            r["children_failed"] = mine.count("failed")
+            r["children_cancelled"] = mine.count("cancelled")
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
@@ -821,6 +844,7 @@ class Service:
             # Flow membership: parents show a child count, children a parent link.
             "parent_id": j.parent_id,
             "children_count": len(j.children_ids) if j.children_ids else 0,
+            "children_ids": list(j.children_ids or []),
         }
 
     @classmethod
