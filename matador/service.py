@@ -76,6 +76,8 @@ HEARTBEAT = 8.0
 # The sidebar sparkline's window, and how many of its newest minutes a refresh re-reads.
 SPARK_MINUTES = 60
 SPARK_OPEN_MINUTES = 2
+# The newest log lines a job detail reads and shows; the rest is counted, not read.
+MAX_LOG_LINES = 200
 
 
 async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
@@ -521,13 +523,20 @@ class Service:
         rows = [{**self._summary(j), "queue": name} for j in jobs]
         return await self._with_flow_progress(q, rows)
 
-    async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
+    async def job(self, name: str, job_id: str, *, logs: bool = True) -> dict[str, Any] | None:
+        """One job's detail. `logs=False` skips the log lines: the flow fragment,
+        refreshed on every job event while a flow is open, never shows them.
+        """
         q = await self._queue(name)
         j = await q.get_job(job_id)
         if not j:
             return None
         detail = self._detail(j)
-        detail["logs"] = await q.get_logs(job_id)
+        if logs:
+            # The newest lines only, the ones shown: a processor in a loop makes the
+            # list unbounded. The count of the rest comes from the list's length.
+            detail["logs"] = await q.get_logs(job_id, -MAX_LOG_LINES, -1)
+            detail["logs_total"] = await q.redis.llen(q.keys.logs(job_id))
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         if j.children_ids:
             detail |= await self._flow_detail(q, j)
