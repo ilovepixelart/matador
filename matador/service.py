@@ -395,10 +395,13 @@ class Service:
     async def _queue(self, name: str) -> Queue:
         """Hand back the queue, once its data model is one this version reads.
 
-        Every read and every action reaches its queue through here, so a page added
-        later is covered without being told about it. That matters most for the
+        Every queue-scoped read and action reaches its queue through here, so a page
+        added later is covered without being told about it. That matters most for the
         live-refresh fragment, which re-renders the table about once a second and is
-        where a shape this version does not know would actually be read.
+        where a shape this version does not know would actually be read. The reads
+        that span every queue (the sidebar's counts, the metrics export, the workers
+        and Redis views) iterate `self.queues` directly and skip the check: they read
+        counts and presence records, not job hashes.
         """
         q = self._q(name)
         await self._check_data_model(q, name)
@@ -834,8 +837,5 @@ class Service:
             **cls._summary(j),
             "opts": j.opts.to_dict(),
             "returnvalue": j.returnvalue,
-            "timestamp": j.timestamp,
-            "processed_on": j.processed_on,
-            "finished_on": j.finished_on,
             "stacktrace": j.stacktrace,
         }
