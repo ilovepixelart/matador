@@ -454,6 +454,30 @@ _TEMPLATES.env.globals["asset_v"] = _asset_version  # ty: ignore[invalid-assignm
 # ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
 
 
+async def _with_sidebar(svc: Service, request: Request, panel: str, selected: str) -> HTMLResponse:
+    """Return the panel plus an out-of-band sidebar refresh, so the active-queue
+    highlight updates in the same response (no lag, no second request).
+    """
+    side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=selected)
+    return HTMLResponse(panel + side)
+
+
+async def _workers_list(svc: Service, request: Request) -> HTMLResponse:
+    return _render(
+        request,
+        "partials/workers_list.html",
+        workers=await svc.workers(),
+        departed=await svc.departed_workers(),
+        multi=len(svc.queues) > 1,
+    )
+
+
+async def _schedulers(svc: Service, request: Request, name: str) -> HTMLResponse:
+    return _render(
+        request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
+    )
+
+
 def _render(request: Request, template: str, **ctx) -> HTMLResponse:
     # Default True: a dashboard with no predicate configured is fully usable, which
     # is what every existing deployment expects.
@@ -580,11 +604,8 @@ def _with_announcement(request: Request, panel: HTMLResponse, message: str) -> H
 async def _panel_with_sidebar(
     svc: Service, request: Request, name: str, ctx: dict[str, Any]
 ) -> HTMLResponse:
-    # Panel + an out-of-band sidebar refresh, so the active-queue highlight
-    # updates in the SAME response (no lag, no second request).
     panel = _render_str(request, "partials/queue.html", **ctx)
-    side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
-    return HTMLResponse(panel + side)
+    return await _with_sidebar(svc, request, panel, name)
 
 
 async def _panel(svc: Service, request: Request, name: str, state: str, page: int) -> HTMLResponse:
@@ -759,10 +780,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             panel = _render_str(
                 request, "partials/workers.html", workers=workers, departed=departed, multi=multi
             )
-            side = _render_str(
-                request, _SIDEBAR_OOB, queues=await svc.overview(), selected=WORKERS_SEL
-            )
-            return HTMLResponse(panel + side)
+            return await _with_sidebar(svc, request, panel, WORKERS_SEL)
         return _full_page(
             request,
             queues=await svc.overview(),
@@ -775,13 +793,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/workers/list", response_class=HTMLResponse)
     async def workers_fragment(request: Request):
-        return _render(
-            request,
-            "partials/workers_list.html",
-            workers=await svc.workers(),
-            departed=await svc.departed_workers(),
-            multi=len(svc.queues) > 1,
-        )
+        return await _workers_list(svc, request)
 
     @router.get("/sidebar", response_class=HTMLResponse)
     async def sidebar(request: Request):
@@ -863,8 +875,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
                 back_href=back_href,
                 show_stacktraces=show_stacktraces,
             )
-            side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
-            return HTMLResponse(panel + side)
+            return await _with_sidebar(svc, request, panel, name)
         return _full_page(
             request,
             queues=await svc.overview(),
@@ -889,13 +900,7 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
     async def clear_departed(request: Request):
         # Dismiss the stopped/lost-worker history; live workers re-appear via heartbeats.
         await svc.clear_departed()
-        return _render(
-            request,
-            "partials/workers_list.html",
-            workers=await svc.workers(),
-            departed=await svc.departed_workers(),
-            multi=len(svc.queues) > 1,
-        )
+        return await _workers_list(svc, request)
 
     @router.post("/queues/{name}/pause", response_class=HTMLResponse)
     async def pause(request: Request, name: str, state: str = "active", page: int = 1):
@@ -943,8 +948,8 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
             back_href=_back_href(request, name, parent),
             show_stacktraces=show_stacktraces,
         )
-        side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
-        return _with_announcement(request, HTMLResponse(panel + side), f"Retried job #{job_id}")
+        page = await _with_sidebar(svc, request, panel, name)
+        return _with_announcement(request, page, f"Retried job #{job_id}")
 
     @router.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def remove(
@@ -1031,16 +1036,12 @@ def _queue_actions_router(svc: Service) -> APIRouter:
     )
     async def trigger(request: Request, name: str, scheduler_id: str):
         await svc.trigger_scheduler(name, scheduler_id)
-        return _render(
-            request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
-        )
+        return await _schedulers(svc, request, name)
 
     @router.delete("/queues/{name}/schedulers/{scheduler_id:path}", response_class=HTMLResponse)
     async def remove_scheduler(request: Request, name: str, scheduler_id: str):
         await svc.remove_scheduler(name, scheduler_id)
-        return _render(
-            request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
-        )
+        return await _schedulers(svc, request, name)
 
     return router
 
