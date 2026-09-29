@@ -67,6 +67,9 @@ def test_bulk_delete_via_confirm_dialog(page: Page, base_url, seeded_many):
     dialog = page.locator("dialog[open]")
     expect(dialog).to_be_visible()
     expect(dialog).to_contain_text("Delete 3 jobs?")  # dynamic count
+    # the same warning the per-row confirm gives: the JS rewrote the confirm text
+    # with the count alone, and the template's sentence never reached the dialog
+    expect(dialog).to_contain_text("whole subtree")
     dialog.locator("#confirm-ok").click()
 
     expect(page.locator("#bulk-count")).to_have_text("0")  # cleared after delete

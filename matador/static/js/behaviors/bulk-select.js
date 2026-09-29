@@ -24,7 +24,13 @@ function sync() {
   const cnt = document.getElementById("bulk-count");
   if (cnt) cnt.textContent = n;
   const del = document.getElementById("bulk-delete");
-  if (del) del.setAttribute("hx-confirm", `Delete ${n} job${n === 1 ? "" : "s"}?`);
+  // The same sentence as the per-row confirm: a selected flow parent takes its subtree.
+  if (del) {
+    del.setAttribute(
+      "hx-confirm",
+      `Delete ${n} job${n === 1 ? "" : "s"}? A flow parent is removed with its whole subtree.`,
+    );
+  }
   const all = document.getElementById("select-all");
   if (all) {
     const boxes = document.querySelectorAll(".jcheck");
