@@ -69,3 +69,33 @@ async def test_a_finish_in_the_open_minute_shows_on_the_next_refresh(q):
 
 async def _noop(job):
     return None
+
+
+def _minute(ts: int) -> dict:
+    return {"timestamp": ts, "added": 0, "completed": 0, "failed": 0, "ms": 0}
+
+
+async def test_a_stale_cache_survives_the_minute_rolling_over_between_reads(q, monkeypatch):
+    """After an idle hour the refresh reads the two open minutes, finds the closed ones
+    missing from the cache and reads the whole window again. When the minute rolled
+    over between the two reads, the window stayed the first read's, and its oldest
+    minute was in neither the cache nor the second read: a KeyError, and a 500 for
+    every page that draws the sidebar, until the next refresh filled the cache."""
+    svc = Service([QUEUE], url=URL, prefix=PREFIX, connection=q.redis)
+    t0 = 1_700_000_000_000 // 60_000 * 60_000
+    reads = 0
+
+    async def points(q, minutes):
+        nonlocal reads
+        reads += 1
+        latest = t0 + (60_000 if reads > 1 else 0)  # the minute rolls over after read one
+        return {latest - 60_000 * i: _minute(latest - 60_000 * i) for i in range(minutes)}
+
+    monkeypatch.setattr(Service, "_points", staticmethod(points))
+    svc._spark_cache[QUEUE] = {t0 - 60_000 * 120: _minute(t0 - 60_000 * 120)}  # idle two hours
+    try:
+        series = await svc._sparkline(QUEUE, svc.queues[QUEUE])
+    finally:
+        await svc.close()
+    assert reads == 2
+    assert [p["timestamp"] for p in series] == [t0 + 60_000 - 60_000 * i for i in range(59, -1, -1)]
