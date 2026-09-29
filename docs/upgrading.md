@@ -12,6 +12,31 @@ with, and no cap when they set none; the "mixed" warning is left for a queue wit
 limits of its own whose workers disagree. The service reads `Queue.limits()`, which
 toro added in 1.1.0.
 
+Fixes, each with the behaviour it replaces:
+
+- A job delayed past what the calendar holds (`delay=10**15`) made the delayed tab,
+  its live refresh and the landing page answer 500; its moment now shows as missing.
+- A queue name containing `/`, which toro allows, failed the first page for every
+  queue and routed nowhere; `create_app()` refuses it, naming the queue.
+- Two open flow rows shared one live region id, so both refreshed into the first
+  row; each region now carries its job's own id.
+- Tooltips stopped showing after Back from an htmx navigation; the tooltip node is
+  put back when a history restore dropped it.
+- A job detail read its whole log list on every render, and the flow fragment on
+  every job event; it reads the newest lines only and counts the rest.
+- A flow failed or cancelled by a child under the default `on_fail` showed that
+  child as pending in its row; the row counts the children's states.
+- The first sidebar refresh after an idle hour could raise `KeyError` when the minute
+  rolled over between its two reads, answering 500 on every page until the next one.
+- A malformed `Origin` answered 500 instead of 403, a malformed `HX-Current-URL`
+  answered 500 instead of the queue, and a search under an unknown state rendered the
+  raw state, with bulk checkboxes the active tab never allows.
+- The bulk delete confirm dropped the "whole subtree" warning the per-row confirm
+  gives; triggering a scheduler that no longer exists toasts "no longer here"
+  instead of redrawing the list as if it ran.
+- The docs told a proxied deployment to fix a blocked dashboard with uvicorn's
+  `--proxy-headers`, which never touches `Host`; the proxy has to pass it through.
+
 ## 1.0.5
 
 Nothing breaks in the API, and one action changes what it does.
