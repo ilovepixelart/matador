@@ -20,8 +20,9 @@ which toro does not reconcile, are flagged.
   `Service.metrics()` gains a `cap` entry built from the queue's limits, the live
   workers, `counts.active`, and `counts.wait`.
 - **One chip, in the existing strip.** It sits directly after latency, the number
-  it explains. It renders only when some live worker reports a cap, the same way
-  the failed chip renders only when something failed.
+  it explains. It renders only when the queue has a cap, from its own limits or
+  from some live worker's argument, the same way the failed chip renders only when
+  something failed.
   - Below the cap: `cap 2/3`, neutral ink.
   - Full with jobs waiting: `at cap 3/3 · 12 waiting`, neutral ink, the numbers in
     `text-fg`. Its tip says these jobs wait on a free slot, not on a worker, and
@@ -38,23 +39,23 @@ which toro does not reconcile, are flagged.
   30 s tick. No new live region.
 - **Workers list.** Each worker row shows its cap when set, so a mixed fleet can
   be traced to the worker.
-- **Cost.** One `Queue.workers()` read per strip refresh (pipelined, throttled
-  to 5 s by the existing trigger).
-- **Dependency.** `toro-queue>=0.6.1`.
+- **Cost.** One `Queue.limits()` read and one `Queue.workers()` read per strip
+  refresh (pipelined, throttled to 5 s by the existing trigger).
+- **Dependency.** `toro-queue>=1.0.3` (`Queue.limits()`).
 
 ## Acceptance clauses
 
 | ID | Behavior | Check |
 |---|---|---|
-| CV-001 | `Service.metrics()` reports the cap: `None` with no capped live worker, the value when all live workers agree, and the sorted distinct values when they disagree (an uncapped worker among capped ones included). | `tests/integration/test_cap_view.py::test_service_reports_cap_states` |
-| CV-002 | No live worker reports a cap: the strip renders no cap chip. | `::test_cap_chip_absent_without_a_cap` |
+| CV-001 | On a queue with no limits of its own, `Service.metrics()` reports the cap: `None` with no capped live worker, the value when all live workers agree, and the sorted distinct values when they disagree (an uncapped worker among capped ones included). | `tests/integration/test_cap_view.py::test_service_reports_cap_states` |
+| CV-002 | No live worker reports a cap and the queue has no limits of its own: the strip renders no cap chip. | `::test_cap_chip_absent_without_a_cap` |
 | CV-003 | Below the cap the chip reads active over cap in neutral ink. | `::test_cap_chip_shows_occupancy` |
 | CV-004 | Full with jobs waiting: the chip says so with the waiting count, stays neutral, and its tip names the cap as the cause. | `::test_cap_chip_names_the_cap_as_the_wait` |
 | CV-005 | Workers disagree: the chip lists the values in `text-warning`. | `::test_cap_chip_warns_on_mixed_caps` |
 | CV-006 | The workers list shows a worker's cap when set and nothing when unset. | `::test_workers_list_shows_the_cap` |
 | CV-007 | In a real browser the chip appears once a capped worker is live and the queue fills, without a reload, and the panel stays intact after the live swap. | `tests/e2e/test_cap_view.py::test_cap_chip_goes_live` |
 | CV-008 | The state is conveyed in the chip's visible words, not by color or by the tip alone, and the tip's explanation reaches screen readers from text that is really hidden. The chip is not a tab stop. | `tests/e2e/test_cap_view.py::test_cap_chip_is_accessible` |
-| CV-009 | A queue with limits of its own reports the cap they name whatever its workers carry, and no cap when they set none. | `tests/integration/test_cap_view.py::test_service_reports_the_queues_own_cap` |
+| CV-009 | A queue with limits of its own reports the cap they name whatever its workers carry, with no live worker too, and no cap when they set none. | `tests/integration/test_cap_view.py::test_service_reports_the_queues_own_cap` |
 
 ## Out of scope
 
@@ -78,7 +79,8 @@ which toro does not reconcile, are flagged.
   region behaves today and it affects the latency chip equally.
 - **Stale workers.** `Queue.workers()` prunes records with no heartbeat for 30 s,
   so a crashed capped worker can keep the chip up for that long.
-- **No live worker.** With every worker down the cap is unknown and the chip
+- **No live worker.** A cap set on the queue is still shown (`cap 0/N`) with every
+  worker down. A cap that only workers carry is unknown then and the chip
   disappears, while jobs still wait. The workers view already shows that state.
 
 ## Decisions
@@ -98,5 +100,5 @@ which toro does not reconcile, are flagged.
 | 4 | CV-005 | Mixed caps | same, `matador/service.py` | two workers, two caps, red first |
 | 5 | CV-006 | Cap in the workers list | `matador/templates/partials/workers_list.html` | integration, red first |
 | 6 | CV-007, CV-008 | Browser behavior | tests only | Playwright against a real capped workload: live swap, hidden text, tab order |
-| 7 | | `toro-queue>=0.6.1`, docs (`docs/views.md`), rebuilt CSS if a utility is new | `pyproject.toml`, docs | the CSS freshness gate |
+| 7 | | `toro-queue>=1.0.3`, docs (`docs/views.md`), rebuilt CSS if a utility is new | `pyproject.toml`, docs | the CSS freshness gate |
 | 8 | | Prove: full suite, mutation audit, a live demo against a capped fleet | | evidence captured |
