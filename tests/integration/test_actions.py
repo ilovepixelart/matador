@@ -196,3 +196,12 @@ async def test_a_scheduler_id_with_a_slash_is_shown_triggered_and_removed(client
     r = await client.request("DELETE", f"/queues/{QUEUE}/schedulers/reports/daily", headers=hx())
     assert r.status_code == 200
     assert [s["id"] for s in await q.schedulers()] == ["nightly"]
+
+
+async def test_triggering_a_gone_scheduler_says_so(client, q, seeded):
+    """toro answers False for a scheduler that no longer exists; the route re-drew the
+    list as if the run had been queued. Retry and remove already toast "no longer
+    here" for a gone job, and a gone scheduler now gets the same."""
+    r = await client.post(f"/queues/{QUEUE}/schedulers/ghost/trigger", headers=hx())
+    assert r.status_code == 404
+    assert "no longer here" in r.text
