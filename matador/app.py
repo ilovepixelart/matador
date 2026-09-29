@@ -1028,6 +1028,9 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
 ) -> FastAPI:
     """Build the matador FastAPI app watching the given queue `names`.
 
+    A name is one path segment of the routes that name it, so it may not contain
+    "/" (toro itself allows one): such a name is refused here, not on the first page.
+
     Pass `connection` (a ``redis.asyncio.Redis``) to share the host app's pool
     instead of opening a new one from `url`; matador never closes a connection it
     didn't create. (Note: a mounted sub-app's lifespan doesn't run, so sharing the
@@ -1058,6 +1061,12 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
     and the controls are not drawn at all: a button that exists and refuses invites
     the click and reports a failure that was never one.
     """
+    # A queue name is one path segment of every route that names it, and Starlette
+    # refuses to build a URL with a separator inside a segment: a name toro allows
+    # would fail the first page that draws the sidebar, for every queue.
+    for name in names:
+        if "/" in name:
+            raise ValueError(f"queue name {name!r}: matador cannot route a name containing '/'")
     if require_same_origin is None:
         # On, unless the host says otherwise. The ambient credential a CSRF attack
         # rides belongs to the HOST app, and a host authenticates in more ways than
