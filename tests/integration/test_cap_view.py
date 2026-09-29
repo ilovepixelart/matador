@@ -79,6 +79,10 @@ async def test_service_reports_the_queues_own_cap(q, svc):
     async with live(q, worker(global_concurrency=3)):
         assert (await svc.metrics(QUEUE))["cap"] is None
 
+    await q.set_limits(global_concurrency=4)
+    cap = (await svc.metrics(QUEUE))["cap"]  # no live worker at all
+    assert (cap["state"], cap["limit"], cap["caps"]) == ("open", 4, [4])
+
 
 class _CapChip(HTMLParser):
     """Pull the cap chip out of the strip: its attributes, its VISIBLE text, what
