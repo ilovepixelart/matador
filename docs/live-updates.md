@@ -110,7 +110,7 @@ the next event" bug.
 The rule, per htmx's own guidance on
 [targets](https://htmx.org/attributes/hx-target/) and
 [inheritance](https://htmx.org/docs/#inheritance): **a self-refreshing region
-sets `hx-target` to its own stable id** (`#metrics-live`, `#flow-section`,
+sets `hx-target` to its own stable id** (`#metrics-live`, `#flow-section-<job>`,
 `#flow-metrics`, `#workers-list`, `#jobs`), not `this`. When such a region fires
 after navigation, its id is gone, so htmx raises `htmx:targetError` and
 *aborts* - it can never clobber the panel. A unit test
