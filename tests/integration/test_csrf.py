@@ -1,4 +1,4 @@
-"""Integration: the opt-in same-origin (CSRF) guard for state-changing routes."""
+"""Integration: the same-origin (CSRF) guard for state-changing routes, on by default."""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -93,9 +93,8 @@ async def test_a_form_post_from_another_page_is_blocked(q, seeded):
     assert r.status_code == 403
 
 
-async def test_guard_auto_enables_when_auth_is_configured(q):
-    # cookie-based auth is what makes CSRF real, so configuring dependencies
-    # turns the origin guard on unless explicitly overridden
+async def test_the_guard_stays_on_with_dependencies_configured(q):
+    # the guard is on by default; host auth via `dependencies=` changes nothing
     from fastapi import Depends
 
     async def allow():
@@ -108,7 +107,7 @@ async def test_guard_auto_enables_when_auth_is_configured(q):
         assert r.status_code == 403
 
 
-async def test_guard_override_wins_over_auto_enable(q):
+async def test_require_same_origin_false_turns_the_guard_off_with_dependencies(q):
     from fastapi import Depends
 
     async def allow():
