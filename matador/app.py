@@ -16,6 +16,7 @@ HTMX architecture (HATEOAS, URL-driven):
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import logging
 import re
@@ -42,6 +43,7 @@ from starlette.datastructures import URL
 from starlette.responses import Response
 
 from .service import (
+    MAX_LOG_LINES,
     STATES,
     IncompatibleDataModelError,
     JobState,
@@ -58,7 +60,6 @@ _MAX_JSON_CHARS = 20_000  # job data is user-controlled + unbounded; cap what we
 # every change event, about once a second per open tab.
 _MAX_CELL_CHARS = 500
 _MAX_FIELD_CHARS = 4_000
-_MAX_LOG_LINES = 200
 
 
 def _clip(value: object, limit: int = _MAX_CELL_CHARS) -> str:
@@ -69,15 +70,19 @@ def _clip(value: object, limit: int = _MAX_CELL_CHARS) -> str:
     return f"{text[:limit]}… ({len(text):,} chars)"
 
 
-def _tail(lines: list[str] | None, limit: int = _MAX_LOG_LINES) -> list[str]:
-    """Return the newest `limit` log lines, each clipped.
+def _tail(
+    lines: list[str] | None, total: int | None = None, limit: int = MAX_LOG_LINES
+) -> list[str]:
+    """Return the newest `limit` log lines, each clipped, headed by how many earlier
+    lines there are: `total` is the list's length when `lines` is a bounded read.
 
     A job that logs in a loop is a job whose last lines are the ones worth reading.
     """
     lines = lines or []
     kept = [_clip(line) for line in lines[-limit:]]
-    if len(lines) > limit:
-        kept.insert(0, f"… {len(lines) - limit:,} earlier lines not shown")
+    hidden = (len(lines) if total is None else total) - len(kept)
+    if hidden > 0:
+        kept.insert(0, f"… {hidden:,} earlier lines not shown")
     return kept
 
 
@@ -153,7 +158,10 @@ def _back_href(request: Request, name: str, job_id: str) -> str:
     current = request.headers.get("hx-current-url", "")
     if not current:
         return fallback  # full page load (deep link / bookmark): no back, go to queue
-    came_from = urlsplit(current)
+    try:
+        came_from = urlsplit(current)
+    except ValueError:
+        return fallback  # not a URL at all: the header is the sender's, the page is not
     here = _url_for(request, "job_page", name=name, job_id=job_id).path
     queues = request.scope.get("root_path", "") + "/queues/"
     if came_from.path.startswith(queues) and came_from.path != here:
@@ -417,6 +425,16 @@ _TEMPLATES.env.filters["due"] = _due
 _TEMPLATES.env.filters["at"] = _at
 
 
+def _dom_id(value: object) -> str:
+    """Return a selector-safe token for a value that is not one: a custom job id may
+    carry `?`, `#`, `%`, spaces or quotes, none of which an `hx-target="#..."` can hold.
+    """
+    return hashlib.blake2b(str(value).encode(), digest_size=6).hexdigest()
+
+
+_TEMPLATES.env.filters["dom_id"] = _dom_id
+
+
 def _asset_version() -> int:
     # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
     # a dev rebuild) is always picked up - browsers otherwise serve stale assets.
@@ -434,6 +452,30 @@ _TEMPLATES.env.globals["asset_v"] = _asset_version  # ty: ignore[invalid-assignm
 
 
 # ---- render helpers (stateless; render through the module-level _TEMPLATES) ----
+
+
+async def _with_sidebar(svc: Service, request: Request, panel: str, selected: str) -> HTMLResponse:
+    """Return the panel plus an out-of-band sidebar refresh, so the active-queue
+    highlight updates in the same response (no lag, no second request).
+    """
+    side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=selected)
+    return HTMLResponse(panel + side)
+
+
+async def _workers_list(svc: Service, request: Request) -> HTMLResponse:
+    return _render(
+        request,
+        "partials/workers_list.html",
+        workers=await svc.workers(),
+        departed=await svc.departed_workers(),
+        multi=len(svc.queues) > 1,
+    )
+
+
+async def _schedulers(svc: Service, request: Request, name: str) -> HTMLResponse:
+    return _render(
+        request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
+    )
 
 
 def _render(request: Request, template: str, **ctx) -> HTMLResponse:
@@ -562,11 +604,8 @@ def _with_announcement(request: Request, panel: HTMLResponse, message: str) -> H
 async def _panel_with_sidebar(
     svc: Service, request: Request, name: str, ctx: dict[str, Any]
 ) -> HTMLResponse:
-    # Panel + an out-of-band sidebar refresh, so the active-queue highlight
-    # updates in the SAME response (no lag, no second request).
     panel = _render_str(request, "partials/queue.html", **ctx)
-    side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
-    return HTMLResponse(panel + side)
+    return await _with_sidebar(svc, request, panel, name)
 
 
 async def _panel(svc: Service, request: Request, name: str, state: str, page: int) -> HTMLResponse:
@@ -612,9 +651,20 @@ async def _same_origin(
     # Absent Origin (non-browser clients) is allowed through.
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         origin = request.headers.get("origin")
-        if origin and urlsplit(origin).netloc != request.headers.get("host"):
+        if origin and _host_of(origin) != request.headers.get("host"):
             return PlainTextResponse("cross-origin request blocked", status_code=403)
     return await call_next(request)
+
+
+def _host_of(url: str) -> str | None:
+    """Return the host of a URL a sender wrote, or None when it is not one: urlsplit raises
+    on a bracket that opens no IPv6 literal, and a sender's own bad header is a
+    refusal, not a crash.
+    """
+    try:
+        return urlsplit(url).netloc
+    except ValueError:
+        return None
 
 
 async def _security_headers(
@@ -730,10 +780,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
             panel = _render_str(
                 request, "partials/workers.html", workers=workers, departed=departed, multi=multi
             )
-            side = _render_str(
-                request, _SIDEBAR_OOB, queues=await svc.overview(), selected=WORKERS_SEL
-            )
-            return HTMLResponse(panel + side)
+            return await _with_sidebar(svc, request, panel, WORKERS_SEL)
         return _full_page(
             request,
             queues=await svc.overview(),
@@ -746,13 +793,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/workers/list", response_class=HTMLResponse)
     async def workers_fragment(request: Request):
-        return _render(
-            request,
-            "partials/workers_list.html",
-            workers=await svc.workers(),
-            departed=await svc.departed_workers(),
-            multi=len(svc.queues) > 1,
-        )
+        return await _workers_list(svc, request)
 
     @router.get("/sidebar", response_class=HTMLResponse)
     async def sidebar(request: Request):
@@ -770,10 +811,11 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         request: Request, name: str, state: str = "active", page: int = 1, query: str = ""
     ):
         query = query.strip()
+        state = _coerce_state(state)  # the scan, the label and the row actions agree
         if query:
             # Exact id lookup is O(1) and works for auto AND custom string ids;
             # the bounded substring scan covers name/data within the state.
-            jobs, exact = await _search_jobs(svc, name, _coerce_state(state), query)
+            jobs, exact = await _search_jobs(svc, name, state, query)
             return _render(
                 request,
                 "partials/search_results.html",
@@ -807,10 +849,10 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/queues/{name}/jobs/{job_id}/flow", response_class=HTMLResponse)
     async def flow_fragment(request: Request, name: str, job_id: str):
-        # Just the flow body - the #flow-section live region morphs this into itself
+        # Just the flow body - the .flow-section live region morphs this into itself
         # on each job event (same as #workers-list <- workers_list.html). The wrapper
         # and the rest of the detail never move.
-        job = await svc.job(name, job_id)
+        job = await svc.job(name, job_id, logs=False)
         html = _render_str(request, "partials/flow_body.html", name=name, job=job)
         # the standalone job page asks (?title=1) to keep its title pill in sync
         if job and request.query_params.get("title"):
@@ -833,8 +875,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
                 back_href=back_href,
                 show_stacktraces=show_stacktraces,
             )
-            side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
-            return HTMLResponse(panel + side)
+            return await _with_sidebar(svc, request, panel, name)
         return _full_page(
             request,
             queues=await svc.overview(),
@@ -859,13 +900,7 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
     async def clear_departed(request: Request):
         # Dismiss the stopped/lost-worker history; live workers re-appear via heartbeats.
         await svc.clear_departed()
-        return _render(
-            request,
-            "partials/workers_list.html",
-            workers=await svc.workers(),
-            departed=await svc.departed_workers(),
-            multi=len(svc.queues) > 1,
-        )
+        return await _workers_list(svc, request)
 
     @router.post("/queues/{name}/pause", response_class=HTMLResponse)
     async def pause(request: Request, name: str, state: str = "active", page: int = 1):
@@ -913,8 +948,8 @@ def _actions_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # no
             back_href=_back_href(request, name, parent),
             show_stacktraces=show_stacktraces,
         )
-        side = _render_str(request, _SIDEBAR_OOB, queues=await svc.overview(), selected=name)
-        return _with_announcement(request, HTMLResponse(panel + side), f"Retried job #{job_id}")
+        page = await _with_sidebar(svc, request, panel, name)
+        return _with_announcement(request, page, f"Retried job #{job_id}")
 
     @router.delete("/queues/{name}/jobs/{job_id}", response_class=HTMLResponse)
     async def remove(
@@ -949,9 +984,7 @@ async def _trigger_scheduler(
     """
     if not await svc.trigger_scheduler(name, scheduler_id):
         return _toast(request, "Couldn't trigger", f"Scheduler {scheduler_id} is no longer here.")
-    return _render(
-        request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
-    )
+    return await _schedulers(svc, request, name)
 
 
 def _queue_actions_router(svc: Service) -> APIRouter:
@@ -1018,9 +1051,7 @@ def _queue_actions_router(svc: Service) -> APIRouter:
     @router.delete("/queues/{name}/schedulers/{scheduler_id:path}", response_class=HTMLResponse)
     async def remove_scheduler(request: Request, name: str, scheduler_id: str):
         await svc.remove_scheduler(name, scheduler_id)
-        return _render(
-            request, "partials/schedulers.html", name=name, schedulers=await svc.schedulers(name)
-        )
+        return await _schedulers(svc, request, name)
 
     return router
 

@@ -256,14 +256,14 @@ def test_live_update_touches_only_the_flow_section_not_the_chrome(
     # re-fetched the WHOLE detail and morphed a parent, collapsing the page header
     # and the data/opts wells - yet it still showed "2/2", so the in-flight test
     # above stayed green through it. Guard the chrome explicitly: after the morph the
-    # title, the parent's own data well, and a single #flow-section must all survive.
+    # title, the parent's own data well, and a single .flow-section must all survive.
     parent = flows["parent_a"]
     page.goto(f"{base_url}/queues/{QUEUE}/jobs/{parent}")
     panel = page.locator("#queue-panel")
     expect(panel).to_contain_text("1/2 children done")
     expect(page.locator("h1")).to_contain_text("nightly-report")  # the title (the "top")
     expect(panel).to_contain_text("period")  # the parent's data well, sibling of the flow
-    expect(page.locator("#flow-section")).to_have_count(1)
+    expect(page.locator(".flow-section")).to_have_count(1)
     wait_for_live(page)  # a change published before the stream subscribes reaches nobody
 
     async def finish():
@@ -285,7 +285,7 @@ def test_live_update_touches_only_the_flow_section_not_the_chrome(
     # ...and the morph touched ONLY the flow body - everything else is still here, once
     expect(page.locator("h1")).to_contain_text("nightly-report")
     expect(panel).to_contain_text("period")
-    expect(page.locator("#flow-section")).to_have_count(1)
+    expect(page.locator(".flow-section")).to_have_count(1)
 
 
 def test_flows_tab_row_shows_progress(page: Page, base_url, flows):
@@ -474,3 +474,68 @@ def test_child_detail_survives_sse_events(page: Page, base_url, flows, drive):
     # the stale metrics strip must NOT have re-rooted and wiped the detail
     expect(panel).to_contain_text("part of")
     expect(page.locator("#job-state-pill")).to_be_visible()
+
+
+async def _seed_two_parked_flows() -> dict:
+    """Two flows in flight, each with a child done, a child held back by a delay the
+    test lifts, and a child held back for good, so the parent stays parked."""
+    q = await reset_queue()
+    ids: dict = {}
+    for name in ("first", "second"):
+        flow = await q.add_flow(
+            name,
+            {},
+            children=[
+                c(f"{name}-done", {}),
+                c(f"{name}-later", {}, delay=600_000),
+                c(f"{name}-never", {}, delay=600_000),
+            ],
+        )
+        ids[name] = flow.id
+
+    async def proc(job):
+        return job.name
+
+    async def two_done(q):
+        return (await q.counts())["completed"] >= 2
+
+    await work_until(proc, two_done)
+    for name in ("first", "second"):
+        kids = (await q.get_flow(ids[name]))["children"]
+        ids[f"{name}-later"] = next(n["job"].id for n in kids if n["job"].name == f"{name}-later")
+    await q.close()
+    return ids
+
+
+async def _run_held_child(cid: str) -> None:
+    q = Queue(QUEUE, url=URL, prefix=PREFIX)
+    await q.promote_job(cid)
+
+    async def proc(job):
+        return job.name
+
+    async def done(q):
+        return (await q.get_job(cid)).state == "completed"
+
+    await work_until(proc, done)
+    await q.close()
+
+
+def test_two_open_flow_rows_each_refresh_their_own_tree(page: Page, base_url, drive):
+    """Every open flow row carried a live region with the same id, and htmx resolves
+    a target selector document-wide: both regions morphed into the first row, which
+    then showed the second flow's tree, while the second row never updated."""
+    ids = drive(_seed_two_parked_flows())
+    page.goto(f"{base_url}/queues/{QUEUE}?state=active")
+    wait_for_live(page)
+    first = page.locator(f"#jrow-active-{ids['first']}")
+    second = page.locator(f"#jrow-active-{ids['second']}")
+    for row in (first, second):
+        row.locator("summary").click()
+        expect(row).to_contain_text("1/3 children done")
+
+    drive(_run_held_child(ids["second-later"]))  # an event for the open rows
+
+    expect(second).to_contain_text("2/3 children done", timeout=5000)
+    expect(first).to_contain_text("1/3 children done")
+    expect(first).not_to_contain_text("second-later")

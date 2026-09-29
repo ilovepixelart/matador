@@ -14,6 +14,9 @@ let cur = null;
 function show(el) {
   const label = el.dataset.tip;
   if (!label) return;
+  // A history restore (Back after an htmx push) replaces the body's children and
+  // takes the tip with them; the module does not run again, so put it back.
+  if (!tip.isConnected) document.body.appendChild(tip);
   cur = el;
   tip.textContent = label;
   tip.classList.add("show");

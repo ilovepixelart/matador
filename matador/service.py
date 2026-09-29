@@ -76,6 +76,8 @@ HEARTBEAT = 8.0
 # The sidebar sparkline's window, and how many of its newest minutes a refresh re-reads.
 SPARK_MINUTES = 60
 SPARK_OPEN_MINUTES = 2
+# The newest log lines a job detail reads and shows; the rest is counted, not read.
+MAX_LOG_LINES = 200
 
 
 async def _wait(ev: asyncio.Event, seconds: float, *, hears: bool) -> bool:
@@ -286,11 +288,12 @@ class Service:
         """
         cache = self._spark_cache.setdefault(name, {})
         fresh = await self._points(q, SPARK_OPEN_MINUTES if cache else SPARK_MINUTES)
-        latest = max(fresh)
-        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
-        closed = wanted[:-SPARK_OPEN_MINUTES]
+        wanted, closed = self._window(fresh)
         if not all(ts in cache or ts in fresh for ts in closed):
-            fresh = await self._points(q, SPARK_MINUTES)  # the minute rolled over meanwhile
+            # The minute rolled over meanwhile, or the cache is stale: read it all, and
+            # place the window on that read, or its oldest minute is in neither.
+            fresh = await self._points(q, SPARK_MINUTES)
+            wanted, closed = self._window(fresh)
         for ts in closed:
             if ts in fresh:
                 cache[ts] = fresh[ts]
@@ -301,6 +304,15 @@ class Service:
     @staticmethod
     async def _points(q: Queue, minutes: int) -> dict[int, MetricsPoint]:
         return {p["timestamp"]: p for p in await q.metrics(minutes=minutes)}
+
+    @staticmethod
+    def _window(fresh: dict[int, MetricsPoint]) -> tuple[list[int], list[int]]:
+        """Place the 60 minutes a sparkline shows, ending at the newest one read, and
+        name the closed ones among them (all but the open minutes at the end).
+        """
+        latest = max(fresh)
+        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
+        return wanted, wanted[:-SPARK_OPEN_MINUTES]
 
     async def metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
         """Feed the charts: per-minute points plus the headline numbers the strip
@@ -383,10 +395,13 @@ class Service:
     async def _queue(self, name: str) -> Queue:
         """Hand back the queue, once its data model is one this version reads.
 
-        Every read and every action reaches its queue through here, so a page added
-        later is covered without being told about it. That matters most for the
+        Every queue-scoped read and action reaches its queue through here, so a page
+        added later is covered without being told about it. That matters most for the
         live-refresh fragment, which re-renders the table about once a second and is
-        where a shape this version does not know would actually be read.
+        where a shape this version does not know would actually be read. The reads
+        that span every queue (the sidebar's counts, the metrics export, the workers
+        and Redis views) iterate `self.queues` directly and skip the check: they read
+        counts and presence records, not job hashes.
         """
         q = self._q(name)
         await self._check_data_model(q, name)
@@ -503,7 +518,30 @@ class Service:
                 r["children_done"] = done
                 r["children_failed"] = failed
                 r["children_cancelled"] = cancelled
+            settled = [r for r in parents if r["state"] in ("failed", "cancelled")]
+            await self._count_settled_children(q, settled)
         return rows
+
+    @staticmethod
+    async def _count_settled_children(q: Queue, parents: list[dict[str, Any]]) -> None:
+        """Count a settled parent's failed and cancelled children by their state.
+
+        The per-child failure and cancellation records are written under
+        `on_fail="continue"` only; under the default a child's failure fails the
+        parent at once and records nothing, so the row read the broken child as
+        pending. One pipelined read for the page's settled parents.
+        """
+        if not parents:
+            return
+        pipe = q.redis.pipeline(transaction=False)
+        for r in parents:
+            for cid in r["children_ids"]:
+                pipe.hget(q.keys.job(cid), "state")
+        states = iter(await pipe.execute())
+        for r in parents:
+            mine = [next(states) for _ in r["children_ids"]]
+            r["children_failed"] = mine.count("failed")
+            r["children_cancelled"] = mine.count("cancelled")
 
     async def search(
         self, name: str, state: JobState, query: str, scan_limit: int = 500
@@ -521,13 +559,20 @@ class Service:
         rows = [{**self._summary(j), "queue": name} for j in jobs]
         return await self._with_flow_progress(q, rows)
 
-    async def job(self, name: str, job_id: str) -> dict[str, Any] | None:
+    async def job(self, name: str, job_id: str, *, logs: bool = True) -> dict[str, Any] | None:
+        """One job's detail. `logs=False` skips the log lines: the flow fragment,
+        refreshed on every job event while a flow is open, never shows them.
+        """
         q = await self._queue(name)
         j = await q.get_job(job_id)
         if not j:
             return None
         detail = self._detail(j)
-        detail["logs"] = await q.get_logs(job_id)
+        if logs:
+            # The newest lines only, the ones shown: a processor in a loop makes the
+            # list unbounded. The count of the rest comes from the list's length.
+            detail["logs"] = await q.get_logs(job_id, -MAX_LOG_LINES, -1)
+            detail["logs_total"] = await q.redis.llen(q.keys.logs(job_id))
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
         if j.children_ids:
             detail |= await self._flow_detail(q, j)
@@ -800,6 +845,7 @@ class Service:
             # Flow membership: parents show a child count, children a parent link.
             "parent_id": j.parent_id,
             "children_count": len(j.children_ids) if j.children_ids else 0,
+            "children_ids": list(j.children_ids or []),
         }
 
     @classmethod
@@ -816,8 +862,5 @@ class Service:
             **cls._summary(j),
             "opts": j.opts.to_dict(),
             "returnvalue": j.returnvalue,
-            "timestamp": j.timestamp,
-            "processed_on": j.processed_on,
-            "finished_on": j.finished_on,
             "stacktrace": j.stacktrace,
         }

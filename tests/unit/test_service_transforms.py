@@ -39,9 +39,11 @@ def test_summary_has_exactly_the_list_fields():
         "processed_on": 1700000000100,
         "finished_on": 1700000000500,
         "delay": 0,
-        # flow membership: a parent shows its child count, a child its parent link
+        # flow membership: a parent shows its child count, a child its parent link;
+        # the ids let a settled parent's row count its children by state
         "parent_id": None,
         "children_count": 0,
+        "children_ids": [],
         # what the job serializes on, if anything
         "concurrency_key": None,
     }
@@ -50,6 +52,7 @@ def test_summary_has_exactly_the_list_fields():
 def test_summary_carries_flow_membership():
     parent = Service._summary(_job(state="waiting-children", children_ids=["6", "7"]))
     assert parent["children_count"] == 2
+    assert parent["children_ids"] == ["6", "7"]
     child = Service._summary(_job(id="6", parent_id="5"))
     assert child["parent_id"] == "5"
 
