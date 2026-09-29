@@ -288,11 +288,12 @@ class Service:
         """
         cache = self._spark_cache.setdefault(name, {})
         fresh = await self._points(q, SPARK_OPEN_MINUTES if cache else SPARK_MINUTES)
-        latest = max(fresh)
-        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
-        closed = wanted[:-SPARK_OPEN_MINUTES]
+        wanted, closed = self._window(fresh)
         if not all(ts in cache or ts in fresh for ts in closed):
-            fresh = await self._points(q, SPARK_MINUTES)  # the minute rolled over meanwhile
+            # The minute rolled over meanwhile, or the cache is stale: read it all, and
+            # place the window on that read, or its oldest minute is in neither.
+            fresh = await self._points(q, SPARK_MINUTES)
+            wanted, closed = self._window(fresh)
         for ts in closed:
             if ts in fresh:
                 cache[ts] = fresh[ts]
@@ -303,6 +304,15 @@ class Service:
     @staticmethod
     async def _points(q: Queue, minutes: int) -> dict[int, MetricsPoint]:
         return {p["timestamp"]: p for p in await q.metrics(minutes=minutes)}
+
+    @staticmethod
+    def _window(fresh: dict[int, MetricsPoint]) -> tuple[list[int], list[int]]:
+        """Place the 60 minutes a sparkline shows, ending at the newest one read, and
+        name the closed ones among them (all but the open minutes at the end).
+        """
+        latest = max(fresh)
+        wanted = [latest - 60_000 * i for i in range(SPARK_MINUTES - 1, -1, -1)]
+        return wanted, wanted[:-SPARK_OPEN_MINUTES]
 
     async def metrics(self, name: str, *, minutes: int = 60) -> dict[str, Any]:
         """Feed the charts: per-minute points plus the headline numbers the strip
