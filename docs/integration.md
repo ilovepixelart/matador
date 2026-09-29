@@ -80,8 +80,10 @@ header doesn't match the request host: a stateless CSRF defense. The credential 
 an attack rides is the host app's, whatever matador itself requires, so the default
 does not wait to be told that auth exists. Requests with no `Origin` (curl,
 server-to-server) pass, because the defense is aimed at browsers.
-`require_same_origin=False` turns it off. Behind a reverse proxy, make sure the forwarded Host is correct
-(uvicorn `--proxy-headers`) so legitimate same-origin requests aren't blocked.
+`require_same_origin=False` turns it off. Behind a reverse proxy, the browser's `Host`
+header must reach matador unchanged (nginx: `proxy_set_header Host $host`), or every
+same-origin request is blocked; uvicorn's `--proxy-headers` does not help, it sets
+only the client address and scheme from `X-Forwarded-For` and `X-Forwarded-Proto`.
 See [Security](security.md).
 
 ### `show_stacktraces=` - hide job stack traces
