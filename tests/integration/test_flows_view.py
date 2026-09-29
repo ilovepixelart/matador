@@ -141,7 +141,7 @@ async def test_cancel_parked_flows_keeps_each_flow_as_cancelled(client, q):
 
 
 async def test_flow_fragment_survives_a_vanished_parent(client, q):
-    # The live #flow-section polls .../flow on each event. If the parent is removed
+    # The live .flow-section polls .../flow on each event. If the parent is removed
     # (or cancelled) between events, svc.job -> None and the body must render empty,
     # not 500 on `children_done * 100 // 0`.
     parent = await _flow(q)

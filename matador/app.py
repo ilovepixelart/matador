@@ -16,6 +16,7 @@ HTMX architecture (HATEOAS, URL-driven):
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import logging
 import re
@@ -424,6 +425,16 @@ _TEMPLATES.env.filters["due"] = _due
 _TEMPLATES.env.filters["at"] = _at
 
 
+def _dom_id(value: object) -> str:
+    """Return a selector-safe token for a value that is not one: a custom job id may
+    carry `?`, `#`, `%`, spaces or quotes, none of which an `hx-target="#..."` can hold.
+    """
+    return hashlib.blake2b(str(value).encode(), digest_size=6).hexdigest()
+
+
+_TEMPLATES.env.filters["dom_id"] = _dom_id
+
+
 def _asset_version() -> int:
     # Cache-bust CSS and JS by the newest mtime under static/, so a redeploy (or
     # a dev rebuild) is always picked up - browsers otherwise serve stale assets.
@@ -826,7 +837,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
 
     @router.get("/queues/{name}/jobs/{job_id}/flow", response_class=HTMLResponse)
     async def flow_fragment(request: Request, name: str, job_id: str):
-        # Just the flow body - the #flow-section live region morphs this into itself
+        # Just the flow body - the .flow-section live region morphs this into itself
         # on each job event (same as #workers-list <- workers_list.html). The wrapper
         # and the rest of the detail never move.
         job = await svc.job(name, job_id, logs=False)
