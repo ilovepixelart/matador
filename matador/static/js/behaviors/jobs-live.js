@@ -20,6 +20,11 @@ document.body.addEventListener("htmx:beforeSwap", (e) => {
   }
 });
 
+// The jobs fragment route: /queues/<name>/jobs, optionally with a query. The
+// segment before `/jobs` matters: a queue named `jobs` lists at /queues/jobs?state=...,
+// which is the panel, not the fragment.
+const JOBS_FRAGMENT = /\/queues\/[^/?#]+\/jobs(?:[?#]|$)/;
+
 // A jobs fragment may only ever land in #jobs. Rapid queue switching can leave
 // htmx listeners glued to recycled DOM nodes (morph keeps the node, htmx keeps
 // the init-time verb+path closure); when such a node has lost its hx-target
@@ -27,7 +32,7 @@ document.body.addEventListener("htmx:beforeSwap", (e) => {
 // the whole panel. Refuse the request outright when its target isn't #jobs.
 document.body.addEventListener("htmx:beforeRequest", (e) => {
   const cfg = e.detail.requestConfig;
-  if (cfg?.path?.includes("/jobs?") && cfg.target && cfg.target.id !== "jobs") {
+  if (cfg?.path && JOBS_FRAGMENT.test(cfg.path) && cfg.target && cfg.target.id !== "jobs") {
     e.preventDefault();
   }
 });
@@ -38,11 +43,15 @@ document.body.addEventListener("htmx:beforeRequest", (e) => {
 // positionally, htmx's init-time closures stay glued to the recycled nodes,
 // and a later SSE tick fires the transplanted listener with no hx-target -
 // inheriting #queue-panel. Compare the view identity both fragments already
-// carry (data-view="queue:state") and drop mismatched swaps.
+// carry (data-view="queue:state") and drop mismatched swaps. The response is
+// parsed, not searched: its attribute is HTML-escaped (a name with `&` reads
+// `&amp;`) while the DOM's dataset is decoded, and only decoded values compare.
 document.body.addEventListener("htmx:beforeSwap", (e) => {
   if (e.detail.target?.id !== "jobs") return;
   const current = e.detail.target.querySelector("[data-view]")?.dataset.view;
-  const incoming = /data-view="([^"]+)"/.exec(e.detail.serverResponse || "")?.[1];
+  const incoming = new DOMParser()
+    .parseFromString(e.detail.serverResponse || "", "text/html")
+    .querySelector("[data-view]")?.dataset.view;
   if (current && incoming && current !== incoming) {
     e.detail.shouldSwap = false; // stale response from a view we already left
   }
