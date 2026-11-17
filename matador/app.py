@@ -36,8 +36,8 @@ from markupsafe import Markup
 from pygments import highlight
 
 # Pygments exports formatters/lexers dynamically, so a static checker can't see them.
-from pygments.formatters import HtmlFormatter  # ty: ignore[unresolved-import]
-from pygments.lexers import JsonLexer  # ty: ignore[unresolved-import]
+from pygments.formatters import HtmlFormatter  # ty: ignore[missing-module-member]
+from pygments.lexers import JsonLexer  # ty: ignore[missing-module-member]
 from redis.asyncio import Redis
 from starlette.datastructures import URL
 from starlette.responses import Response
@@ -108,7 +108,7 @@ def _default_state(counts: dict[str, int]) -> JobState:
     a healthy idle queue.
     """
     for s in ("active", "failed", "wait", "delayed"):
-        if counts.get(s):
+        if counts.get(s, 0) != 0:
             return cast("JobState", s)
     return "completed"
 
@@ -244,7 +244,7 @@ def _moment(ms: int | None, fmt: str, missing: str) -> str:
     calendar holds; a moment that cannot be formatted shows as missing rather than
     failing the page for one row.
     """
-    if not ms:
+    if ms is None or ms == 0:
         return missing
     try:
         moment = datetime.fromtimestamp(ms / 1000)  # noqa: DTZ006
@@ -283,12 +283,12 @@ def _uptime(started_ms: int) -> str:
 
 def _ago(ms: int | None) -> str:
     # Relative past for job rows - same duration phrasing as the workers view.
-    return f"{_uptime(ms)} ago" if ms else "-"
+    return f"{_uptime(ms)} ago" if ms is not None and ms != 0 else "-"
 
 
 def _due(due_ms: int | None) -> str:
     # When a delayed job will run: "due in 3m", or "due now" once promotable.
-    if not due_ms:
+    if due_ms is None or due_ms == 0:
         return "-"
     secs = int(due_ms / 1000 - time.time())
     return "due now" if secs <= 0 else f"due in {_span(secs)}"
@@ -397,7 +397,7 @@ def _flowbars(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _dur(ms: int | None) -> str:
     # Humanize a millisecond duration (e.g., job started→finished).
-    if not ms or ms < 0:
+    if ms is None or ms <= 0:
         return "-"
     ms = int(ms)
     if ms < 1000:
@@ -533,8 +533,8 @@ async def _search_jobs(
     # merged hits plus whether the query was an exact id hit (drives the badge).
     exact = await svc.job(name, query)
     matches = await svc.search(name, state, query, SCAN_LIMIT)
-    seen = {exact["id"]} if exact else set()
-    jobs = ([exact] if exact else []) + [m for m in matches if m["id"] not in seen]
+    seen = {exact["id"]} if exact is not None else set()
+    jobs = ([exact] if exact is not None else []) + [m for m in matches if m["id"] not in seen]
     return jobs, exact is not None
 
 
@@ -651,7 +651,7 @@ async def _same_origin(
     # Absent Origin (non-browser clients) is allowed through.
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         origin = request.headers.get("origin")
-        if origin and _host_of(origin) != request.headers.get("host"):
+        if origin is not None and origin != "" and _host_of(origin) != request.headers.get("host"):
             return PlainTextResponse("cross-origin request blocked", status_code=403)
     return await call_next(request)
 
@@ -855,7 +855,7 @@ def _views_router(svc: Service, *, show_stacktraces: bool) -> APIRouter:  # noqa
         job = await svc.job(name, job_id, logs=False)
         html = _render_str(request, "partials/flow_body.html", name=name, job=job)
         # the standalone job page asks (?title=1) to keep its title pill in sync
-        if job and request.query_params.get("title"):
+        if job is not None and request.query_params.get("title", "") != "":
             html += _render_str(request, "partials/job_state_oob.html", job=job)
         return HTMLResponse(html)
 
@@ -1118,7 +1118,7 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
         # cross-origin form post. Requests with no Origin (curl, a scraper) still
         # pass: the defense is aimed at browsers, where the cookie is.
         require_same_origin = True
-    if not dependencies:
+    if dependencies is None or len(dependencies) == 0:
         logging.getLogger("matador").warning(
             "matador has no auth configured: every route is open to whoever can reach it. "
             "Mount it behind your app's auth (dependencies=[Depends(...)]) or a reverse "
