@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in matador is not working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this form for security issues. Report those privately via a [GitHub Security Advisory](https://github.com/ilovepixelart/matador/security/advisories/new); see SECURITY.md.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, and what went wrong? Include the traceback, the server log lines, and a screenshot for a rendering problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: How the app is built and served (the `create_app` call and how it is mounted), and the steps in the browser.
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: matador-dashboard, toro-queue, Python, Redis server, browser, and OS
+      placeholder: "matador-dashboard 1.0.7, toro-queue 1.1.1, Python 3.13.9, Redis 7.4, Firefox 145, macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Reverse proxy or mount path, authentication setup (`dependencies=`, `can_mutate=`), and so on.
