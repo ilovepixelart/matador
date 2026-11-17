@@ -15,7 +15,7 @@ from matador.cadence import Cadence
 from matador.service import STREAM_RATES as RATES
 from matador.service import Service, _confirm_subscribed
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, URL
 
 
 async def _opened(agen) -> None:
@@ -26,7 +26,7 @@ async def _opened(agen) -> None:
 
 
 async def test_event_stream_starts_then_signals_change(q):
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     agen = svc.event_stream()
     try:
         await _opened(agen)  # the reconnect directive, then every rate once
@@ -46,7 +46,7 @@ async def test_a_stream_beats_as_soon_as_it_is_subscribed(q):
     dropped connection was reconnecting, was published to nobody. A stream's first
     heartbeat is due at once, so every region refreshes on connect and reconnect
     instead of staying stale until a job event or the 8 s heartbeat."""
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     agen = svc.event_stream()
     try:
         await _opened(agen)  # nothing was published
@@ -60,7 +60,7 @@ async def test_a_change_during_a_slow_send_is_not_lost(q):
     parks the stream in the middle of sending; a job event that arrives then must still
     be announced. Cleared after the sends, it would be wiped unseen and show only with
     the 8 s heartbeat."""
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     agen = svc.event_stream()
     try:
         assert (await asyncio.wait_for(agen.__anext__(), timeout=3)).startswith("retry:")
@@ -79,7 +79,7 @@ async def test_a_change_during_a_slow_send_is_not_lost(q):
 async def test_a_cancelled_stream_leaves_no_listener(q):
     # every open tab is a listener the broadcaster wakes per job event: one that
     # outlived its stream would be woken forever
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
 
     async def read() -> None:
         async for _ in svc.event_stream():
@@ -97,7 +97,7 @@ async def test_a_cancelled_stream_leaves_no_listener(q):
 
 
 async def test_event_stream_stops_when_client_disconnects(q):
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
 
     async def disconnected() -> bool:
         return True  # client is already gone
@@ -111,7 +111,7 @@ async def test_event_stream_stops_when_client_disconnects(q):
 async def test_concurrent_streams_share_one_subscription(q):
     # N dashboard tabs must cost ONE pubsub connection, not N - otherwise open
     # tabs exhaust the pool and starve the action routes.
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     a, b = svc.event_stream(), svc.event_stream()
     try:
         await _opened(a)
@@ -136,7 +136,7 @@ async def test_a_started_stream_is_already_subscribed(q):
     job event published right after the stream starts reaches nobody. Repeated: the
     race is between two connections and is lost only some of the time."""
     for _ in range(20):
-        svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+        svc = Service([QUEUE], url=URL, prefix=PREFIX)
         agen = svc.event_stream()
         try:
             assert (await asyncio.wait_for(agen.__anext__(), timeout=3)).startswith("retry:")
@@ -177,7 +177,7 @@ async def test_stream_gives_up_cleanly_when_redis_never_confirms(q, monkeypatch)
         raise TimeoutError
 
     monkeypatch.setattr("matador.service._confirm_subscribed", never)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     try:
 
         async def drain() -> list[str]:
@@ -199,7 +199,7 @@ async def test_stream_ends_cleanly_if_the_subscription_dies(q):
     # The events subscription dying mid-stream must END the stream (the browser
     # reconnects on the retry hint), never raise out of the response - and the
     # next stream must come back on a fresh subscription.
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     agen = svc.event_stream()
     assert (await asyncio.wait_for(agen.__anext__(), timeout=3)).startswith("retry:")
 
@@ -234,7 +234,7 @@ async def test_second_event_in_a_window_is_announced(q, monkeypatch):
     has reopened before the first event."""
     rates = {"changed-fast": 0.2, "changed": 0.4, "changed-slow": 0.8}
     monkeypatch.setattr("matador.service.STREAM_RATES", rates)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     loop = asyncio.get_running_loop()
     seen: dict[str, list[float]] = {name: [] for name in rates}
     t0 = 0.0
@@ -273,7 +273,7 @@ async def test_quiet_stream_opens_every_rate_as_its_heartbeat(q, monkeypatch):
     rates = {"changed-fast": 0.1, "changed": 0.2, "changed-slow": 0.3}
     monkeypatch.setattr("matador.service.STREAM_RATES", rates)
     monkeypatch.setattr("matador.service.HEARTBEAT", 0.5)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     loop = asyncio.get_running_loop()
     seen: list[tuple[str, float]] = []
     t0 = loop.time()
@@ -303,7 +303,7 @@ async def test_each_rate_beats_on_its_own_clock(q, monkeypatch):
     that beat is what bounds how stale a region on the fast rate can be."""
     monkeypatch.setattr("matador.service.STREAM_RATES", {"changed-fast": 0.1, "changed-slow": 1.2})
     monkeypatch.setattr("matador.service.HEARTBEAT", 2.0)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     loop = asyncio.get_running_loop()
     fast: list[float] = []
     t0 = 0.0
@@ -348,7 +348,7 @@ async def test_a_beat_behind_a_closed_window_waits_for_it(q, monkeypatch):
         return real_next_wake(self)
 
     monkeypatch.setattr(Cadence, "next_wake", counting)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     frames: list[str] = []
 
     async def read() -> None:
@@ -407,7 +407,7 @@ async def test_a_coarse_clock_cannot_make_the_stream_spin(q, monkeypatch):
         return real_due(self, *args, **kwargs)
 
     monkeypatch.setattr(Cadence, "due", counting)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     frames: list[str] = []
 
     async def read() -> None:
@@ -440,7 +440,7 @@ async def test_a_storm_does_not_wake_the_stream_per_event(q, monkeypatch):
         return real_next_wake(self)
 
     monkeypatch.setattr(Cadence, "next_wake", counting)
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     loop = asyncio.get_running_loop()
     frames: list[str] = []
 

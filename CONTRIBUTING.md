@@ -8,7 +8,7 @@ cover the architecture, the views, the templates and the security model.
 
 Requirements: Python 3.10 or newer, [uv](https://docs.astral.sh/uv/), a checkout
 of toro next to this one, and, for the integration and e2e layers, a Redis
-server reachable on `localhost:6379`.
+server that you own, named by the `REDIS_URL` environment variable.
 
 During development matador depends on toro through the local path `../toro`
 (the `[tool.uv.sources]` override in `pyproject.toml`; a released
@@ -19,12 +19,16 @@ git clone https://github.com/ilovepixelart/toro
 git clone https://github.com/ilovepixelart/matador
 cd matador
 uv sync                                   # venv + deps + dev group, toro from ../toro
-docker run -d --name matador-redis -p 6379:6379 redis:7-alpine   # a Redis for the tests
+docker run -d --name matador-redis -p 127.0.0.1:6391:6379 redis:7-alpine   # a Redis for the tests
+export REDIS_URL=redis://localhost:6391
 uv run playwright install chromium        # once, for the e2e layer
 ```
 
 Tests write under the `matadortest` key prefix, but use a Redis of its own for
-them rather than one that holds real data. To try the dashboard by hand:
+them rather than one that holds real data. There is deliberately no default:
+port 6379 on a development machine often belongs to another project, so the
+suite never assumes it. To try the dashboard by hand (the dev scripts use a
+Redis on `localhost:6379`):
 
 ```bash
 uv run python scripts/seed.py             # optional: populate demo data
@@ -55,8 +59,9 @@ The suite is marked by folder (`tests/conftest.py` applies the marker):
 
 The e2e layer is excluded from a plain `pytest` run and runs on its own, since
 sync Playwright and pytest-asyncio cannot share one process. Integration and
-e2e tests skip when no Redis answers on `localhost:6379`, so a green run
-without Redis has not run them.
+e2e tests skip when `REDIS_URL` is unset ("set REDIS_URL to a Redis you own")
+or when no Redis answers on it, so a green run without `REDIS_URL` has not run
+them.
 
 ## Styling
 

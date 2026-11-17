@@ -5,7 +5,7 @@ from toro import Queue
 
 from matador import create_app
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, URL
 
 
 async def test_metrics_is_served_in_the_scrapers_content_type(client, seeded):
@@ -33,7 +33,7 @@ async def test_every_watched_queue_is_in_one_exposition(q, seeded):
     other = Queue("otherq", prefix=PREFIX)
     try:
         await other.add("j", {})
-        app = create_app([QUEUE, other.name], prefix=PREFIX)
+        app = create_app([QUEUE, other.name], url=URL, prefix=PREFIX)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             r = await c.get("/metrics")
 
@@ -67,9 +67,7 @@ async def test_the_exposition_reads_the_queues_together_and_counts_before_totals
 
     from matador.service import Service
 
-    svc = Service(
-        [QUEUE, "otherq"], url="redis://localhost:6379", prefix=PREFIX, connection=q.redis
-    )
+    svc = Service([QUEUE, "otherq"], url=URL, prefix=PREFIX, connection=q.redis)
     calls: list[str] = []
     gate = asyncio.Event()
 

@@ -4,11 +4,11 @@ from toro import FlowChild
 
 from matador.service import Service
 
-from .conftest import PREFIX, QUEUE, hx
+from .conftest import PREFIX, QUEUE, URL, hx
 
 
 async def test_clean_drains_in_batches(q, monkeypatch):
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     target = next(iter(svc.queues.values()))
     batches = iter([1000, 1000, 250])  # two full batches then a partial → drained
     calls = {"n": 0}
@@ -38,7 +38,7 @@ async def test_held_jobs_can_be_cleaned(client, q):
 
 async def test_cancel_parked_flows_drains_past_one_batch(q):
     """A batch reads 1000 parked roots; one more than that must still be cancelled."""
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     for i in range(1001):
         await q.add_flow("import", {"i": i}, children=[FlowChild("page", {})])
 

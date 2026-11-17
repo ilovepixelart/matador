@@ -13,7 +13,7 @@ from toro import Queue, Worker
 
 from matador.service import Service
 
-from .conftest import PREFIX, QUEUE, hx
+from .conftest import PREFIX, QUEUE, URL, hx
 
 
 async def _noop(job):
@@ -43,7 +43,7 @@ def worker(processor=_noop, **kw) -> Worker:
 
 @pytest.fixture
 async def svc(q):
-    return Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX, connection=q.redis)
+    return Service([QUEUE], url=URL, prefix=PREFIX, connection=q.redis)
 
 
 async def test_service_reports_cap_states(q, svc):

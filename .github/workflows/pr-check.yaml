@@ -35,6 +35,9 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     permissions:
       contents: read
+    # The Redis-backed layers run only against the Redis REDIS_URL names: the job's own.
+    env:
+      REDIS_URL: redis://localhost:6379
     services:
       redis:
         image: redis:7.4.12-alpine
@@ -167,6 +170,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # The Redis-backed layers run only against the Redis REDIS_URL names: the job's own.
+    env:
+      REDIS_URL: redis://localhost:6379
     services:
       redis:
         image: redis:7.4.12-alpine

@@ -2,11 +2,11 @@
 
 from matador.service import Service
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, URL
 
 
 async def test_redis_stats_ok_when_healthy(q):
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     stats = await svc.redis_stats()
     assert stats["ok"] is True
     assert stats["version"] != "?"
@@ -14,7 +14,7 @@ async def test_redis_stats_ok_when_healthy(q):
 
 
 async def test_redis_stats_degrades_on_error(q, monkeypatch):
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     target = next(iter(svc.queues.values())).redis
 
     async def boom(*_a, **_k):

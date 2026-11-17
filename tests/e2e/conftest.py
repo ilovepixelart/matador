@@ -18,10 +18,10 @@ import uvicorn
 from toro import Queue, Worker
 
 from matador import create_app
+from tests.conftest import REDIS_URL as URL
 
 PREFIX = "matadore2e"
 QUEUE = "e2eq"
-URL = "redis://localhost:6379"
 
 
 class _ThreadedUvicorn(uvicorn.Server):
