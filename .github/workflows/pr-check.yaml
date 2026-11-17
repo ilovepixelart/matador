@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - feature*
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -33,12 +32,12 @@ jobs:
       fail-fast: false
       matrix:
         # Everything the classifiers claim to support.
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     permissions:
       contents: read
     services:
       redis:
-        image: redis:7-alpine
+        image: redis:7.4.12-alpine
         ports:
           - 6379:6379
         options: >-
@@ -158,3 +157,94 @@ jobs:
       - name: Tests (e2e)
         if: matrix.python-version == '3.13'
         run: uv run pytest -m e2e
+
+  floors:
+    # The matrix above runs the newest of everything the lock pins. This job runs the
+    # oldest release of each runtime dependency pyproject.toml declares (the lock pins
+    # one version, so no other job ever installs the floor).
+    name: Tests (dependency floors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    services:
+      redis:
+        image: redis:7.4.12-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: matador
+    steps:
+      - name: Check out matador
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: matador
+          persist-credentials: false
+
+      # `uv sync --locked` needs the sibling the lock was made against; the floor of
+      # toro-queue then replaces it from PyPI.
+      - name: Pick the toro ref
+        id: toro-ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OWNER: ${{ github.repository_owner }}
+        run: sh .github/scripts/pick-toro-ref.sh
+
+      - name: Check out toro (sibling dependency)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/toro
+          ref: ${{ steps.toro-ref.outputs.ref }}
+          path: toro
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      # Keep these equal to the lower bounds in pyproject.toml's dependencies.
+      - name: Install the dependency floors
+        run: >-
+          uv pip install
+          "toro-queue==1.1.0"
+          "fastapi==0.110.0"
+          "uvicorn==0.29.0"
+          "jinja2==3.1.0"
+          "python-multipart==0.0.9"
+          "pygments==2.17.0"
+
+      - name: Tests (unit + integration)
+        run: uv run --no-sync pytest -m "unit or integration"
+
+  # The one check the branch rules require: it fails unless every job above
+  # succeeded, so adding or renaming a job never needs a ruleset change.
+  ci:
+    name: CI
+    needs: [check, floors]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job succeeded
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if ! printf '%s' "$RESULTS" | jq -e 'all(.[]; . == "success")' > /dev/null; then
+            echo "a required job did not succeed" >&2
+            exit 1
+          fi
