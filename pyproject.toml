@@ -70,8 +70,11 @@ dev = [
 package = true
 
 [tool.uv.sources]
-# dev-only override: use the local toro checkout instead of PyPI. Stripped from
-# the published package, so a released matador-dashboard depends on toro-queue from PyPI.
+# dev-only override: use the local toro checkout instead of PyPI. The wheel's metadata
+# carries only the `toro-queue>=` requirement, so an installed matador-dashboard takes
+# toro-queue from PyPI. The sdist ships this file unchanged, table included: pip and an
+# install of the sdist archive ignore it, but uv honours it when installing an unpacked
+# sdist directory, and that looks for ../toro.
 toro-queue = { path = "../toro", editable = true }
 
 [tool.ruff]
