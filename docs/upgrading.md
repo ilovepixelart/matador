@@ -2,6 +2,22 @@
 
 Breaking changes by release, newest first, each with what to do about it.
 
+## 1.0.7
+
+Nothing breaks. Two fixes.
+
+**The live job list works for every queue name.** The page script told a job-list
+request by `/jobs?` in its path, which a queue named `jobs` also has in its own panel
+URL, so every tab click on that queue was refused and the tabs went dead. It also
+compared a refresh's view against the raw response, where a name with `&` is escaped
+as `&amp;`, so no refresh ever landed on such a queue. Both now match: the path as the
+job-list route, the view after the response is parsed.
+
+**The service closes when the app exits with an error.** The app's lifespan closed the
+service after its `yield` with no `finally`, so a shutdown that raised skipped the close
+and left the live-update listener and the Redis connections matador opened behind. A
+mounted sub-app is unaffected: its lifespan never runs.
+
 ## 1.0.6
 
 Nothing breaks. Requires `toro-queue` 1.1.0.
