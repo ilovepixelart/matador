@@ -1132,8 +1132,10 @@ def create_app(  # noqa: PLR0913 - keyword-only knobs are the public configurati
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI):
-        yield
-        await svc.close()
+        try:
+            yield
+        finally:
+            await svc.close()
 
     app = FastAPI(
         title="matador",
