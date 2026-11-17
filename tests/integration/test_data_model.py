@@ -15,7 +15,7 @@ from toro import DATA_MODEL_VERSION
 
 from matador import create_app
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, URL
 
 pytestmark = pytest.mark.asyncio
 
@@ -57,7 +57,7 @@ async def test_a_newer_data_model_is_refused_rather_than_rendered(q, seeded, cli
     """
     await q.redis.hset(q.keys.meta, "model", str(DATA_MODEL_VERSION + 1))
 
-    routes = _queue_routes(create_app([QUEUE], prefix=PREFIX))
+    routes = _queue_routes(create_app([QUEUE], url=URL, prefix=PREFIX))
     assert routes, "found no queue-scoped routes to check"
     for path in routes:
         page = await client.get(path.format_map(_Params()), headers={"HX-Request": "true"})

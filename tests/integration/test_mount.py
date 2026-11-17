@@ -15,14 +15,14 @@ from starlette.routing import Mount
 
 from matador import create_app
 
-from .conftest import PREFIX, QUEUE, hx
+from .conftest import PREFIX, QUEUE, URL, hx
 
 MOUNT = "/admin/queues"
 
 
 def _host():
     host = FastAPI()
-    host.mount(MOUNT, create_app([QUEUE], url="redis://localhost:6379", prefix=PREFIX))
+    host.mount(MOUNT, create_app([QUEUE], url=URL, prefix=PREFIX))
     return host
 
 
@@ -90,7 +90,7 @@ def _with_namesakes(order: str, trap_dir) -> tuple[FastAPI, set[str]]:
     Generated from matador's own route table, so a route matador adds later is
     covered without touching this test.
     """
-    dashboard = create_app([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    dashboard = create_app([QUEUE], url=URL, prefix=PREFIX)
     host = FastAPI()
     names: set[str] = set()
 
@@ -187,7 +187,7 @@ async def test_dependencies_protect_every_route(seeded):
 
     app = create_app(
         [QUEUE],
-        url="redis://localhost:6379",
+        url=URL,
         prefix=PREFIX,
         dependencies=[Depends(require_token)],
     )
@@ -221,7 +221,7 @@ async def test_shared_connection_is_not_closed_by_matador(q):
 
     from matador.service import Service
 
-    conn = aioredis.from_url("redis://localhost:6379", decode_responses=True)
+    conn = aioredis.from_url(URL, decode_responses=True)
     svc = Service([QUEUE], url="redis://unused", prefix=PREFIX, connection=conn)
     assert await svc.overview() is not None  # reads work over the borrowed client
     await svc.close()  # must be a no-op for a borrowed connection

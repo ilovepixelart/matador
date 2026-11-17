@@ -1,6 +1,6 @@
 """Integration: GET routes render the right HTML - full page vs htmx fragment."""
 
-from .conftest import QUEUE, hx
+from .conftest import QUEUE, URL, hx
 
 
 async def test_index_lists_queues(client, seeded):
@@ -155,7 +155,7 @@ async def test_index_with_no_queues_configured_renders_empty(seeded):
 
     from matador import create_app
 
-    app = create_app([], url="redis://localhost:6379", prefix="matadortest")
+    app = create_app([], url=URL, prefix="matadortest")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.get("/")
     assert r.status_code == 200

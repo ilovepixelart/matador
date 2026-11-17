@@ -8,7 +8,7 @@ import asyncio
 from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees readable
 from toro import Worker
 
-from .conftest import PREFIX, QUEUE, hx
+from .conftest import PREFIX, QUEUE, URL, hx
 
 
 async def _flow(q, *, settle: int = 0):
@@ -190,7 +190,7 @@ async def test_service_flow_detail_counts_by_child_state(q):
     await worker.stop(grace_period=0)
     task.cancel()
 
-    svc = Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    svc = Service([QUEUE], url=URL, prefix=PREFIX)
     try:
         detail = await svc.job(QUEUE, parent.id)
     finally:

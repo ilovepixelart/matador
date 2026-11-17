@@ -11,9 +11,7 @@ from toro import Queue, Worker
 
 from matador.service import Service
 
-from .conftest import PREFIX, QUEUE
-
-URL = "redis://localhost:6379"
+from .conftest import PREFIX, QUEUE, URL
 
 
 async def _completed_once(q: Queue):

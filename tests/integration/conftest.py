@@ -11,6 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from toro import Queue, Worker
 
 from matador import create_app
+from tests.conftest import REDIS_URL as URL
 
 PREFIX = "matadortest"
 QUEUE = "testq"
@@ -62,7 +63,7 @@ async def seeded(q):
 @pytest.fixture
 async def client(q):
     """An httpx client bound to the matador app (same Redis/prefix as `q`)."""
-    app = create_app([QUEUE], url="redis://localhost:6379", prefix=PREFIX)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

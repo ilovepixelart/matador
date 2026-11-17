@@ -9,6 +9,8 @@ from toro import FlowChild as c  # noqa: N813 - `c("fetch", ...)` keeps trees re
 
 from matador.service import STATES, Service
 
+from .conftest import URL
+
 PREFIX = "matadortest"
 QUEUE = "testq"
 PER_PAGE = 20
@@ -17,7 +19,7 @@ PER_PAGE = 20
 @pytest.fixture
 async def svc(q):
     # share the test queue's connection so Service sees exactly what `q` seeds
-    return Service([QUEUE], url="redis://localhost:6379", prefix=PREFIX, connection=q.redis)
+    return Service([QUEUE], url=URL, prefix=PREFIX, connection=q.redis)
 
 
 async def _seed_completed(q, n, *, prefix="d"):

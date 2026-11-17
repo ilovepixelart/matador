@@ -14,7 +14,7 @@ from toro import FlowChild, Worker
 
 from matador import create_app
 
-from .conftest import PREFIX, QUEUE, hx
+from .conftest import PREFIX, QUEUE, URL, hx
 
 
 def _mutating_routes(app) -> list[tuple[str, str]]:
@@ -129,14 +129,14 @@ async def failed_flow(q):
 @pytest.fixture
 async def unlocked(q):
     """The default dashboard: no predicate, so everything is allowed."""
-    app = create_app([QUEUE], prefix=PREFIX)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c, app
 
 
 @pytest.fixture
 async def locked(q):
-    app = create_app([QUEUE], prefix=PREFIX, can_mutate=lambda request: False)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, can_mutate=lambda request: False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c, app
@@ -224,7 +224,7 @@ async def test_a_predicate_that_raises_leaves_a_dashboard_that_reads(q, seeded, 
     def boom(request):
         raise RuntimeError("the session store is down")
 
-    app = create_app([QUEUE], prefix=PREFIX, can_mutate=boom)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, can_mutate=boom)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         page = await c.get(f"/queues/{QUEUE}", headers=hx())
         mutating = await c.post(f"/queues/{QUEUE}/pause", headers=hx())
@@ -244,7 +244,7 @@ async def test_the_predicate_sees_the_request(q, seeded):
         seen.append(request.headers.get("x-role"))
         return request.headers.get("x-role") == "admin"
 
-    app = create_app([QUEUE], prefix=PREFIX, can_mutate=can_mutate)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, can_mutate=can_mutate)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         denied = await c.post(f"/queues/{QUEUE}/pause", headers=hx(**{"x-role": "viewer"}))
         allowed = await c.post(f"/queues/{QUEUE}/pause", headers=hx(**{"x-role": "admin"}))

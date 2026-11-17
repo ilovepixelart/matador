@@ -5,13 +5,13 @@ from httpx import ASGITransport, AsyncClient
 
 from matador import create_app
 
-from .conftest import PREFIX, QUEUE
+from .conftest import PREFIX, QUEUE, URL
 
 
 @pytest.fixture
 async def guarded_client(q):
     # `q` gives a clean, isolated queue; require_same_origin turns on the guard
-    app = create_app([QUEUE], prefix=PREFIX, require_same_origin=True)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, require_same_origin=True)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -44,7 +44,7 @@ async def test_cross_origin_get_is_not_blocked(guarded_client):
 async def test_the_guard_can_be_turned_off(q):
     """Off is one argument away, for a host that fronts matador with something that
     already rejects cross-origin requests, or one that has no browser near it."""
-    app = create_app([QUEUE], prefix=PREFIX, require_same_origin=False)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, require_same_origin=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
@@ -53,7 +53,7 @@ async def test_the_guard_can_be_turned_off(q):
 
 async def test_stacktrace_hidden_when_disabled(q, seeded):
     # show_stacktraces=False omits the trace (info-disclosure control)
-    app = create_app([QUEUE], prefix=PREFIX, show_stacktraces=False)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, show_stacktraces=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.get(
@@ -68,7 +68,7 @@ async def test_the_guard_is_on_by_default(q):
     authenticates in more ways than `dependencies=`: middleware, a session, a proxy.
     Keying the default on `dependencies` left every one of those mounts open to a
     plain cross-origin form post."""
-    app = create_app([QUEUE], prefix=PREFIX)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
@@ -79,7 +79,7 @@ async def test_a_form_post_from_another_page_is_blocked(q, seeded):
     """The shape that matters: an HTML form on an attacker's page, which sends a
     urlencoded body and needs no preflight. Nothing else in the request says it is
     hostile."""
-    app = create_app([QUEUE], prefix=PREFIX)
+    app = create_app([QUEUE], url=URL, prefix=PREFIX)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post(
@@ -100,7 +100,7 @@ async def test_the_guard_stays_on_with_dependencies_configured(q):
     async def allow():
         return True
 
-    app = create_app([QUEUE], prefix=PREFIX, dependencies=[Depends(allow)])
+    app = create_app([QUEUE], url=URL, prefix=PREFIX, dependencies=[Depends(allow)])
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post(f"/queues/{QUEUE}/pause", headers={"origin": "http://evil.example"})
@@ -114,7 +114,7 @@ async def test_require_same_origin_false_turns_the_guard_off_with_dependencies(q
         return True
 
     app = create_app(
-        [QUEUE], prefix=PREFIX, dependencies=[Depends(allow)], require_same_origin=False
+        [QUEUE], url=URL, prefix=PREFIX, dependencies=[Depends(allow)], require_same_origin=False
     )
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -126,7 +126,7 @@ def test_unauthenticated_app_warns_at_startup(caplog):
     import logging
 
     with caplog.at_level(logging.WARNING, logger="matador"):
-        create_app([QUEUE], prefix=PREFIX)
+        create_app([QUEUE], url=URL, prefix=PREFIX)
     assert any("no auth" in r.message for r in caplog.records)
 
 
@@ -139,5 +139,5 @@ def test_authenticated_app_does_not_warn(caplog):
         return True
 
     with caplog.at_level(logging.WARNING, logger="matador"):
-        create_app([QUEUE], prefix=PREFIX, dependencies=[Depends(allow)])
+        create_app([QUEUE], url=URL, prefix=PREFIX, dependencies=[Depends(allow)])
     assert not any("no auth" in r.message for r in caplog.records)

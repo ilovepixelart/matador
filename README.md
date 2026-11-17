@@ -139,7 +139,7 @@ Managed with [uv](https://astral.sh/uv); the Astral toolchain throughout.
 uv sync                          # venv + deps + dev group
 uv run ruff check . && uv run ruff format .   # lint (strict) + format
 uv run ty check                  # type check
-uv run pytest                    # unit + integration (needs Redis on :6379)
+uv run pytest                    # unit + integration (integration needs REDIS_URL)
 uv run pytest -m e2e             # Playwright browser tests (run separately)
 
 # rebuild the stylesheet while editing templates/styles
