@@ -112,7 +112,7 @@ def _fold_counts(counts: dict[str, int]) -> dict[str, int]:
 
 
 def _human_bytes(n: float | None) -> str:
-    if not n or n < 0:
+    if n is None or n <= 0:
         return "-"
     for unit in ("B", "K", "M", "G", "T"):
         if n < 1024:
@@ -574,7 +574,7 @@ class Service:
             detail["logs"] = await q.get_logs(job_id, -MAX_LOG_LINES, -1)
             detail["logs_total"] = await q.redis.llen(q.keys.logs(job_id))
         detail["queue"] = name  # jobs carry their queue (needed for cross-queue views)
-        if j.children_ids:
+        if j.children_ids is not None and len(j.children_ids) > 0:
             detail |= await self._flow_detail(q, j)
         return detail
 
@@ -844,7 +844,7 @@ class Service:
             "concurrency_key": j.opts.concurrency_key,
             # Flow membership: parents show a child count, children a parent link.
             "parent_id": j.parent_id,
-            "children_count": len(j.children_ids) if j.children_ids else 0,
+            "children_count": len(j.children_ids) if j.children_ids is not None else 0,
             "children_ids": list(j.children_ids or []),
         }
 
