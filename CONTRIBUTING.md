@@ -47,6 +47,7 @@ uv run ruff format --check .               # format (drop --check to apply)
 uv run ty check                            # type check
 uv run pytest                              # unit + integration (the default)
 uv run pytest -m e2e                       # Playwright browser tests, run separately
+uv run pytest -m wheel                     # the built wheel, installed (needs network)
 ```
 
 The suite is marked by folder (`tests/conftest.py` applies the marker):
@@ -56,12 +57,24 @@ The suite is marked by folder (`tests/conftest.py` applies the marker):
 | `unit` | `tests/unit` | no |
 | `integration` | `tests/integration` | yes |
 | `e2e` | `tests/e2e` | yes, plus a Playwright browser |
+| `wheel` | `tests/wheel` | yes, plus network access to PyPI |
 
 The e2e layer is excluded from a plain `pytest` run and runs on its own, since
-sync Playwright and pytest-asyncio cannot share one process. Integration and
-e2e tests skip when `REDIS_URL` is unset ("set REDIS_URL to a Redis you own")
-or when no Redis answers on it, so a green run without `REDIS_URL` has not run
-them.
+sync Playwright and pytest-asyncio cannot share one process. Integration, e2e
+and wheel tests skip when `REDIS_URL` is unset ("set REDIS_URL to a Redis you
+own") or when no Redis answers on it, so a green run without `REDIS_URL` has not
+run them.
+
+The wheel layer tests what a user installs rather than the source tree. It
+builds the wheel with `uv build`, installs it into a fresh virtual environment
+outside the repository with its dependencies from PyPI (toro-queue included, not
+the sibling checkout), and runs `tests/wheel/scenarios.py` there: the dashboard is
+started through the installed `matador` command and every route is called over
+HTTP. It runs once with the newest toro-queue and once with the oldest one the
+wheel accepts. It also runs the same scenarios against the release
+`tests/wheel/allowlist.json` names and fails on any difference that file does not
+list. A pull request that changes user-visible behavior adds an entry with its
+number; a release moves `baseline` forward and empties the list.
 
 ## Styling
 

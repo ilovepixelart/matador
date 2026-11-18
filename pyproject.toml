@@ -110,6 +110,10 @@ ignore = [
 # prints, implicit-namespace, lazy imports, and Playwright/pytest idioms.
 "tests/**" = ["S101", "S105", "N806", "RUF001", "ANN", "D", "SLF001", "ARG", "PT011",
               "INP001", "PT018", "PT006", "PLC0415", "PLW0603", "T201", "PLW0108", "FBT003"]
+# The wheel layer runs the executables it installs (uv, resolved on PATH, and the
+# environments and console script it just created) and calls the dashboard it started
+# over plain http://127.0.0.1 with urllib.
+"tests/wheel/**" = ["S603", "S310"]
 "scripts/run.py" = ["ANN", "D", "T201", "INP001"]
 "scripts/seed.py" = ["ANN", "D", "T201", "INP001", "S311", "PLR0915", "PLR0913"]
 
@@ -121,10 +125,12 @@ asyncio_mode = "auto"
 # Each test gets its own event loop, which is pytest-asyncio's documented default.
 asyncio_default_fixture_loop_scope = "function"
 # The matador test pyramid, by marker (auto-applied by folder in conftest):
-#   pytest          fast layer - unit + integration (default; excludes e2e)
+#   pytest          fast layer - unit + integration (default; excludes e2e, wheel)
 #   pytest -m e2e   Playwright browser tests, run as their own job (sync Playwright
 #                   and pytest-asyncio can't share one process, so e2e runs separately)
-addopts = "--strict-markers --import-mode=importlib -m 'not e2e'"
+#   pytest -m wheel the built wheel, installed in a fresh environment beside the
+#                   published release, run through its `matador` command
+addopts = "--strict-markers --import-mode=importlib -m 'not e2e and not wheel'"
 # A coroutine nobody awaited is a bug, not a warning: `lambda: counts() == 2` compares
 # a coroutine to an int, which is always false, and a poll on it would never hold.
 filterwarnings = ["error::RuntimeWarning"]
@@ -132,6 +138,7 @@ markers = [
     "unit: pure-logic tests, no I/O",
     "integration: ASGI + Redis route/service tests",
     "e2e: Playwright browser tests (slow; opt-in)",
+    "wheel: the built wheel installed in a fresh environment, against Redis (opt-in)",
 ]
 
 [tool.coverage.run]

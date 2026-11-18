@@ -1,8 +1,9 @@
 """Shared test harness for the matador pyramid.
 
 Layout: tests/unit (pure view/transform logic) · tests/integration (ASGI + Redis)
-· tests/e2e (Playwright). Tests are auto-marked by folder, so `pytest -m unit` runs
-the fast layer. Integration/e2e use the Redis named by the REDIS_URL environment
+· tests/e2e (Playwright) · tests/wheel (the built wheel, installed in a fresh
+environment). Tests are auto-marked by folder, so `pytest -m unit` runs the fast
+layer. Integration/e2e/wheel use the Redis named by the REDIS_URL environment
 variable and skip when it is unset; there is no default, since port 6379 on a
 developer machine may belong to another project and these tests write to it. They
 also skip when that Redis does not answer.
@@ -18,7 +19,7 @@ from toro import Queue, Worker
 PREFIX = "matadortest"
 # The one place the suite learns which Redis to write to: opt-in, never defaulted.
 REDIS_URL = os.environ.get("REDIS_URL", "")
-_REDIS_LAYERS = ("integration", "e2e")
+_REDIS_LAYERS = ("integration", "e2e", "wheel")
 _NO_REDIS_URL = pytest.mark.skip(
     reason="set REDIS_URL to a Redis you own, e.g. redis://localhost:6391"
 )
@@ -33,6 +34,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         elif "/e2e/" in path:
             item.add_marker(pytest.mark.e2e)
+        elif "/wheel/" in path:
+            item.add_marker(pytest.mark.wheel)
         # Skipped before setup, so no fixture of a Redis layer ever builds a client.
         if not REDIS_URL and any(item.get_closest_marker(layer) for layer in _REDIS_LAYERS):
             item.add_marker(_NO_REDIS_URL)
@@ -56,9 +59,7 @@ def _redis_reachable() -> bool:
 
 @pytest.fixture(autouse=True)
 def _require_redis(request):
-    needs_redis = request.node.get_closest_marker("integration") or request.node.get_closest_marker(
-        "e2e"
-    )
+    needs_redis = any(request.node.get_closest_marker(layer) for layer in _REDIS_LAYERS)
     if needs_redis and not _redis_reachable():
         pytest.skip(f"no Redis answers on REDIS_URL ({REDIS_URL})")
 
